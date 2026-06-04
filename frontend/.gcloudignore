@@ -1,0 +1,17 @@
+.gcloudignore
+.git
+
+node_modules/
+dist/
+coverage/
+.lovable/
+
+.env
+.env.*
+*.env
+*.env.*
+
+*.log
+*.pdf
+*.docx
+*.xlsx

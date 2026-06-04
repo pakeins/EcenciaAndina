@@ -45,6 +45,13 @@ const telegramLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.API_RATE_LIMIT || 600),
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Servir archivos estÃƒÂ¡ticos de convenios
 // --- RUTAS ---
 
@@ -58,7 +65,7 @@ app.get('/api/check-db', async (req, res) => {
   try {
     // Si tienes una tabla Empleados en Supabase, esto funcionarÃƒÂ¡.
     // Caso contrario, al menos verificamos que el cliente no se caiga.
-    const { data, error } = await supabase.from('empleados').select('*').limit(1);
+    const { error } = await supabase.from('empleados').select('id').limit(1);
 
     if (error) {
       throw error;
@@ -66,19 +73,20 @@ app.get('/api/check-db', async (req, res) => {
 
     res.json({
       mensaje: 'Backend y Supabase conectados exitosamente',
-      datos_prueba: data,
     });
   } catch (error) {
     res.status(500).json({
       error: 'Error conectando a Supabase',
-      detalle: error.message,
+      ...(process.env.NODE_ENV === 'production' ? {} : { detalle: error.message }),
     });
   }
 });
 
 // 3. ConexiÃƒÂ³n de las Rutas de la API
 // Esto significa que todas las rutas empezarÃƒÂ¡n con /api/...
+app.use('/api', apiLimiter);
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/telegram', telegramLimiter, require('./src/routes/telegram'));
 app.use('/api/productos', require('./src/routes/productos'));
@@ -92,11 +100,24 @@ app.use('/api/alimentos', require('./src/routes/alimentos'));
 app.use('/api/menu', require('./src/routes/menu'));
 
 app.use((error, req, res, next) => {
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
+
   if (error?.message === 'Origen no permitido por CORS') {
     res.status(403).json({ error: 'Origen no permitido por CORS' });
     return;
   }
-  next(error);
+
+  const status = Number(error?.status || error?.statusCode || 500);
+  if (status >= 500) {
+    console.error('Error no controlado:', error);
+  }
+
+  res.status(status >= 400 && status < 600 ? status : 500).json({
+    error: status >= 500 ? 'Error interno del servidor' : error.message,
+  });
 });
 
 if (require.main === module) {

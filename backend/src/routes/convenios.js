@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
-const UPLOAD_DIR = path.resolve(__dirname, '../../../convenios');
+const UPLOAD_DIR = path.resolve(process.env.CONVENIOS_UPLOAD_DIR || path.join(__dirname, '../../../convenios'));
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // ConfiguraciÃ³n de Multer para almacenamiento local

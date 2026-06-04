@@ -5,9 +5,11 @@ frontend/node_modules/
 
 # Configuracion y Secretos
 .env
+.env.*
 .env.local
 .env.jira
 *.env
+*.env.*
 *.env.local
 
 # Base de datos local

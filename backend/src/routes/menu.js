@@ -11,6 +11,7 @@ const MENU_ASSETS_BUCKET = 'eciencia-menu-assets';
 const TIMEZONE = 'America/Bogota';
 const DEFAULT_IMAGE_RETENTION_DAYS = 14;
 const MAX_MENU_IMAGE_BYTES = 5 * 1024 * 1024;
+const LOCAL_WEBHOOK_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
@@ -44,6 +45,42 @@ const buildMenuPayload = (body) => ({
 const cleanClientIds = (clientIds) => {
   if (!Array.isArray(clientIds)) return [];
   return clientIds.map((id) => String(id || '').trim()).filter(Boolean);
+};
+
+const getN8nMenuWebhookUrl = () => {
+  const configuredUrl = process.env.N8N_MENU_WEBHOOK_URL || '';
+  const webhookUrl = configuredUrl || (process.env.NODE_ENV === 'production' ? '' : DEFAULT_N8N_MENU_WEBHOOK_URL);
+
+  if (!webhookUrl) {
+    const error = new Error('Falta N8N_MENU_WEBHOOK_URL en produccion.');
+    error.status = 500;
+    throw error;
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(webhookUrl);
+  } catch {
+    const error = new Error('N8N_MENU_WEBHOOK_URL no es una URL valida.');
+    error.status = 500;
+    throw error;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    if (parsedUrl.protocol !== 'https:') {
+      const error = new Error('N8N_MENU_WEBHOOK_URL debe usar HTTPS en produccion.');
+      error.status = 500;
+      throw error;
+    }
+
+    if (LOCAL_WEBHOOK_HOSTS.has(parsedUrl.hostname.toLowerCase())) {
+      const error = new Error('N8N_MENU_WEBHOOK_URL no puede apuntar a localhost en produccion.');
+      error.status = 500;
+      throw error;
+    }
+  }
+
+  return parsedUrl.toString();
 };
 
 const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
@@ -462,7 +499,7 @@ router.post('/enviar', async (req, res) => {
     const dailyMenu = await saveDailyMenu(adminClient, menu, photoUrl, req.user.id);
     await saveActiveMenuState(adminClient, dailyMenu.fecha, menu, photoUrl, req.user.id);
     const cleanup = await cleanupOldMenuImages(adminClient);
-    const webhookUrl = process.env.N8N_MENU_WEBHOOK_URL || DEFAULT_N8N_MENU_WEBHOOK_URL;
+    const webhookUrl = getN8nMenuWebhookUrl();
     const clientIds = cleanClientIds(payload.clientIds);
 
     const response = await fetch(webhookUrl, {
