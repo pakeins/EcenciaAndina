@@ -54,10 +54,12 @@ gcloud run deploy eciencia-backend `
   --min-instances 0 `
   --max-instances 1 `
   --memory 512Mi `
-  --set-env-vars NODE_ENV=production,PORT=3001
+  --port 3001 `
+  --set-env-vars NODE_ENV=production
 ```
 
 Configura variables reales en Cloud Run. Si Secret Manager no esta disponible en el plan, usa un archivo local ignorado, por ejemplo `backend/.env.cloudrun.preprod.yaml`, y pasalo con `--env-vars-file`.
+No incluyas `PORT` en ese archivo: Cloud Run lo reserva y lo define automaticamente desde `--port`.
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`

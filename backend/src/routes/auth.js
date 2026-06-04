@@ -12,6 +12,26 @@ const mapRoleToAppRole = (roleName = '') => {
   return 'caja';
 };
 
+const USERNAME_LOGIN_PATTERN = /^[A-Za-z0-9._-]{1,40}$/;
+
+const findEmployeeByUsername = async (adminClient, username) => {
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  if (!USERNAME_LOGIN_PATTERN.test(username)) return null;
+
+  const { data, error } = await adminClient
+    .from('empleados')
+    .select('correo,nombre_usuario')
+    .limit(1000);
+
+  if (error) throw error;
+
+  const matches = (data || []).filter(
+    (empleado) => String(empleado.nombre_usuario || '').trim().toLowerCase() === normalizedUsername
+  );
+
+  return matches.length === 1 ? matches[0] : null;
+};
+
 // Ruta para el LOGIN
 router.post('/login', async (req, res) => {
   try {
@@ -24,13 +44,9 @@ router.post('/login', async (req, res) => {
 
     // Si es nombre de usuario, buscar correo
     if (!loginId.includes('@')) {
-      const { data: empleado, error: empError } = await adminClient
-        .from('empleados')
-        .select('correo')
-        .eq('nombre_usuario', loginId)
-        .single();
+      const empleado = await findEmployeeByUsername(adminClient, loginId);
 
-      if (empError || !empleado) {
+      if (!empleado) {
         console.warn('Login: identificador no valido o no registrado.');
         return res.status(401).json({ mensaje: 'Credenciales invalidas' });
       }
@@ -147,5 +163,10 @@ router.post('/refresh', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
+
+router._private = {
+  findEmployeeByUsername,
+  USERNAME_LOGIN_PATTERN,
+};
 
 module.exports = router;
