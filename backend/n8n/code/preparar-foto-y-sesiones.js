@@ -148,8 +148,17 @@ function menuFromPayload(payload) {
   return menu;
 }
 
+function ensureHttpsImageUrl(value, label) {
+  const imageUrl = String(value || '').trim();
+  if (!imageUrl) return '';
+  if (!/^https:\/\//i.test(imageUrl)) {
+    throw new Error((label || 'La imagen del menu') + ' debe usar una URL HTTPS publica.');
+  }
+  return imageUrl;
+}
+
 function imageUrlFromPayload(payload) {
-  return String(payload?.photoUrl || payload?.menuImageUrl || payload?.imageUrl || '').trim();
+  return ensureHttpsImageUrl(payload?.photoUrl || payload?.menuImageUrl || payload?.imageUrl, 'La imagen enviada al webhook');
 }
 
 function buttonRows(buttons) {
@@ -278,11 +287,23 @@ function activeConvenio(client, today) {
 }
 
 const today = todayInTimezone(CONFIG.timezone);
-const payload = items[0]?.json?.body || items[0]?.json || {};
+const rawInput = items[0]?.json || {};
+const expectedWebhookSecret = cfg('N8N_MENU_WEBHOOK_SECRET');
+if (expectedWebhookSecret && (rawInput.headers || rawInput.body)) {
+  const headers = rawInput.headers || {};
+  const receivedSecret =
+    headers['x-eciencia-webhook-secret'] ||
+    headers['X-Eciencia-Webhook-Secret'] ||
+    headers['X-ECIENCIA-WEBHOOK-SECRET'];
+  if (receivedSecret !== expectedWebhookSecret) {
+    throw new Error('Webhook manual no autorizado.');
+  }
+}
+const payload = rawInput.body || rawInput || {};
 const payloadMenu = menuFromPayload(payload);
 const activeMenu = payloadMenu ? null : await getActiveMenu();
 const menu = payloadMenu || activeMenu?.menu || await getMenuFromSupabase();
-const photoUrl = imageUrlFromPayload(payload) || activeMenu?.photoUrl || CONFIG.menuImageUrl;
+const photoUrl = ensureHttpsImageUrl(imageUrlFromPayload(payload) || activeMenu?.photoUrl || CONFIG.menuImageUrl);
 const targetClientIds = new Set(cleanOptions(payload.clientIds));
 const product = await getProduct();
 const estadoReservadoId = await getLookupId('estados_orden', 'id_estado', 'nombre_estado', CONFIG.estadoReservadoName);

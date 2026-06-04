@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { FIELD_LIMITS, isNonNegativeNumber } from '@/lib/validation';
 
 interface Product {
   id: string;
@@ -86,11 +87,11 @@ export default function Productos() {
         apiFetch('/productos'),
         apiFetch('/categorias')
       ]);
-      
+
       if (prodRes.ok) setProducts(await prodRes.json());
       if (catRes.ok) setCategories(await catRes.json());
     } catch (err) {
-      toast.error('Error de conexión');
+      toast.error('Error de conexiÃ³n');
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +124,14 @@ export default function Productos() {
   const saveProduct = async () => {
     if (!productForm.nombre || !productForm.precio || !productForm.id_categoria) {
       toast.error('Complete todos los campos'); return;
+    }
+    if (productForm.nombre.trim().length > 80 || productForm.descripcion.trim().length > FIELD_LIMITS.descripcion) {
+      toast.error('Revise la longitud del nombre o la descripcion');
+      return;
+    }
+    if (!isNonNegativeNumber(productForm.precio)) {
+      toast.error('El precio no puede ser negativo');
+      return;
     }
     setIsSaving(true);
     try {
@@ -157,10 +166,10 @@ export default function Productos() {
         setProducts(products.map(p => p.id === product.id ? data : p));
         toast.success(`Producto ${data.activo ? 'activado' : 'desactivado'}`);
       }
-    } catch (err) { toast.error('Error de conexión'); }
+    } catch (err) { toast.error('Error de conexiÃ³n'); }
   };
 
-  // --- CATEGORÍAS ---
+  // --- CATEGORÃAS ---
   const handleOpenCategory = (category?: Category) => {
     if (category) {
       setEditingCategory(category);
@@ -185,14 +194,14 @@ export default function Productos() {
           setCategories(categories.map(c => c.id_categoria === editingCategory.id_categoria ? data : c));
           fetchData(); // Refrescar nombres en productos
         } else setCategories([...categories, data]);
-        toast.success(editingCategory ? 'Categoría actualizada' : 'Categoría creada');
+        toast.success(editingCategory ? 'CategorÃ­a actualizada' : 'CategorÃ­a creada');
         setCategoryDialogOpen(false);
       } else toast.error(data.error);
     } finally { setIsSaving(false); }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredProducts = products.filter(p =>
+    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.categoria_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -205,15 +214,15 @@ export default function Productos() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
-          Catálogo de Productos
+          CatÃ¡logo de Productos
         </h1>
-        <p className="text-muted-foreground text-lg">Gestione los productos y categorías de Ecencia Andina</p>
+        <p className="text-muted-foreground text-lg">Gestione los productos y categorÃ­as de Ecencia Andina</p>
       </div>
 
       <Tabs defaultValue="products" className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
           <TabsTrigger value="products" className="gap-2"><Package className="h-4 w-4" /> Productos</TabsTrigger>
-          <TabsTrigger value="categories" className="gap-2"><Layers className="h-4 w-4" /> Categorías</TabsTrigger>
+          <TabsTrigger value="categories" className="gap-2"><Layers className="h-4 w-4" /> CategorÃ­as</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="space-y-4 pt-4">
@@ -235,7 +244,7 @@ export default function Productos() {
                 <TableHeader>
                   <TableRow className="bg-secondary/10 hover:bg-secondary/10">
                     <TableHead className="text-cafe font-bold">Producto</TableHead>
-                    <TableHead className="text-cafe font-bold">Categoría</TableHead>
+                    <TableHead className="text-cafe font-bold">CategorÃ­a</TableHead>
                     <TableHead className="text-cafe font-bold">Precio</TableHead>
                     <TableHead className="text-cafe font-bold">Estado</TableHead>
                     <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>
@@ -258,9 +267,9 @@ export default function Productos() {
                       <TableCell className="font-semibold">${p.precio.toFixed(2)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Switch 
-                            checked={p.activo} 
-                            onCheckedChange={() => toggleProductStatus(p)} 
+                          <Switch
+                            checked={p.activo}
+                            onCheckedChange={() => toggleProductStatus(p)}
                           />
                           <Badge variant={p.activo ? 'default' : 'secondary'}>
                             {p.activo ? 'Activo' : 'Inactivo'}
@@ -287,16 +296,16 @@ export default function Productos() {
           <div className="flex items-center justify-between gap-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                placeholder="Buscar categoría..." 
-                className="pl-10" 
-                value={categorySearchTerm} 
-                onChange={e => setCategorySearchTerm(e.target.value)} 
+              <Input
+                placeholder="Buscar categorÃ­a..."
+                className="pl-10"
+                value={categorySearchTerm}
+                onChange={e => setCategorySearchTerm(e.target.value)}
               />
             </div>
             <Button onClick={() => handleOpenCategory()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
               <Plus className="mr-2 h-4 w-4" />
-              Nueva Categoría
+              Nueva CategorÃ­a
             </Button>
           </div>
 
@@ -306,16 +315,16 @@ export default function Productos() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-secondary/10 hover:bg-secondary/10">
-                      <TableHead className="text-cafe font-bold">Nombre de la Categoría</TableHead>
+                      <TableHead className="text-cafe font-bold">Nombre de la CategorÃ­a</TableHead>
                       <TableHead className="text-cafe font-bold">Productos Vinculados</TableHead>
                       <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">Cargando categorías...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">Cargando categorÃ­as...</TableCell></TableRow>
                     ) : filteredCategories.length === 0 ? (
-                      <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No se encontraron categorías.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No se encontraron categorÃ­as.</TableCell></TableRow>
                     ) : filteredCategories.map(c => (
                       <TableRow key={c.id_categoria}>
                         <TableCell className="font-medium text-foreground">
@@ -331,7 +340,7 @@ export default function Productos() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleOpenCategory(c)} title="Editar categoría">
+                            <Button variant="outline" size="sm" onClick={() => handleOpenCategory(c)} title="Editar categorÃ­a">
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </div>
@@ -356,7 +365,7 @@ export default function Productos() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nombre del Producto *</Label>
-              <Input value={productForm.nombre} onChange={e => setProductForm({...productForm, nombre: e.target.value})} placeholder="Ej: Almuerzo Ejecutivo" />
+              <Input value={productForm.nombre} onChange={e => setProductForm({...productForm, nombre: e.target.value})} placeholder="Ej: Almuerzo Ejecutivo" maxLength={80} />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -364,10 +373,10 @@ export default function Productos() {
                   <Label>Precio Unitario ($) *</Label>
                   <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Incluye IVA</span>
                 </div>
-                <Input type="number" step="0.01" value={productForm.precio} onChange={e => setProductForm({...productForm, precio: e.target.value})} placeholder="0.00" />
+                <Input type="number" min="0" step="0.01" value={productForm.precio} onChange={e => setProductForm({...productForm, precio: e.target.value})} placeholder="0.00" />
               </div>
               <div className="space-y-2">
-                <Label>Categoría *</Label>
+                <Label>CategorÃ­a *</Label>
                 <Select value={productForm.id_categoria} onValueChange={v => setProductForm({...productForm, id_categoria: v})}>
                   <SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger>
                   <SelectContent>
@@ -377,11 +386,11 @@ export default function Productos() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Descripción</Label>
-              <Textarea 
-                value={productForm.descripcion} 
-                onChange={e => setProductForm({...productForm, descripcion: e.target.value})} 
-                placeholder="Detalle los ingredientes o características del producto..." 
+              <Label>DescripciÃ³n</Label>
+              <Textarea
+                value={productForm.descripcion}
+                onChange={e => setProductForm({...productForm, descripcion: e.target.value})}
+                placeholder="Detalle los ingredientes o caracterÃ­sticas del producto..."
                 className="resize-none"
               />
             </div>
@@ -393,19 +402,19 @@ export default function Productos() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Categoría */}
+      {/* Dialog CategorÃ­a */}
       <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingCategory ? 'Editar CategorÃ­a' : 'Nueva CategorÃ­a'}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Nombre de la Categoría *</Label>
-              <Input value={categoryForm.nombre_categoria} onChange={e => setCategoryForm({nombre_categoria: e.target.value})} placeholder="Ej: Bebidas, Postres..." />
+              <Label>Nombre de la CategorÃ­a *</Label>
+              <Input value={categoryForm.nombre_categoria} onChange={e => setCategoryForm({nombre_categoria: e.target.value})} placeholder="Ej: Bebidas, Postres..." maxLength={80} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={saveCategory} disabled={isSaving} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20">{isSaving ? 'Guardando...' : 'Guardar Categoría'}</Button>
+            <Button onClick={saveCategory} disabled={isSaving} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20">{isSaving ? 'Guardando...' : 'Guardar CategorÃ­a'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

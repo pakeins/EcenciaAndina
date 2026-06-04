@@ -22,6 +22,7 @@ import { FileDown, Calendar, Filter, FileText, PieChart, Users, Building2, Trend
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { Convenio, Client } from '@/types';
+import { escapeHtml, formatMoney, openPrintWindow, toFiniteNumber } from '@/lib/html';
 
 export default function Reportes() {
   const [reportType, setReportType] = useState('ventas');
@@ -135,7 +136,7 @@ export default function Reportes() {
 
   const handleExportPDF = () => {
     try {
-      const printWindow = window.open('', '_blank');
+      const printWindow = openPrintWindow();
       if (!printWindow) {
         toast.error('El navegador bloqueó la ventana emergente');
         return;
@@ -149,7 +150,10 @@ export default function Reportes() {
         'productos': 'Popularidad de Almuerzos y Productos'
       };
 
-      const title = reportTitleMap[reportType];
+      const title = reportTitleMap[reportType] || 'Reporte';
+      const safeTitle = escapeHtml(title);
+      const safeFechaInicio = escapeHtml(new Date(fechaInicio).toLocaleDateString('es-EC'));
+      const safeFechaFin = escapeHtml(new Date(fechaFin).toLocaleDateString('es-EC'));
       
       let htmlRows = '';
       
@@ -164,9 +168,9 @@ export default function Reportes() {
         reportData.forEach(row => {
           htmlRows += `
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.metodo_pago}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${row.cantidadAlmuerzos}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.totalConsumo.toFixed(2)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.metodo_pago)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.cantidadAlmuerzos)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.totalConsumo)}</td>
             </tr>
           `;
         });
@@ -183,11 +187,11 @@ export default function Reportes() {
         reportData.forEach(row => {
           htmlRows += `
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${new Date(row.fecha).toLocaleString()}</td>
-              ${reportType === 'estados' ? `<td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.cliente}</td>` : ''}
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.estado}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.descripcion}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.totalConsumo.toFixed(2)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(new Date(row.fecha).toLocaleString())}</td>
+              ${reportType === 'estados' ? `<td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.cliente)}</td>` : ''}
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.estado)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.descripcion)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.totalConsumo)}</td>
             </tr>
           `;
         });
@@ -203,10 +207,10 @@ export default function Reportes() {
         reportData.forEach(row => {
           htmlRows += `
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.nombre}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.categoria}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${row.cantidadVendida}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.ingresosGenerados.toFixed(2)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.nombre)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.categoria)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.cantidadVendida)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.ingresosGenerados)}</td>
             </tr>
           `;
         });
@@ -223,11 +227,11 @@ export default function Reportes() {
         reportData.forEach(row => {
           htmlRows += `
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.cliente}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${new Date(row.fecha).toLocaleString()}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.producto}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${row.cantidad}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.totalConsumo.toFixed(2)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.cliente)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(new Date(row.fecha).toLocaleString())}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.producto)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.cantidad)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.totalConsumo)}</td>
             </tr>
           `;
         });
@@ -250,14 +254,14 @@ export default function Reportes() {
           <body>
             <div class="header">
               <h1 class="title">ECENCIA ANDINA</h1>
-              <p class="subtitle">${title}</p>
-              <p class="subtitle">Período: ${new Date(fechaInicio).toLocaleDateString('es-EC')} - ${new Date(fechaFin).toLocaleDateString('es-EC')}</p>
+              <p class="subtitle">${safeTitle}</p>
+              <p class="subtitle">Período: ${safeFechaInicio} - ${safeFechaFin}</p>
             </div>
             <table>
               ${htmlRows}
             </table>
             <div class="footer">
-              Generado el ${new Date().toLocaleString('es-EC')}
+              Generado el ${escapeHtml(new Date().toLocaleString('es-EC'))}
             </div>
           </body>
         </html>

@@ -3,11 +3,12 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador']));
 
-// Función auxiliar para formatear cliente con su convenio
+// FunciÃ³n auxiliar para formatear cliente con su convenio
 const formatCliente = (cli) => {
   const convenioRel = cli.clientes_convenios?.[0]?.convenios;
   return {
@@ -73,7 +74,7 @@ router.delete('/:id/convenio', async (req, res) => {
       .eq('id_cliente', req.params.id);
 
     if (error) throw error;
-    res.json({ mensaje: 'Vínculo con convenio eliminado' });
+    res.json({ mensaje: 'VÃ­nculo con convenio eliminado' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -81,8 +82,8 @@ router.delete('/:id/convenio', async (req, res) => {
 
 // CREAR NUEVO CLIENTE
 router.post('/', async (req, res) => {
-  const { cedula, nombre, apellido, telefono, id_tipo_cliente } = req.body;
   try {
+    const { cedula, nombre, apellido, telefono, id_tipo_cliente } = parseBody(schemas.clienteCreate, req.body);
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('clientes')
@@ -92,6 +93,7 @@ router.post('/', async (req, res) => {
     if (error) throw error;
     res.status(201).json(formatCliente(data));
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -99,17 +101,17 @@ router.post('/', async (req, res) => {
 // ACTUALIZAR CLIENTE
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { activo, cedula, nombre, apellido, telefono, id_tipo_cliente } = req.body;
-
-  const actualizacion = { updated_by: req.user.id };
-  if (activo !== undefined) actualizacion.esta_activo = activo;
-  if (cedula) actualizacion.cedula = cedula;
-  if (nombre) actualizacion.nombre = nombre;
-  if (apellido) actualizacion.apellido = apellido;
-  if (telefono !== undefined) actualizacion.telefono = telefono;
-  if (id_tipo_cliente) actualizacion.id_tipo_cliente = id_tipo_cliente;
 
   try {
+    const { activo, cedula, nombre, apellido, telefono, id_tipo_cliente } = parseBody(schemas.clienteUpdate, req.body);
+    const actualizacion = { updated_by: req.user.id };
+    if (activo !== undefined) actualizacion.esta_activo = activo;
+    if (cedula !== undefined) actualizacion.cedula = cedula;
+    if (nombre !== undefined) actualizacion.nombre = nombre;
+    if (apellido !== undefined) actualizacion.apellido = apellido;
+    if (telefono !== undefined) actualizacion.telefono = telefono;
+    if (id_tipo_cliente !== undefined) actualizacion.id_tipo_cliente = id_tipo_cliente;
+
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('clientes')
@@ -123,6 +125,7 @@ router.put('/:id', async (req, res) => {
 
     res.json(formatCliente(data));
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -145,14 +148,10 @@ router.get('/:id/saldo', async (req, res) => {
 
 // RECARGAR SALDO AL MONEDERO VIRTUAL
 router.post('/:id/recargar', async (req, res) => {
-  const { id_producto, cantidad_comprada, monto_total, numero_factura } = req.body;
   const id_cliente = req.params.id;
 
-  if (!numero_factura || !numero_factura.trim()) {
-    return res.status(400).json({ error: 'El número de factura es requerido para registrar la recarga' });
-  }
-
   try {
+    const { id_producto, cantidad_comprada, monto_total, numero_factura } = parseBody(schemas.recarga, req.body);
     const adminClient = getAdminClient();
 
     // 1. Insertar el registro de recarga
@@ -163,7 +162,7 @@ router.post('/:id/recargar', async (req, res) => {
         id_producto, 
         cantidad_comprada, 
         monto_total,
-        numero_factura: numero_factura.trim(),
+        numero_factura,
         created_by: req.user.id 
       }]);
 
@@ -208,6 +207,7 @@ router.post('/:id/recargar', async (req, res) => {
 
     res.status(201).json({ mensaje: 'Recarga registrada exitosamente y saldo actualizado' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -227,7 +227,7 @@ router.get('/:id/historial', async (req, res) => {
 
     if (errRecargas) throw errRecargas;
 
-    // 2. Obtener todas las órdenes consumidas (estado 2) con Saldo Prepago del cliente
+    // 2. Obtener todas las Ã³rdenes consumidas (estado 2) con Saldo Prepago del cliente
     const { data: ordenes, error: errOrdenes } = await adminClient
       .from('ordenes')
       .select(`

@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus, Minus, Trash2, ShoppingCart, Utensils } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMenu } from '@/data/menuStore';
+import { FIELD_LIMITS } from '@/lib/validation';
 
 export interface OrderItem {
   id_producto: string;
@@ -142,6 +143,14 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
     }
     if (requireSegundo && !currentSegundo.trim()) {
       toast.error('Por favor especifique el segundo');
+      return;
+    }
+    if (currentCantidad < 1 || currentCantidad > 20) {
+      toast.error('La cantidad debe estar entre 1 y 20');
+      return;
+    }
+    if ([currentSopa, currentSegundo, currentGuarnicion].some((value) => value.trim().length > FIELD_LIMITS.menuOption)) {
+      toast.error(`Cada opcion de menu debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
       return;
     }
 
@@ -289,6 +298,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
                         value={currentSopa} 
                         onChange={e => setCurrentSopa(e.target.value)}
                         className="bg-background"
+                        maxLength={FIELD_LIMITS.menuOption}
                       />
                     )}
                   </div>
@@ -328,6 +338,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
                         value={currentSegundo} 
                         onChange={e => setCurrentSegundo(e.target.value)}
                         className="bg-background"
+                        maxLength={FIELD_LIMITS.menuOption}
                       />
                     )}
                   </div>
@@ -367,6 +378,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
                         value={currentGuarnicion} 
                         onChange={e => setCurrentGuarnicion(e.target.value)}
                         className="bg-background"
+                        maxLength={FIELD_LIMITS.menuOption}
                       />
                     )}
                   </div>
@@ -394,7 +406,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
                   variant="outline" 
                   size="icon" 
                   className="h-9 w-9 bg-background"
-                  onClick={() => setCurrentCantidad(currentCantidad + 1)}
+                  onClick={() => setCurrentCantidad(Math.min(20, currentCantidad + 1))}
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -476,6 +488,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
           value={state.observaciones}
           onChange={(e) => onChange({ ...state, observaciones: e.target.value })}
           className="min-h-[100px] resize-none border-muted-foreground/20"
+          maxLength={FIELD_LIMITS.observaciones}
         />
       </div>
     </div>

@@ -18,6 +18,7 @@ import {
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 import { Alimento } from '@/types';
+import { FIELD_LIMITS } from '@/lib/validation';
 
 interface FoodSelectorProps {
   value: string;
@@ -41,6 +42,10 @@ export function FoodSelector({ value, onChange, idCategoria, alimentos: initialA
 
   const handleCreateNew = async () => {
     if (!search.trim()) return;
+    if (search.trim().length > FIELD_LIMITS.menuOption) {
+      toast.error(`La opcion no puede superar ${FIELD_LIMITS.menuOption} caracteres`);
+      return;
+    }
 
     if ((exclude || []).includes(search.trim())) {
       toast.error(`"${search.trim()}" ya está seleccionado en otra opción`);

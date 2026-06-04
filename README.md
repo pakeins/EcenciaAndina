@@ -42,6 +42,7 @@ Copy-Item backend/n8n/eciencia-n8n.env.example backend/n8n/eciencia-n8n.env
 ```
 
 Consulta [docs/CREDENCIALES_Y_DESPLIEGUE.md](docs/CREDENCIALES_Y_DESPLIEGUE.md) para saber que tokens debe compartir el administrador.
+Para preproduccion en Google Cloud con bajo consumo, consulta [docs/GOOGLE_CLOUD_PREPROD.md](docs/GOOGLE_CLOUD_PREPROD.md).
 
 Para Hostinger/preproduccion, ajusta `backend/.env.local`:
 
@@ -118,6 +119,8 @@ Variables requeridas:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+- `N8N_MENU_WEBHOOK_SECRET`
 - `N8N_ECIENCIA_TIMEZONE`
 - `N8N_ECIENCIA_MENU_IMAGE_URL`
 - `N8N_ECIENCIA_PRODUCTO_ALMUERZO_NOMBRE`
@@ -130,11 +133,20 @@ El webhook manual que llama el backend es:
 http://localhost:7000/webhook/eciencia-enviar-menu-manual
 ```
 
-El bot usa polling cada 5 segundos, por lo que Telegram debe quedar sin webhook activo:
+El bot usa webhook en el backend. Despues de desplegar el backend HTTPS, registra Telegram asi:
+
+```powershell
+cd backend
+npm run telegram:set-webhook
+```
+
+Endpoint esperado:
 
 ```txt
-https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=false
+https://TU_BACKEND/api/telegram/webhook
 ```
+
+No uses `getUpdates` ni polling en n8n cuando el webhook este activo.
 
 ## Alta de clientes en Telegram
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const { getAdminClient, supabase } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
 // Obtener todos los empleados
 router.get('/', authMiddleware, roleMiddleware(['administrador']), async (req, res) => {
@@ -29,6 +30,7 @@ router.get('/', authMiddleware, roleMiddleware(['administrador']), async (req, r
     if (error) throw error;
     res.json(data);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -36,27 +38,29 @@ router.get('/', authMiddleware, roleMiddleware(['administrador']), async (req, r
 // Crear un nuevo empleado
 router.post('/', authMiddleware, roleMiddleware(['administrador']), async (req, res) => {
   try {
-    const { nombre, apellido, correo, password, nombre_usuario, id_rol } = req.body;
+    const { nombre, apellido, correo, password, nombre_usuario, id_rol } = parseBody(schemas.empleadoCreate, req.body);
     const creatorId = req.user.id;
     const adminClient = getAdminClient();
 
     // 0. Validaciones de duplicados
-    const { data: existingUser, error: checkError } = await adminClient
-      .from('empleados')
-      .select('correo, nombre_usuario')
-      .or(`correo.eq.${correo},nombre_usuario.eq.${nombre_usuario}`);
+    const [emailCheck, usernameCheck] = await Promise.all([
+      adminClient.from('empleados').select('correo, nombre_usuario').eq('correo', correo).limit(1),
+      adminClient.from('empleados').select('correo, nombre_usuario').eq('nombre_usuario', nombre_usuario).limit(1),
+    ]);
 
-    if (checkError) throw checkError;
+    if (emailCheck.error) throw emailCheck.error;
+    if (usernameCheck.error) throw usernameCheck.error;
 
-    if (existingUser && existingUser.length > 0) {
+    const existingUser = [...(emailCheck.data || []), ...(usernameCheck.data || [])];
+    if (existingUser.length > 0) {
       const dupe = existingUser.find((u) => u.correo === correo);
-      if (dupe) return res.status(400).json({ error: 'El correo electrónico ya está registrado.' });
+      if (dupe) return res.status(400).json({ error: 'El correo electrÃ³nico ya estÃ¡ registrado.' });
       const dupeUser = existingUser.find((u) => u.nombre_usuario === nombre_usuario);
-      if (dupeUser) return res.status(400).json({ error: 'El nombre de usuario ya está en uso.' });
+      if (dupeUser) return res.status(400).json({ error: 'El nombre de usuario ya estÃ¡ en uso.' });
     }
 
     // 1. Crear el usuario en Auth con metadatos de rol y estado
-    const rolNombre = id_rol === 1 || id_rol === '1' ? 'administrador' : 'caja'; // Ajustar según tus IDs de roles
+    const rolNombre = id_rol === 1 || id_rol === '1' ? 'administrador' : 'caja'; // Ajustar segÃºn tus IDs de roles
     
     const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
       email: correo,
@@ -111,17 +115,18 @@ router.post('/', authMiddleware, roleMiddleware(['administrador']), async (req, 
 
     res.status(201).json(empleadoData);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
-// Los demás métodos también deben usar adminClient si hay RLS...
-// Pero por ahora actualicemos los básicos de lectura.
+// Los demÃ¡s mÃ©todos tambiÃ©n deben usar adminClient si hay RLS...
+// Pero por ahora actualicemos los bÃ¡sicos de lectura.
 
 // Actualizar perfil del usuario autenticado
 router.put('/perfil', authMiddleware, async (req, res) => {
   try {
-    const { nombre, apellido, nombre_usuario } = req.body;
+    const { nombre, apellido, nombre_usuario } = parseBody(schemas.perfilUpdate, req.body);
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('empleados')
@@ -143,22 +148,23 @@ router.put('/perfil', authMiddleware, async (req, res) => {
 
     res.json({ mensaje: 'Perfil actualizado exitosamente', data });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
-// Cambiar contraseña del usuario autenticado
+// Cambiar contraseÃ±a del usuario autenticado
 router.put('/perfil/password', authMiddleware, async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword } = parseBody(schemas.passwordChange, req.body);
     
-    // Verificar contraseña actual
+    // Verificar contraseÃ±a actual
     const { error: authError } = await supabase.auth.signInWithPassword({
       email: req.user.email,
       password: currentPassword,
     });
     if (authError) {
-      return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+      return res.status(401).json({ error: 'La contraseÃ±a actual es incorrecta' });
     }
 
     const adminClient = getAdminClient();
@@ -167,8 +173,9 @@ router.put('/perfil/password', authMiddleware, async (req, res) => {
     });
 
     if (error) throw error;
-    res.json({ mensaje: 'Contraseña actualizada correctamente' });
+    res.json({ mensaje: 'ContraseÃ±a actualizada correctamente' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -176,7 +183,7 @@ router.put('/perfil/password', authMiddleware, async (req, res) => {
 // Actualizar estado (Activar/Desactivar)
 router.put('/:id/estado', authMiddleware, roleMiddleware(['administrador']), async (req, res) => {
   try {
-    const { esta_activo } = req.body;
+    const { esta_activo } = parseBody(schemas.empleadoEstado, req.body);
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('empleados')
@@ -194,6 +201,7 @@ router.put('/:id/estado', authMiddleware, roleMiddleware(['administrador']), asy
 
     res.json(data);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -201,7 +209,7 @@ router.put('/:id/estado', authMiddleware, roleMiddleware(['administrador']), asy
 // Actualizar datos del empleado
 router.put('/:id', authMiddleware, roleMiddleware(['administrador']), async (req, res) => {
   try {
-    const { nombre, apellido, nombre_usuario, id_rol } = req.body;
+    const { nombre, apellido, nombre_usuario, id_rol } = parseBody(schemas.empleadoUpdate, req.body);
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('empleados')
@@ -218,7 +226,7 @@ router.put('/:id', authMiddleware, roleMiddleware(['administrador']), async (req
 
     if (error) throw error;
 
-    // Sincronizar metadato de rol en Auth si cambió
+    // Sincronizar metadato de rol en Auth si cambiÃ³
     const rolNombre = id_rol === 1 || id_rol === '1' ? 'administrador' : 'caja';
     await adminClient.auth.admin.updateUserById(req.params.id, {
       app_metadata: { rol: rolNombre }
@@ -226,22 +234,24 @@ router.put('/:id', authMiddleware, roleMiddleware(['administrador']), async (req
 
     res.json(data);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
-// Cambiar contraseña (Fuerza bruta administrativa)
+// Cambiar contraseÃ±a (Fuerza bruta administrativa)
 router.put('/:id/password', authMiddleware, roleMiddleware(['administrador']), async (req, res) => {
   try {
-    const { password } = req.body;
+    const { password } = parseBody(schemas.passwordAdmin, req.body);
     const adminClient = getAdminClient();
     const { error } = await adminClient.auth.admin.updateUserById(req.params.id, {
       password,
     });
 
     if (error) throw error;
-    res.json({ mensaje: 'Contraseña actualizada correctamente' });
+    res.json({ mensaje: 'ContraseÃ±a actualizada correctamente' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });

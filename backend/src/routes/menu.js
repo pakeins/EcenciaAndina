@@ -2,6 +2,7 @@ const express = require('express');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 const { getAdminClient } = require('../config/supabase');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
 const router = express.Router();
 
@@ -9,6 +10,7 @@ const DEFAULT_N8N_MENU_WEBHOOK_URL = 'http://localhost:7000/webhook/eciencia-env
 const MENU_ASSETS_BUCKET = 'eciencia-menu-assets';
 const TIMEZONE = 'America/Bogota';
 const DEFAULT_IMAGE_RETENTION_DAYS = 14;
+const MAX_MENU_IMAGE_BYTES = 5 * 1024 * 1024;
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
@@ -52,19 +54,43 @@ const mimeToExtension = (mimeType) => {
   return 'jpg';
 };
 
+const hasAllowedImageSignature = (buffer, mimeType) => {
+  const isJpeg = mimeType === 'image/jpeg' && buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isPng =
+    mimeType === 'image/png' &&
+    buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isWebp =
+    mimeType === 'image/webp' &&
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+
+  return isJpeg || isPng || isWebp;
+};
+
 const uploadMenuImage = async (image) => {
   if (!image) return null;
-  if (/^https?:\/\//i.test(image)) return image;
-
-  const match = String(image).match(/^data:(image\/(?:png|jpe?g|webp));base64,(.+)$/i);
-  if (!match) {
-    const error = new Error('La imagen del menu debe ser JPG, PNG, WebP o una URL publica.');
+  if (/^https:\/\//i.test(image)) return image;
+  if (/^http:\/\//i.test(image)) {
+    const error = new Error('La URL publica de imagen del menu debe usar HTTPS.');
     error.status = 400;
     throw error;
   }
 
-  const [, mimeType, base64Data] = match;
+  const match = String(image).match(/^data:(image\/(?:png|jpe?g|webp));base64,(.+)$/i);
+  if (!match) {
+    const error = new Error('La imagen del menu debe ser JPG, PNG, WebP o una URL publica HTTPS.');
+    error.status = 400;
+    throw error;
+  }
+
+  const [, rawMimeType, base64Data] = match;
+  const mimeType = rawMimeType.toLowerCase() === 'image/jpg' ? 'image/jpeg' : rawMimeType.toLowerCase();
   const buffer = Buffer.from(base64Data, 'base64');
+  if (buffer.length > MAX_MENU_IMAGE_BYTES || !hasAllowedImageSignature(buffer, mimeType)) {
+    const error = new Error('La imagen del menu debe ser JPG, PNG o WebP valida y pesar maximo 5 MB.');
+    error.status = 400;
+    throw error;
+  }
   const fileName = `telegram/menu-dashboard-${Date.now()}.${mimeToExtension(mimeType.toLowerCase())}`;
   const adminClient = getAdminClient();
 
@@ -346,7 +372,8 @@ router.put('/:fecha', async (req, res) => {
     const fecha = req.params.fecha;
     if (!isIsoDate(fecha)) return res.status(400).json({ error: 'La fecha del menu debe tener formato YYYY-MM-DD.' });
 
-    const menu = buildMenuPayload(req.body || {});
+    const payload = parseBody(schemas.menuDashboard, req.body || {});
+    const menu = buildMenuPayload(payload);
     if (!menu.sopas.length || !menu.segundos.length || !menu.guarniciones.length) {
       return res.status(400).json({
         error: 'Debe haber al menos una sopa, un segundo y una guarnicion configurados.',
@@ -355,7 +382,7 @@ router.put('/:fecha', async (req, res) => {
 
     const adminClient = getAdminClient();
     const settings = await getMenuSettings(adminClient);
-    if (settings.active_date === fecha && !req.body?.confirmarEdicion) {
+    if (settings.active_date === fecha && !payload.confirmarEdicion) {
       return res.status(409).json({
         requireConfirmation: true,
         error: 'Este menu esta activo. Confirma la edicion para actualizarlo.',
@@ -363,7 +390,7 @@ router.put('/:fecha', async (req, res) => {
     }
 
     const current = await getMenuByDate(adminClient, fecha);
-    const photoUrl = req.body?.image ? await uploadMenuImage(req.body.image) : current?.imagen_url || null;
+    const photoUrl = payload.image ? await uploadMenuImage(payload.image) : current?.imagen_url || null;
     const dailyMenu = await saveDailyMenu(adminClient, menu, photoUrl, req.user.id, fecha);
 
     if (settings.active_date === fecha) {
@@ -373,6 +400,7 @@ router.put('/:fecha', async (req, res) => {
     res.json({ mensaje: 'Menu actualizado correctamente.', dailyMenu, photoUrl });
   } catch (error) {
     console.error('Error actualizando menu:', error);
+    if (sendValidationError(res, error)) return;
     res.status(error.status || 500).json({ error: error.message || 'No se pudo actualizar el menu.' });
   }
 });
@@ -421,24 +449,30 @@ router.post('/limpiar-imagenes', async (req, res) => {
 
 router.post('/enviar', async (req, res) => {
   try {
-    const menu = buildMenuPayload(req.body || {});
+    const payload = parseBody(schemas.menuDashboard, req.body || {});
+    const menu = buildMenuPayload(payload);
     if (!menu.sopas.length || !menu.segundos.length || !menu.guarniciones.length) {
       return res.status(400).json({
         error: 'Debe haber al menos una sopa, un segundo y una guarnicion configurados.',
       });
     }
 
-    const photoUrl = await uploadMenuImage(req.body?.image);
+    const photoUrl = await uploadMenuImage(payload.image);
     const adminClient = getAdminClient();
     const dailyMenu = await saveDailyMenu(adminClient, menu, photoUrl, req.user.id);
     await saveActiveMenuState(adminClient, dailyMenu.fecha, menu, photoUrl, req.user.id);
     const cleanup = await cleanupOldMenuImages(adminClient);
     const webhookUrl = process.env.N8N_MENU_WEBHOOK_URL || DEFAULT_N8N_MENU_WEBHOOK_URL;
-    const clientIds = cleanClientIds(req.body?.clientIds);
+    const clientIds = cleanClientIds(payload.clientIds);
 
     const response = await fetch(webhookUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.N8N_MENU_WEBHOOK_SECRET
+          ? { 'X-Eciencia-Webhook-Secret': process.env.N8N_MENU_WEBHOOK_SECRET }
+          : {}),
+      },
       body: JSON.stringify({
         source: 'dashboard',
         requestedBy: {
@@ -466,6 +500,7 @@ router.post('/enviar', async (req, res) => {
     });
   } catch (error) {
     console.error('Error disparando flujo de menu en n8n:', error);
+    if (sendValidationError(res, error)) return;
     res.status(error.status || 500).json({
       error: error.message || 'No se pudo disparar el flujo de Telegram.',
     });

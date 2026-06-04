@@ -3,15 +3,18 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
 
 // CREAR UNA NUEVA ORDEN
 router.post('/', async (req, res) => {
-  const { id_cliente, id_estado, id_origen, canal_origen, observaciones, detalles, metodo_pago } = req.body;
-
   try {
+    const { id_cliente, id_estado, id_origen, canal_origen, observaciones, detalles, metodo_pago } = parseBody(
+      schemas.ordenCreate,
+      req.body,
+    );
     const adminClient = getAdminClient();
 
     // Validar si el método de pago es Convenio Empresa
@@ -69,6 +72,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ mensaje: 'Orden registrada exitosamente', orden });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -184,10 +188,10 @@ router.get('/telegram/trazabilidad', async (req, res) => {
 
 // ACTUALIZAR ORDEN COMPLETA
 router.put('/:id', async (req, res) => {
-  const { observaciones, detalles } = req.body;
   const id_orden = req.params.id;
 
   try {
+    const { observaciones, detalles } = parseBody(schemas.ordenUpdate, req.body);
     const adminClient = getAdminClient();
     
     // 1. Actualizar la cabecera
@@ -223,15 +227,16 @@ router.put('/:id', async (req, res) => {
 
     res.json({ mensaje: 'Orden actualizada exitosamente' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 // ACTUALIZAR ESTADO DE LA ORDEN
 router.put('/:id/estado', async (req, res) => {
-  const { id_estado, forceFallback } = req.body;
   const id_orden = req.params.id;
   try {
+    const { id_estado, forceFallback } = parseBody(schemas.estadoOrden, req.body);
     const adminClient = getAdminClient();
 
     // Si se marca como Consumido (2)
@@ -388,6 +393,7 @@ router.put('/:id/estado', async (req, res) => {
     if (error) throw error;
     res.json({ mensaje: 'Estado actualizado', orden: data });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });

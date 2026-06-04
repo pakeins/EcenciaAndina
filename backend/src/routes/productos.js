@@ -3,6 +3,7 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 router.use(authMiddleware);
 
 // OBTENER TODOS LOS PRODUCTOS
@@ -43,8 +44,8 @@ router.get('/', roleMiddleware(['administrador', 'caja']), async (req, res) => {
 
 // CREAR NUEVO PRODUCTO
 router.post('/', roleMiddleware(['administrador']), async (req, res) => {
-  const { id_categoria, nombre, precio, descripcion } = req.body;
   try {
+    const { id_categoria, nombre, precio, descripcion } = parseBody(schemas.productoCreate, req.body);
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('productos')
@@ -74,21 +75,22 @@ router.post('/', roleMiddleware(['administrador']), async (req, res) => {
 
     res.status(201).json(formatted);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 // ACTUALIZAR PRODUCTO
 router.put('/:id', roleMiddleware(['administrador']), async (req, res) => {
-  const { id_categoria, nombre, precio, activo, descripcion } = req.body;
-  const updateData = { updated_by: req.user.id };
-  if (id_categoria !== undefined) updateData.id_categoria = id_categoria;
-  if (nombre !== undefined) updateData.nombre_producto = nombre;
-  if (precio !== undefined) updateData.precio_unitario = precio;
-  if (activo !== undefined) updateData.esta_activo = activo;
-  if (descripcion !== undefined) updateData.descripcion = descripcion;
-
   try {
+    const { id_categoria, nombre, precio, activo, descripcion } = parseBody(schemas.productoUpdate, req.body);
+    const updateData = { updated_by: req.user.id };
+    if (id_categoria !== undefined) updateData.id_categoria = id_categoria;
+    if (nombre !== undefined) updateData.nombre_producto = nombre;
+    if (precio !== undefined) updateData.precio_unitario = precio;
+    if (activo !== undefined) updateData.esta_activo = activo;
+    if (descripcion !== undefined) updateData.descripcion = descripcion;
+
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('productos')
@@ -111,6 +113,7 @@ router.put('/:id', roleMiddleware(['administrador']), async (req, res) => {
 
     res.json(formatted);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });

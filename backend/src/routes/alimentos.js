@@ -3,12 +3,13 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
 router.use(authMiddleware);
 
 // --- RUTAS PARA CATEGORIAS DE MENU ---
 
-// Obtener todas las categorías de menú
+// Obtener todas las categorÃƒÂ­as de menÃƒÂº
 router.get('/categorias', roleMiddleware(['administrador', 'caja']), async (req, res) => {
   try {
     const adminClient = getAdminClient();
@@ -20,13 +21,14 @@ router.get('/categorias', roleMiddleware(['administrador', 'caja']), async (req,
     if (error) throw error;
     res.json(data);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 // --- RUTAS PARA ALIMENTOS ---
 
-// Obtener todos los alimentos (con su categoría)
+// Obtener todos los alimentos (con su categorÃƒÂ­a)
 router.get('/', roleMiddleware(['administrador', 'caja']), async (req, res) => {
   try {
     const adminClient = getAdminClient();
@@ -51,14 +53,15 @@ router.get('/', roleMiddleware(['administrador', 'caja']), async (req, res) => {
 
     res.json(formatted);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 // Crear nuevo alimento
 router.post('/', roleMiddleware(['administrador', 'caja']), async (req, res) => {
-  const { id_categoria, nombre } = req.body;
   try {
+    const { id_categoria, nombre } = parseBody(schemas.alimentoCreate, req.body);
     const adminClient = getAdminClient();
     
     // Primero verificamos si ya existe uno igual para no duplicar
@@ -98,13 +101,14 @@ router.post('/', roleMiddleware(['administrador', 'caja']), async (req, res) => 
       categoria_nombre: data.categorias_menu?.nombre_categoria
     });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 // --- RUTAS PARA EL MENU DIARIO ---
 
-// Obtener el menú para el día actual
+// Obtener el menÃƒÂº para el dÃƒÂ­a actual
 router.get('/menu-diario/hoy', roleMiddleware(['administrador', 'caja']), async (req, res) => {
   try {
     const adminClient = getAdminClient();
@@ -112,7 +116,7 @@ router.get('/menu-diario/hoy', roleMiddleware(['administrador', 'caja']), async 
     // Usamos la fecha en formato local YYYY-MM-DD
     const hoy = new Date().toISOString().split('T')[0];
     
-    // Traer los alimentos del menú de hoy
+    // Traer los alimentos del menÃƒÂº de hoy
     const { data: alimentosMenu, error } = await adminClient
       .from('menu_diario')
       .select('id_alimento, imagen_url, alimentos(nombre_alimento, id_categoria_menu)')
@@ -130,19 +134,15 @@ router.get('/menu-diario/hoy', roleMiddleware(['administrador', 'caja']), async 
       }))
     });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
-// Guardar el menú del día
+// Guardar el menÃƒÂº del dÃƒÂ­a
 router.post('/menu-diario', roleMiddleware(['administrador', 'caja']), async (req, res) => {
-  const { fecha, alimentos_ids, imagen_url } = req.body;
-  
-  if (!fecha || !Array.isArray(alimentos_ids)) {
-    return res.status(400).json({ error: 'Fecha y array de alimentos_ids requeridos' });
-  }
-
   try {
+    const { fecha, alimentos_ids, imagen_url } = parseBody(schemas.menuDiario, req.body);
     const adminClient = getAdminClient();
     const userId = req.user.id;
 
@@ -170,8 +170,9 @@ router.post('/menu-diario', roleMiddleware(['administrador', 'caja']), async (re
       if (insertError) throw insertError;
     }
 
-    res.json({ success: true, message: 'Menú diario guardado correctamente' });
+    res.json({ success: true, message: 'MenÃƒÂº diario guardado correctamente' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });

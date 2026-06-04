@@ -18,6 +18,7 @@ import { FoodSelector } from '@/components/menu/FoodSelector';
 import { apiFetch } from '@/lib/api';
 import { buildTelegramMenuImage } from '@/lib/menuImage';
 import { Alimento } from '@/types';
+import { FIELD_LIMITS } from '@/lib/validation';
 
 interface Category {
   id_categoria_menu: number;
@@ -108,6 +109,9 @@ export default function Menu() {
     if (!menuPayload.sopas.length || !menuPayload.segundos.length || !menuPayload.guarniciones.length) {
       return toast.error('Debe haber al menos una sopa, un segundo y una guarnicion configurados');
     }
+    if ([...menuPayload.sopas, ...menuPayload.segundos, ...menuPayload.guarniciones].some(option => option.length > FIELD_LIMITS.menuOption)) {
+      return toast.error(`Cada opcion debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
+    }
     
     setIsSending(true);
     try {
@@ -147,6 +151,9 @@ export default function Menu() {
     const menuPayload = currentPayload();
     if (!menuPayload.sopas.length || !menuPayload.segundos.length || !menuPayload.guarniciones.length) {
       return toast.error('Debe haber al menos una sopa, un segundo y una guarnicion configurados');
+    }
+    if ([...menuPayload.sopas, ...menuPayload.segundos, ...menuPayload.guarniciones].some(option => option.length > FIELD_LIMITS.menuOption)) {
+      return toast.error(`Cada opcion debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
     }
 
     const fecha = selectedMenuDate || new Date().toISOString().split('T')[0];

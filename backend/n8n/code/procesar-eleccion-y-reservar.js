@@ -950,7 +950,6 @@ try {
   return response(
     activeChatId,
     'No pude registrar tu pedido en este momento.\n\n' +
-      'Detalle: ' + message + '\n' +
-      'Corrige la informacion o envia /menu para intentarlo otra vez.'
+      'Corrige la informacion o envia /menu para intentarlo otra vez. Si el problema continua, contacta a un administrador.'
   );
 }

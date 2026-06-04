@@ -5,11 +5,16 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
-// Configuración de Multer para almacenamiento local
+const UPLOAD_DIR = path.resolve(__dirname, '../../../convenios');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+// ConfiguraciÃ³n de Multer para almacenamiento local
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../../../convenios'));
+    cb(null, UPLOAD_DIR);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -19,19 +24,64 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
   fileFilter: (req, file, cb) => {
     const filetypes = /pdf|jpg|jpeg|png/;
     const mimetype = filetypes.test(file.mimetype);
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
     if (mimetype && extname) return cb(null, true);
-    cb(new Error('Solo se permiten archivos PDF o imágenes (JPG, PNG)'));
+    cb(new Error('Solo se permiten archivos PDF o imÃ¡genes (JPG, PNG)'));
   }
 });
+
+const convenioFilePath = (filename) => {
+  const safeName = path.basename(String(filename || ''));
+  if (!/^convenio-\d+-\d+\.(pdf|jpg|jpeg|png)$/i.test(safeName)) return null;
+
+  const resolvedPath = path.resolve(UPLOAD_DIR, safeName);
+  if (!resolvedPath.startsWith(UPLOAD_DIR + path.sep)) return null;
+  return resolvedPath;
+};
+
+const hasAllowedSignature = (filePath) => {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(12);
+    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const header = buffer.subarray(0, bytesRead);
+
+    const isPdf = header.subarray(0, 4).equals(Buffer.from('%PDF'));
+    const isJpeg = header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+    const isPng = header.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+
+    return isPdf || isJpeg || isPng;
+  } finally {
+    fs.closeSync(fd);
+  }
+};
+
+const removeUploadedFile = (filePath) => {
+  if (!filePath) return;
+  fs.promises.unlink(filePath).catch(() => {});
+};
+
+const sendConvenioFile = (res, filename) => {
+  const filePath = convenioFilePath(filename);
+  if (!filePath || !fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'Archivo de convenio no encontrado.' });
+    return;
+  }
+
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.sendFile(filePath);
+};
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador']));
 
-// Función auxiliar para formatear la respuesta del convenio
+// FunciÃ³n auxiliar para formatear la respuesta del convenio
 const formatConvenio = (conv) => ({
   id: conv.id_convenio,
   ruc: conv.ruc,
@@ -45,7 +95,7 @@ const formatConvenio = (conv) => ({
   cupo_maximo: conv.cupo_maximo || 0,
   totalColaboradores: conv.clientes_convenios?.[0]?.count || 0,
   consumoMensual: 0,
-  archivo_firmado: conv.archivo_firmado ? `http://localhost:3001/uploads/convenios/${conv.archivo_firmado}` : null,
+  archivo_firmado: conv.archivo_firmado ? `/convenios/${conv.id_convenio}/archivo` : null,
 });
 
 // OBTENER TODOS LOS CONVENIOS
@@ -59,6 +109,7 @@ router.get('/', async (req, res) => {
     if (error) throw error;
     res.json(data.map(formatConvenio));
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -85,12 +136,12 @@ router.get('/:id/clientes', async (req, res) => {
 
 // AGREGAR CLIENTE EXISTENTE A CONVENIO
 router.post('/:id/clientes', async (req, res) => {
-  const { id_cliente } = req.body;
   const { id: id_convenio } = req.params;
   try {
+    const { id_cliente } = parseBody(schemas.convenioAddClient, req.body);
     const adminClient = getAdminClient();
     
-    // VALIDAR CUPO MÁXIMO
+    // VALIDAR CUPO MÃXIMO
     const { data: convenio, error: convError } = await adminClient
       .from('convenios')
       .select('cupo_maximo, clientes_convenios(count)')
@@ -101,7 +152,7 @@ router.post('/:id/clientes', async (req, res) => {
     
     const countActual = convenio.clientes_convenios?.[0]?.count || 0;
     if (countActual >= convenio.cupo_maximo) {
-      return res.status(400).json({ error: `Se ha alcanzado el cupo máximo de este convenio (${convenio.cupo_maximo}).` });
+      return res.status(400).json({ error: `Se ha alcanzado el cupo mÃ¡ximo de este convenio (${convenio.cupo_maximo}).` });
     }
 
     const { data: cliente, error: cliError } = await adminClient.from('clientes').select('id_tipo_cliente').eq('id_cliente', id_cliente).single();
@@ -111,6 +162,7 @@ router.post('/:id/clientes', async (req, res) => {
     if (insError) throw insError;
     res.status(201).json({ mensaje: 'Cliente agregado correctamente' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -118,12 +170,15 @@ router.post('/:id/clientes', async (req, res) => {
 // CREAR Y AGREGAR NUEVO CLIENTE A CONVENIO
 router.post('/:id/clientes/nuevo', async (req, res) => {
   const { id: id_convenio } = req.params;
-  const { cedula, nombre, apellido, telefono } = req.body;
 
   try {
+    const { cedula, nombre, apellido, telefono } = parseBody(schemas.clienteCreate, {
+      ...req.body,
+      id_tipo_cliente: 1,
+    });
     const adminClient = getAdminClient();
 
-    // VALIDAR CUPO MÁXIMO
+    // VALIDAR CUPO MÃXIMO
     const { data: convenio, error: convError } = await adminClient
       .from('convenios')
       .select('cupo_maximo, clientes_convenios(count)')
@@ -134,7 +189,7 @@ router.post('/:id/clientes/nuevo', async (req, res) => {
     
     const countActual = convenio.clientes_convenios?.[0]?.count || 0;
     if (countActual >= convenio.cupo_maximo) {
-      return res.status(400).json({ error: `Se ha alcanzado el cupo máximo de este convenio (${convenio.cupo_maximo}).` });
+      return res.status(400).json({ error: `Se ha alcanzado el cupo mÃ¡ximo de este convenio (${convenio.cupo_maximo}).` });
     }
     
     // 1. Crear el cliente (Siempre tipo Convenio: ID 1)
@@ -152,7 +207,7 @@ router.post('/:id/clientes/nuevo', async (req, res) => {
       .single();
 
     if (clientError) {
-      if (clientError.message.includes('duplicate key')) return res.status(400).json({ error: 'Ya existe un cliente con esta cédula.' });
+      if (clientError.message.includes('duplicate key')) return res.status(400).json({ error: 'Ya existe un cliente con esta cÃ©dula.' });
       throw clientError;
     }
 
@@ -174,6 +229,7 @@ router.post('/:id/clientes/nuevo', async (req, res) => {
       apellido: newClient.apellido
     });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -192,13 +248,12 @@ router.delete('/:id/clientes/:clienteId', async (req, res) => {
 
 // CREAR NUEVO CONVENIO
 router.post('/', async (req, res) => {
-  const { ruc, nombre_empresa, representante, telefono, email, fecha_inicio, fecha_caducidad, cupo_maximo } = req.body;
   
-  if (cupo_maximo !== undefined && cupo_maximo < 0) {
-    return res.status(400).json({ error: 'El cupo máximo no puede ser menor a 0.' });
-  }
-
   try {
+    const { ruc, nombre_empresa, representante, telefono, email, fecha_inicio, fecha_caducidad, cupo_maximo } = parseBody(
+      schemas.convenioCreate,
+      req.body,
+    );
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('convenios')
@@ -208,35 +263,38 @@ router.post('/', async (req, res) => {
     if (error) throw error;
     res.status(201).json(formatConvenio(data));
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
-// ACTUALIZAR CONVENIO (Y manejar historial si es renovación)
+// ACTUALIZAR CONVENIO (Y manejar historial si es renovaciÃ³n)
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { activo, ruc, nombre_empresa, fecha_inicio, fecha_caducidad, ...rest } = req.body;
-  const actualizacion = { ...rest, updated_by: req.user.id };
-  
-  if (activo !== undefined) actualizacion.esta_activo = activo;
-  if (ruc) actualizacion.ruc = ruc;
-  if (nombre_empresa) actualizacion.nombre_empresa = nombre_empresa;
-  if (fecha_inicio) actualizacion.fecha_inicio = fecha_inicio;
-  if (fecha_caducidad) actualizacion.fecha_caducidad = fecha_caducidad;
-  
-  if (req.body.cupo_maximo !== undefined) {
-    if (req.body.cupo_maximo < 0) return res.status(400).json({ error: 'El cupo máximo no puede ser menor a 0.' });
-    actualizacion.cupo_maximo = req.body.cupo_maximo;
-  }
 
   try {
+    const { activo, ruc, nombre_empresa, representante, telefono, email, fecha_inicio, fecha_caducidad, cupo_maximo } = parseBody(
+      schemas.convenioUpdate,
+      req.body,
+    );
+    const actualizacion = { updated_by: req.user.id };
+    if (activo !== undefined) actualizacion.esta_activo = activo;
+    if (ruc !== undefined) actualizacion.ruc = ruc;
+    if (nombre_empresa !== undefined) actualizacion.nombre_empresa = nombre_empresa;
+    if (representante !== undefined) actualizacion.representante = representante;
+    if (telefono !== undefined) actualizacion.telefono = telefono;
+    if (email !== undefined) actualizacion.email = email;
+    if (fecha_inicio !== undefined) actualizacion.fecha_inicio = fecha_inicio;
+    if (fecha_caducidad !== undefined) actualizacion.fecha_caducidad = fecha_caducidad;
+    if (cupo_maximo !== undefined) actualizacion.cupo_maximo = cupo_maximo;
+
     const adminClient = getAdminClient();
 
-    // Si se están actualizando las fechas (Renovación), guardamos el actual en el historial
+    // Si se estÃ¡n actualizando las fechas (RenovaciÃ³n), guardamos el actual en el historial
     if (fecha_inicio || fecha_caducidad) {
       const { data: actual } = await adminClient.from('convenios').select('*').eq('id_convenio', id).single();
       if (actual) {
-        // Verificar si las fechas realmente cambiaron para considerar que es una renovación
+        // Verificar si las fechas realmente cambiaron para considerar que es una renovaciÃ³n
         const formatDate = (dateStr) => dateStr ? new Date(dateStr).toISOString().split('T')[0] : null;
         const dbInicio = formatDate(actual.fecha_inicio);
         const reqInicio = formatDate(fecha_inicio);
@@ -244,7 +302,7 @@ router.put('/:id', async (req, res) => {
         const reqFin = formatDate(fecha_caducidad);
 
         if ((reqInicio && reqInicio !== dbInicio) || (reqFin && reqFin !== dbFin)) {
-          // Solo guardamos en historial si ya tenía fechas previas y hubo un cambio
+          // Solo guardamos en historial si ya tenÃ­a fechas previas y hubo un cambio
           const { error: insertError } = await adminClient.from('conveniohistorial').insert([{
             id_convenio: id,
             fecha_inicio: actual.fecha_inicio,
@@ -262,6 +320,7 @@ router.put('/:id', async (req, res) => {
     if (error) throw error;
     res.json(formatConvenio(data));
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -280,7 +339,7 @@ router.get('/:id/historial', async (req, res) => {
     
     const historialFormateado = data.map(h => ({
       ...h,
-      archivo_url: h.archivo_firmado ? `http://localhost:3001/uploads/convenios/${h.archivo_firmado}` : null
+      archivo_url: h.archivo_firmado ? `/convenios/${req.params.id}/historial/${h.id}/archivo` : null
     }));
     
     res.json(historialFormateado);
@@ -289,9 +348,53 @@ router.get('/:id/historial', async (req, res) => {
   }
 });
 
+router.get('/:id/archivo', async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { data, error } = await adminClient
+      .from('convenios')
+      .select('archivo_firmado')
+      .eq('id_convenio', req.params.id)
+      .single();
+
+    if (error || !data?.archivo_firmado) {
+      return res.status(404).json({ error: 'Archivo de convenio no encontrado.' });
+    }
+
+    sendConvenioFile(res, data.archivo_firmado);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/:id/historial/:historialId/archivo', async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { data, error } = await adminClient
+      .from('conveniohistorial')
+      .select('archivo_firmado')
+      .eq('id_convenio', req.params.id)
+      .eq('id', req.params.historialId)
+      .single();
+
+    if (error || !data?.archivo_firmado) {
+      return res.status(404).json({ error: 'Archivo historico no encontrado.' });
+    }
+
+    sendConvenioFile(res, data.archivo_firmado);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // SUBIR ARCHIVO FIRMADO
 router.post('/:id/upload', upload.single('archivo'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo.' });
+  if (req.file && !hasAllowedSignature(req.file.path)) {
+    removeUploadedFile(req.file.path);
+    return res.status(400).json({ error: 'El archivo no coincide con un PDF o imagen valida.' });
+  }
+
+  if (!req.file) return res.status(400).json({ error: 'No se subiÃ³ ningÃºn archivo.' });
   
   const { id } = req.params;
   try {
@@ -306,6 +409,7 @@ router.post('/:id/upload', upload.single('archivo'), async (req, res) => {
     if (error) throw error;
     res.json(formatConvenio(data));
   } catch (error) {
+    removeUploadedFile(req.file.path);
     res.status(500).json({ error: error.message });
   }
 });
@@ -332,7 +436,7 @@ router.get('/:id/reporte', async (req, res) => {
       return res.json([]);
     }
 
-    // 2. Obtener las órdenes de estos clientes
+    // 2. Obtener las Ã³rdenes de estos clientes
     let query = adminClient
       .from('ordenes')
       .select(`
@@ -386,7 +490,7 @@ router.get('/:id/reporte', async (req, res) => {
       emp.consumos.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
     });
     
-    // Ordenar empleados alfabéticamente
+    // Ordenar empleados alfabÃ©ticamente
     reporteArray.sort((a, b) => a.empleado.localeCompare(b.empleado));
 
     res.json(reporteArray);

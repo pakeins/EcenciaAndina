@@ -46,6 +46,7 @@ import {
 import { WalletDialog } from '@/components/clients/WalletDialog';
 import { RechargeDialog } from '@/components/clients/RechargeDialog';
 import { Banknote } from 'lucide-react';
+import { FIELD_LIMITS, isValidEcDocument, isValidPhone, normalizePhone, onlyDigits } from '@/lib/validation';
 
 export default function Clientes() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -63,7 +64,7 @@ export default function Clientes() {
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  // Confirmación para toggle activo/inactivo
+  // ConfirmaciÃ³n para toggle activo/inactivo
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [clientToToggle, setClientToToggle] = useState<Client | null>(null);
 
@@ -112,14 +113,14 @@ export default function Clientes() {
       }
     } catch (err) {
       console.error('Error fetching clientes:', err);
-      setError('Error de conexión con el servidor');
-      toast.error('Error de conexión con el servidor');
+      setError('Error de conexiÃ³n con el servidor');
+      toast.error('Error de conexiÃ³n con el servidor');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- FILTRO DE BÚSQUEDA ---
+  // --- FILTRO DE BÃšSQUEDA ---
   const filteredClients = clients.filter((c) => {
     const matchesSearch = 
       `${c.nombre} ${c.apellido}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -147,7 +148,7 @@ export default function Clientes() {
     setDialogOpen(true);
   };
 
-  // --- FORMULARIO: ABRIR EDICIÓN ---
+  // --- FORMULARIO: ABRIR EDICIÃ“N ---
   const handleEdit = (client: Client) => {
     setEditingClient(client);
     setFormData({
@@ -168,17 +169,34 @@ export default function Clientes() {
   // --- GUARDAR (CREAR O ACTUALIZAR) ---
   const handleSave = async () => {
     if (!formData.cedula || !formData.nombre || !formData.apellido) {
-      toast.error('Cédula, nombre y apellido son requeridos');
+      toast.error('CÃ©dula, nombre y apellido son requeridos');
       return;
     }
 
+    if (!isValidEcDocument(formData.cedula)) {
+      toast.error('Ingrese una cedula o RUC ecuatoriano valido');
+      return;
+    }
+    if (formData.nombre.trim().length > FIELD_LIMITS.nombre || formData.apellido.trim().length > FIELD_LIMITS.nombre) {
+      toast.error(`Nombre y apellido no pueden superar ${FIELD_LIMITS.nombre} caracteres`);
+      return;
+    }
+    if (!isValidPhone(formData.telefono)) {
+      toast.error('El telefono debe tener entre 8 y 15 digitos');
+      return;
+    }
     setIsSaving(true);
     try {
+      const payload = {
+        ...formData,
+        cedula: onlyDigits(formData.cedula),
+        telefono: normalizePhone(formData.telefono),
+      };
       if (editingClient) {
         // ACTUALIZAR
         const response = await apiFetch(`/clientes/${editingClient.id}`, {
           method: 'PUT',
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
         const data = await response.json();
 
@@ -193,7 +211,7 @@ export default function Clientes() {
         // CREAR
         const response = await apiFetch('/clientes', {
           method: 'POST',
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
         const data = await response.json();
 
@@ -207,7 +225,7 @@ export default function Clientes() {
       }
     } catch (err) {
       console.error('Error guardando cliente:', err);
-      toast.error('Error de conexión con el servidor');
+      toast.error('Error de conexiÃ³n con el servidor');
     } finally {
       setIsSaving(false);
     }
@@ -247,7 +265,7 @@ export default function Clientes() {
       }
     } catch (err) {
       console.error(err);
-      toast.error('Error de conexión');
+      toast.error('Error de conexiÃ³n');
     } finally {
       setIsAlertOpen(false);
       setClientToToggle(null);
@@ -264,7 +282,7 @@ export default function Clientes() {
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
             Clientes
           </h1>
-          <p className="text-muted-foreground text-lg">Administración de clientes y colaboradores de Ecencia Andina</p>
+          <p className="text-muted-foreground text-lg">AdministraciÃ³n de clientes y colaboradores de Ecencia Andina</p>
         </div>
         <div className="flex items-center gap-3">
           <Button onClick={() => setRechargeOpen(true)} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 shadow-lg shadow-cafe/5 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
@@ -327,15 +345,15 @@ export default function Clientes() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-foreground">Lista de Clientes</CardTitle>
-              <CardDescription>Administre los clientes y su información</CardDescription>
+              <CardDescription>Administre los clientes y su informaciÃ³n</CardDescription>
             </div>
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Búsqueda</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">BÃºsqueda</span>
                 <div className="relative w-72">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Nombre, cédula o teléfono..."
+                    placeholder="Nombre, cÃ©dula o telÃ©fono..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 bg-muted/30 focus-visible:bg-background transition-colors"
@@ -396,8 +414,8 @@ export default function Clientes() {
                 <TableRow className="bg-secondary/10 hover:bg-secondary/10">
                   <TableHead className="text-cafe font-bold">Nombre de Cliente</TableHead>
                   <TableHead className="text-cafe font-bold">Tipo de Cliente</TableHead>
-                  <TableHead className="text-cafe font-bold">Cédula</TableHead>
-                  <TableHead className="text-cafe font-bold">Teléfono</TableHead>
+                  <TableHead className="text-cafe font-bold">CÃ©dula</TableHead>
+                  <TableHead className="text-cafe font-bold">TelÃ©fono</TableHead>
                   <TableHead className="text-cafe font-bold">Estado</TableHead>
                   <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>
                 </TableRow>
@@ -416,7 +434,7 @@ export default function Clientes() {
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-destructive">
                       <div className="flex flex-col items-center gap-2">
-                        <p className="font-semibold">Ocurrió un error</p>
+                        <p className="font-semibold">OcurriÃ³ un error</p>
                         <p className="text-sm">{error}</p>
                         <Button
                           variant="outline"
@@ -433,7 +451,7 @@ export default function Clientes() {
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                       {searchTerm
-                        ? 'No se encontraron clientes con esa búsqueda'
+                        ? 'No se encontraron clientes con esa bÃºsqueda'
                         : 'No hay clientes registrados'}
                     </TableCell>
                   </TableRow>
@@ -472,7 +490,7 @@ export default function Clientes() {
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-foreground">
                           <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          {client.telefono || '—'}
+                          {client.telefono || 'â€”'}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -519,13 +537,14 @@ export default function Clientes() {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="cedula">Cédula *</Label>
+              <Label htmlFor="cedula">CÃ©dula *</Label>
               <Input
                 id="cedula"
                 value={formData.cedula}
                 onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
                 placeholder="Ej: 1712345678"
                 maxLength={13}
+                inputMode="numeric"
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -536,6 +555,7 @@ export default function Clientes() {
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                   placeholder="Nombre del cliente"
+                  maxLength={FIELD_LIMITS.nombre}
                 />
               </div>
               <div className="space-y-2">
@@ -545,17 +565,20 @@ export default function Clientes() {
                   value={formData.apellido}
                   onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
                   placeholder="Apellido del cliente"
+                  maxLength={FIELD_LIMITS.nombre}
                 />
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="telefono">Teléfono</Label>
+                <Label htmlFor="telefono">TelÃ©fono</Label>
                 <Input
                   id="telefono"
                   value={formData.telefono}
                   onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                   placeholder="+593 999999999"
+                  maxLength={16}
+                  inputMode="tel"
                 />
               </div>
               <div className="space-y-2">
@@ -580,7 +603,7 @@ export default function Clientes() {
               </div>
             </div>
 
-            {/* SECCIÓN DE CONVENIO */}
+            {/* SECCIÃ“N DE CONVENIO */}
             {editingClient?.convenio && (
               <div className="rounded-lg border border-border p-4 bg-accent/30 space-y-3">
                 <div className="flex items-center justify-between">
@@ -599,13 +622,13 @@ export default function Clientes() {
                     size="sm" 
                     className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 h-8"
                     onClick={async () => {
-                      if (confirm(`¿Quitar a ${editingClient.nombre} del convenio ${editingClient.convenio?.nombre}?`)) {
+                      if (confirm(`Â¿Quitar a ${editingClient.nombre} del convenio ${editingClient.convenio?.nombre}?`)) {
                         try {
                           const res = await apiFetch(`/clientes/${editingClient.id}/convenio`, {
                             method: 'DELETE'
                           });
                           if (res.ok) {
-                            toast.success('Vínculo eliminado');
+                            toast.success('VÃ­nculo eliminado');
                             // Actualizar localmente
                             setEditingClient({ ...editingClient, convenio: null });
                             setClients(clients.map(c => c.id === editingClient.id ? { ...c, convenio: null } : c));
@@ -653,20 +676,20 @@ export default function Clientes() {
         clients={clients}
       />
 
-      {/* Confirmación para desactivar */}
+      {/* ConfirmaciÃ³n para desactivar */}
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Desactivar cliente?</AlertDialogTitle>
+            <AlertDialogTitle>Â¿Desactivar cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Está seguro que desea desactivar a{' '}
+              Â¿EstÃ¡ seguro que desea desactivar a{' '}
               <strong>
                 {clientToToggle?.nombre} {clientToToggle?.apellido}
               </strong>
               ?
               <br />
               <br />
-              El cliente quedará inactivo hasta que se reactive manualmente.
+              El cliente quedarÃ¡ inactivo hasta que se reactive manualmente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -675,7 +698,7 @@ export default function Clientes() {
               onClick={() => clientToToggle && confirmToggle(clientToToggle.id, false)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Sí, desactivar
+              SÃ­, desactivar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase, getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
 const mapRoleToAppRole = (roleName = '') => {
   const normalized = String(roleName).toLowerCase().trim();
@@ -13,14 +14,11 @@ const mapRoleToAppRole = (roleName = '') => {
 
 // Ruta para el LOGIN
 router.post('/login', async (req, res) => {
-  const { identificador, password } = req.body;
-  const loginId = identificador || req.body.email;
-
-  if (!loginId || !password) {
-    return res.status(400).json({ mensaje: 'Identificador y contraseña obligatorios' });
-  }
-
   try {
+    const { identificador, email, password } = parseBody(schemas.login, req.body);
+    const loginId = identificador || email;
+    if (!loginId) return res.status(400).json({ mensaje: 'Identificador y contrasena obligatorios' });
+
     let emailToLogin = loginId;
     const adminClient = getAdminClient();
 
@@ -33,8 +31,8 @@ router.post('/login', async (req, res) => {
         .single();
 
       if (empError || !empleado) {
-        console.error('Login: Usuario no encontrado en tabla empleados:', loginId, empError?.message);
-        return res.status(401).json({ mensaje: 'Usuario no encontrado' });
+        console.warn('Login: identificador no valido o no registrado.');
+        return res.status(401).json({ mensaje: 'Credenciales invalidas' });
       }
       emailToLogin = empleado.correo;
     }
@@ -45,8 +43,8 @@ router.post('/login', async (req, res) => {
     });
 
     if (authError || !authData.user) {
-      console.error('Login: Error en Supabase Auth:', emailToLogin, authError?.message);
-      return res.status(401).json({ mensaje: 'Credenciales inválidas' });
+      console.warn('Login: autenticacion rechazada por Supabase Auth.');
+      return res.status(401).json({ mensaje: 'Credenciales invalidas' });
     }
 
     const uid = authData.user.id;
@@ -82,7 +80,7 @@ router.post('/login', async (req, res) => {
     const empleadoData = empleadosData && empleadosData.length > 0 ? empleadosData[0] : null;
 
     if (!empleadoData) {
-      console.error('Login: Empleado no encontrado tras auth exitosa:', uid, uemail);
+      console.error('Login: empleado no encontrado tras autenticacion exitosa.');
       return res.status(404).json({ mensaje: 'Empleado no registrado en la base de datos' });
     }
 
@@ -96,7 +94,7 @@ router.post('/login', async (req, res) => {
     const rolFrontend = mapRoleToAppRole(roleName);
 
     // ACTUALIZAR METADATOS EN SUPABASE AUTH (para que el middleware no tenga que consultar la DB)
-    // Solo lo hacemos si hay cambios o para asegurar sincronización
+    // Solo lo hacemos si hay cambios o para asegurar sincronizaciÃƒÆ’Ã‚Â³n
     if (authData.user.app_metadata?.rol !== rolFrontend || authData.user.user_metadata?.esta_activo !== empleadoData.esta_activo) {
       await adminClient.auth.admin.updateUserById(uid, {
         app_metadata: {
@@ -111,7 +109,7 @@ router.post('/login', async (req, res) => {
     }
 
     res.json({
-      mensaje: '¡Acceso concedido!',
+      mensaje: 'Ãƒâ€šÃ‚Â¡Acceso concedido!',
       token: authData.session.access_token,
       refresh_token: authData.session.refresh_token,
       user: {
@@ -124,8 +122,9 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     console.error('Login: Error fatal:', error);
-    res.status(500).json({ mensaje: 'Error interno del servidor', detalle: error.message });
+    res.status(500).json({ mensaje: 'Error interno del servidor' });
   }
 });
 
@@ -138,13 +137,13 @@ router.get('/datos-privados', authMiddleware, async (req, res) => {
 });
 
 router.post('/refresh', async (req, res) => {
-  const { refresh_token } = req.body;
-  if (!refresh_token) return res.status(400).json({ error: 'Token obligatorio' });
   try {
+    const { refresh_token } = parseBody(schemas.refresh, req.body);
     const { data, error } = await supabase.auth.refreshSession({ refresh_token });
-    if (error) return res.status(401).json({ error: 'Sesión expirada' });
+    if (error) return res.status(401).json({ error: 'Sesion expirada' });
     res.json({ token: data.session.access_token, refresh_token: data.session.refresh_token });
-  } catch {
+  } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: 'Error interno' });
   }
 });
