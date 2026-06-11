@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FoodSelector } from '@/components/menu/FoodSelector';
+import { RegisteredMenuList } from '@/components/menu/RegisteredMenuList';
+import type { DailyMenu } from '@/components/menu/RegisteredMenuList';
 import { apiFetch } from '@/lib/api';
 import { buildTelegramMenuImage } from '@/lib/menuImage';
 import { Alimento } from '@/types';
@@ -25,16 +27,6 @@ interface Category {
   nombre_categoria: string;
 }
 
-interface DailyMenu {
-  fecha: string;
-  estado: 'activo' | 'inactivo';
-  imagen_url: string | null;
-  sopas: string[];
-  segundos: string[];
-  guarniciones: string[];
-  opciones: number;
-}
-
 export default function Menu() {
   const { sopas, segundos, guarniciones } = useMenu();
   const [isSending, setIsSending] = useState(false);
@@ -43,6 +35,8 @@ export default function Menu() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [allAlimentos, setAllAlimentos] = useState<Alimento[]>([]);
   const [menus, setMenus] = useState<DailyMenu[]>([]);
+  const [isLoadingMenus, setIsLoadingMenus] = useState(true);
+  const [menuLoadError, setMenuLoadError] = useState<string | null>(null);
   const [selectedMenuDate, setSelectedMenuDate] = useState<string | null>(null);
 
   const cleanOptions = (options: string[]) => options.map(option => option.trim()).filter(Boolean);
@@ -64,10 +58,14 @@ export default function Menu() {
   };
 
   const fetchMenus = async (applyActive = false) => {
+    setIsLoadingMenus(true);
+    setMenuLoadError(null);
     try {
       const response = await apiFetch('/menu');
-      if (!response.ok) return;
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudieron cargar los menus registrados.');
+      }
       const loadedMenus: DailyMenu[] = Array.isArray(data.menus) ? data.menus : [];
       setMenus(loadedMenus);
 
@@ -76,7 +74,11 @@ export default function Menu() {
         applyMenu(active);
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudieron cargar los menus registrados.';
+      setMenuLoadError(message);
       toast.error('No se pudieron cargar los menus registrados');
+    } finally {
+      setIsLoadingMenus(false);
     }
   };
 
@@ -443,39 +445,14 @@ export default function Menu() {
               <CardDescription>Fecha, estado y opciones guardadas</CardDescription>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
-              {menus.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  No existen menus registrados.
-                </div>
-              ) : (
-                menus.slice(0, 6).map(menu => (
-                  <div key={menu.fecha} className="rounded-lg border bg-background p-3 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-cafe">{new Date(menu.fecha + 'T00:00:00').toLocaleDateString('es-EC')}</p>
-                        <p className="text-xs text-muted-foreground">{menu.opciones} opciones</p>
-                      </div>
-                      <span className={menu.estado === 'activo' ? 'rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-700' : 'rounded-full bg-muted px-2 py-1 text-xs font-bold text-muted-foreground'}>
-                        {menu.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1" onClick={() => applyMenu(menu)}>
-                        Cargar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={menu.estado === 'activo' ? 'secondary' : 'default'}
-                        className="flex-1"
-                        disabled={menu.estado === 'activo' || isActivating === menu.fecha}
-                        onClick={() => handleActivateMenu(menu)}
-                      >
-                        {isActivating === menu.fecha ? 'Activando...' : 'Activar'}
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
+              <RegisteredMenuList
+                menus={menus}
+                isLoading={isLoadingMenus}
+                error={menuLoadError}
+                isActivating={isActivating}
+                onLoad={applyMenu}
+                onActivate={handleActivateMenu}
+              />
             </CardContent>
           </Card>
 

@@ -1,8 +1,10 @@
 const express = require('express');
+const crypto = require('crypto');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 const { getAdminClient } = require('../config/supabase');
 const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { cleanupOldMenuImages } = require('../services/menuImageCleanup');
 
 const router = express.Router();
 
@@ -12,9 +14,6 @@ const TIMEZONE = 'America/Bogota';
 const DEFAULT_IMAGE_RETENTION_DAYS = 14;
 const MAX_MENU_IMAGE_BYTES = 5 * 1024 * 1024;
 const LOCAL_WEBHOOK_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
-
-router.use(authMiddleware);
-router.use(roleMiddleware(['administrador', 'caja']));
 
 const cleanOptions = (options) => {
   if (!Array.isArray(options)) return [];
@@ -329,52 +328,41 @@ const saveDailyMenu = async (adminClient, menu, imageUrl, userId, fecha = todayI
   return { fecha, count: rows.length };
 };
 
-const storagePathFromPublicUrl = (url) => {
-  const marker = `/storage/v1/object/public/${MENU_ASSETS_BUCKET}/`;
-  const index = String(url || '').indexOf(marker);
-  if (index < 0) return '';
-  return decodeURIComponent(String(url).slice(index + marker.length).split('?')[0]);
+const secureEquals = (left, right) => {
+  const leftBuffer = Buffer.from(String(left || ''));
+  const rightBuffer = Buffer.from(String(right || ''));
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 };
 
-const cleanupOldMenuImages = async (adminClient) => {
-  const settings = await getMenuSettings(adminClient);
-  const retentionDays = Number(settings.image_retention_days || process.env.MENU_IMAGE_RETENTION_DAYS || DEFAULT_IMAGE_RETENTION_DAYS);
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - retentionDays);
-  const cutoffDate = cutoff.toISOString().slice(0, 10);
-
-  const { data, error } = await adminClient
-    .from('menu_diario')
-    .select('fecha,imagen_url')
-    .not('imagen_url', 'is', null);
-
-  if (error) throw error;
-
-  const protectedUrls = new Set();
-  const candidateUrls = new Set();
-
-  for (const row of data || []) {
-    if (!row.imagen_url) continue;
-    if (row.fecha >= cutoffDate || row.fecha === settings.active_date) protectedUrls.add(row.imagen_url);
-    else candidateUrls.add(row.imagen_url);
+const requireN8nCleanupSecret = (req, res, next) => {
+  const expectedSecret = process.env.N8N_MENU_WEBHOOK_SECRET;
+  if (!expectedSecret) {
+    return res.status(503).json({ error: 'La limpieza programada no esta configurada.' });
   }
 
-  const urlsToDelete = [...candidateUrls].filter((url) => !protectedUrls.has(url));
-  const paths = urlsToDelete.map(storagePathFromPublicUrl).filter(Boolean);
-  if (!paths.length) return { retentionDays, cutoffDate, deleted: 0 };
+  const receivedSecret = req.get('X-Eciencia-Webhook-Secret');
+  if (!secureEquals(receivedSecret, expectedSecret)) {
+    return res.status(401).json({ error: 'Limpieza programada no autorizada.' });
+  }
 
-  const { error: removeError } = await adminClient.storage.from(MENU_ASSETS_BUCKET).remove(paths);
-  if (removeError) throw removeError;
-
-  const { error: updateError } = await adminClient
-    .from('menu_diario')
-    .update({ imagen_url: null })
-    .in('imagen_url', urlsToDelete)
-    .lt('fecha', cutoffDate);
-
-  if (updateError) throw updateError;
-  return { retentionDays, cutoffDate, deleted: paths.length };
+  next();
 };
+
+const runImageCleanup = async (_req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const result = await cleanupOldMenuImages(adminClient);
+    res.json({ mensaje: 'Limpieza de imagenes ejecutada.', ...result });
+  } catch (error) {
+    console.error('Error limpiando imagenes de menu:', error);
+    res.status(500).json({ error: error.message || 'No se pudieron limpiar las imagenes antiguas.' });
+  }
+};
+
+router.post('/system/limpiar-imagenes', requireN8nCleanupSecret, runImageCleanup);
+
+router.use(authMiddleware);
+router.use(roleMiddleware(['administrador', 'caja']));
 
 router.get('/', async (req, res) => {
   try {
@@ -473,16 +461,7 @@ router.post('/:fecha/activar', async (req, res) => {
   }
 });
 
-router.post('/limpiar-imagenes', async (req, res) => {
-  try {
-    const adminClient = getAdminClient();
-    const result = await cleanupOldMenuImages(adminClient);
-    res.json({ mensaje: 'Limpieza de imagenes ejecutada.', ...result });
-  } catch (error) {
-    console.error('Error limpiando imagenes de menu:', error);
-    res.status(500).json({ error: error.message || 'No se pudieron limpiar las imagenes antiguas.' });
-  }
-});
+router.post('/limpiar-imagenes', runImageCleanup);
 
 router.post('/enviar', async (req, res) => {
   try {
@@ -545,3 +524,6 @@ router.post('/enviar', async (req, res) => {
 });
 
 module.exports = router;
+module.exports._private = {
+  groupMenuRows,
+};

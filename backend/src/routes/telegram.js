@@ -1,6 +1,7 @@
 const express = require('express');
 const { getAdminClient } = require('../config/supabase');
 const { normalizePhone } = require('../validation/eciencia');
+const { createOrderTrace, updateOrderTrace } = require('../services/telegramOrderTrace');
 
 const router = express.Router();
 
@@ -60,7 +61,9 @@ const contactKeyboard = () => ({
 const menuCaption = (today) =>
   'Ecencia Andina - Menu del dia ' +
   today +
-  '\n\nToca una sopa para comenzar. Luego elegiras el plato fuerte y la guarnicion.\n\nTambien puedes responder con /cancelar para reiniciar.';
+  '\n\nToca una sopa para comenzar. Luego elegiras el plato fuerte y la guarnicion.' +
+  '\n\nTambien puedes escribir: sopa 1, segundo 1, guarnicion 1, cantidad 1.' +
+  '\nUsa /cancelar para reiniciar.';
 
 const telegramRequest = async (method, body) => {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -100,6 +103,8 @@ const answerCallback = async (callbackId) => {
 const readUpdate = (update) => {
   if (update.callback_query) {
     return {
+      updateId: Number(update.update_id || 0) || null,
+      messageId: Number(update.callback_query.message?.message_id || 0) || null,
       chatId: String(update.callback_query.message?.chat?.id || update.callback_query.from?.id || ''),
       text: String(update.callback_query.data || ''),
       callbackId: String(update.callback_query.id || ''),
@@ -116,6 +121,8 @@ const readUpdate = (update) => {
   const contactUserId = contact?.user_id ? String(contact.user_id) : '';
 
   return {
+    updateId: Number(update.update_id || 0) || null,
+    messageId: Number(message.message_id || 0) || null,
     chatId,
     text: String(message.text || ''),
     callbackId: '',
@@ -197,6 +204,11 @@ const upsertSubscriptionByChat = async (chatId, values) => {
   return data;
 };
 
+const deleteSubscriptionById = async (id) => {
+  const { error } = await getAdminClient().from('telegram_subscriptions').delete().eq('id', id);
+  if (error) throw error;
+};
+
 const phoneCandidates = (phone) => {
   const normalized = normalizePhone(phone);
   const out = new Set([normalized]);
@@ -253,6 +265,10 @@ const saveAcceptedSubscription = async (chatId, client, phone, contactVerified) 
   }
   if (byPhone?.chat_id && String(byPhone.chat_id) !== String(chatId) && !contactVerified) {
     return { blocked: true, reason: 'chat_taken' };
+  }
+
+  if (byPhone && byChat && byPhone.id !== byChat.id) {
+    await deleteSubscriptionById(byChat.id);
   }
 
   const payload = {
@@ -400,7 +416,13 @@ const insertOrder = async (session, chatId) => {
       canal: 'Telegram',
     },
   });
-  if (detailError) throw detailError;
+  if (detailError) {
+    const { error: cleanupError } = await adminClient.from('ordenes').delete().eq('id_orden', order.id_orden);
+    if (cleanupError) {
+      console.error('No se pudo limpiar una orden Telegram incompleta:', cleanupError);
+    }
+    throw detailError;
+  }
 
   return order;
 };
@@ -412,6 +434,106 @@ const optionFromCallback = (text, kind, options) => {
   return options[index];
 };
 
+const cleanOptions = (options) =>
+  Array.isArray(options) ? options.map((option) => String(option || '').trim()).filter(Boolean) : [];
+
+const optionFromText = (text, labelPattern, options) => {
+  const normalized = normalizeText(text);
+  const availableOptions = cleanOptions(options);
+  const explicitMatch = normalized.match(new RegExp(`(?:${labelPattern})\\s*[:#=]?\\s*(\\d{1,2})`, 'i'));
+
+  if (explicitMatch) {
+    const index = Number(explicitMatch[1]) - 1;
+    return {
+      provided: true,
+      value: Number.isInteger(index) && index >= 0 && index < availableOptions.length ? availableOptions[index] : '',
+    };
+  }
+
+  const matchedOption = availableOptions.find((option) => normalized.includes(normalizeText(option)));
+  return {
+    provided: Boolean(matchedOption),
+    value: matchedOption || '',
+  };
+};
+
+const quantityFromText = (text, currentQuantity = 1) => {
+  const normalized = normalizeText(text);
+  const match =
+    normalized.match(/(?:cantidad|almuerzos?|pedidos?)\s*[:#=]?\s*(-?\d{1,3})/) ||
+    normalized.match(/\b(-?\d{1,3})\s*(?:almuerzos?|pedidos?)\b/);
+
+  if (!match) {
+    return { provided: false, valid: true, value: Number(currentQuantity || 1) };
+  }
+
+  const value = Number(match[1]);
+  return {
+    provided: true,
+    valid: Number.isInteger(value) && value >= 1 && value <= 20,
+    value,
+  };
+};
+
+const stepForField = (field, fallback = 'sopa') => {
+  if (field === 'plato fuerte') return 'segundo';
+  if (field === 'guarnicion') return 'guarnicion';
+  if (field === 'sopa') return 'sopa';
+  return fallback;
+};
+
+const parseTextOrder = (text, session) => {
+  const soup = optionFromText(text, 'sopa', session.menu.sopas);
+  const main = optionFromText(text, '(?:segundo|plato(?:\\s+fuerte)?)', session.menu.segundos);
+  const side = optionFromText(text, 'guarnicion', session.menu.guarniciones);
+  const quantity = quantityFromText(text, session.quantity);
+  const hasSelectionInput = soup.provided || main.provided || side.provided || quantity.provided;
+
+  const nextSession = {
+    ...session,
+    ...(soup.value ? { sopa: soup.value } : {}),
+    ...(main.value ? { segundo: main.value } : {}),
+    ...(side.value ? { guarnicion: side.value } : {}),
+    ...(quantity.valid ? { quantity: quantity.value } : {}),
+  };
+
+  const invalid = [];
+  if (soup.provided && !soup.value) invalid.push('sopa');
+  if (main.provided && !main.value) invalid.push('plato fuerte');
+  if (side.provided && !side.value) invalid.push('guarnicion');
+  if (!quantity.valid) invalid.push('cantidad');
+  if (!hasSelectionInput) invalid.push('formato');
+
+  const missing = [];
+  if (!nextSession.sopa) missing.push('sopa');
+  if (!nextSession.segundo) missing.push('plato fuerte');
+  if (!nextSession.guarnicion) missing.push('guarnicion');
+
+  const nextField = invalid.find((field) => field !== 'cantidad' && field !== 'formato') || missing[0];
+  nextSession.step = stepForField(nextField, session.step);
+
+  return {
+    valid: invalid.length === 0 && missing.length === 0,
+    invalid,
+    missing,
+    session: nextSession,
+  };
+};
+
+const correctionText = ({ invalid, missing }) => {
+  const lines = ['No pude interpretar el pedido. El pedido no fue registrado.'];
+
+  if (invalid.includes('formato')) {
+    lines.push('El mensaje no tiene un formato de pedido reconocido.');
+  } else if (invalid.length) {
+    lines.push(`Valores invalidos: ${invalid.join(', ')}.`);
+  }
+  if (missing.length) lines.push(`Falta: ${missing.join(', ')}.`);
+
+  lines.push('Corrige el mensaje con este formato: sopa 1, segundo 1, guarnicion 1, cantidad 1.');
+  return lines.join('\n\n');
+};
+
 const orderConfirmation = (session, order) =>
   (order.duplicate ? 'Ya tenias una reserva registrada para hoy.\n\n' : 'Tu almuerzo quedo reservado.\n\n') +
   `Cantidad: ${Number(session.quantity || 1)}\n` +
@@ -420,6 +542,10 @@ const orderConfirmation = (session, order) =>
   `Guarnicion: ${session.guarnicion}\n` +
   'Estado: Reservado\n' +
   `Orden: ${order.id_orden}`;
+
+const orderRegistrationFailureText = () =>
+  'No pude registrar tu pedido en este momento. El pedido no fue registrado.\n\n' +
+  'Tus selecciones se conservaron. Intenta nuevamente o envia /cancelar para empezar otra vez.';
 
 const promptConsent = async (chatId) => {
   await upsertSubscriptionByChat(chatId, {
@@ -440,9 +566,98 @@ const promptMenu = async (chatId, client, prefix = '') => {
   await sendMessage(chatId, `${prefix}${menuCaption(session.date)}`, optionsKeyboard('sopa', session.menu.sopas));
 };
 
-const handleAcceptedSession = async (chatId, text, isCallback) => {
+const optionsForStep = (session) => {
+  if (session.step === 'segundo') return optionsKeyboard('segundo', session.menu.segundos);
+  if (session.step === 'guarnicion') return optionsKeyboard('guarnicion', session.menu.guarniciones);
+  return optionsKeyboard('sopa', session.menu.sopas);
+};
+
+const processTextSession = async (
+  chatId,
+  text,
+  session,
+  {
+    saveState = setState,
+    createOrder = insertOrder,
+    clearState = deleteState,
+    notify = sendMessage,
+    trace = async () => {},
+  } = {},
+) => {
+  const parsed = parseTextOrder(text, session);
+  const nextSession = parsed.session;
+
+  if (!parsed.valid) {
+    await saveState(stateKey(chatId), nextSession);
+    await trace({
+      id_cliente: nextSession.cliente?.id_cliente,
+      interpreted_payload: {
+        source: 'text',
+        step: nextSession.step,
+        quantity: nextSession.quantity,
+        sopa: nextSession.sopa || null,
+        segundo: nextSession.segundo || null,
+        guarnicion: nextSession.guarnicion || null,
+        invalid: parsed.invalid,
+        missing: parsed.missing,
+      },
+      outcome: 'failed',
+      error_message: 'Formato incompleto o invalido',
+    });
+    await notify(chatId, correctionText(parsed), optionsForStep(nextSession));
+    return { status: 'invalid', parsed };
+  }
+
+  let order;
+  try {
+    order = await createOrder(nextSession, chatId);
+  } catch (error) {
+    await saveState(stateKey(chatId), nextSession);
+    await trace({
+      id_cliente: nextSession.cliente?.id_cliente,
+      interpreted_payload: {
+        source: 'text',
+        step: 'registration_error',
+        quantity: nextSession.quantity,
+        sopa: nextSession.sopa,
+        segundo: nextSession.segundo,
+        guarnicion: nextSession.guarnicion,
+      },
+      outcome: 'failed',
+      error_message: error.message || 'No se pudo registrar el pedido',
+    });
+    await notify(chatId, orderRegistrationFailureText());
+    return { status: 'failed', error, session: nextSession };
+  }
+
+  await clearState(stateKey(chatId));
+  await trace({
+    id_cliente: nextSession.cliente?.id_cliente,
+    id_orden: order.id_orden,
+    interpreted_payload: {
+      source: 'text',
+      step: 'completed',
+      quantity: nextSession.quantity,
+      sopa: nextSession.sopa,
+      segundo: nextSession.segundo,
+      guarnicion: nextSession.guarnicion,
+    },
+    outcome: order.duplicate ? 'rejected' : 'success',
+    error_message: order.duplicate ? 'Reserva duplicada para el dia' : null,
+  });
+  await notify(chatId, orderConfirmation(nextSession, order));
+  return { status: order.duplicate ? 'duplicate' : 'created', order, session: nextSession };
+};
+
+const handleAcceptedSession = async (chatId, text, isCallback, traceId = '') => {
+  const trace = (patch) => updateOrderTrace(traceId, patch);
   let session = await getState(stateKey(chatId));
   if (!session) {
+    await trace({
+      interpreted_payload: { source: isCallback ? 'buttons' : 'text', step: 'missing_session' },
+      outcome: 'failed',
+      error_message: 'No existe una sesion de menu activa',
+    });
     await sendMessage(chatId, 'No tengo un menu activo para este chat. Envia /menu cuando el menu este disponible.');
     return;
   }
@@ -450,18 +665,41 @@ const handleAcceptedSession = async (chatId, text, isCallback) => {
   const today = todayInTimezone();
   if (session.date !== today) {
     await deleteState(stateKey(chatId));
+    await trace({
+      id_cliente: session.cliente?.id_cliente,
+      interpreted_payload: { source: isCallback ? 'buttons' : 'text', step: session.step },
+      outcome: 'failed',
+      error_message: 'La sesion del menu esta vencida',
+    });
     await sendMessage(chatId, 'El menu activo ya vencio. Envia /menu para cargar el menu de hoy.');
+    return;
+  }
+
+  if (!isCallback) {
+    await processTextSession(chatId, text, session, { trace });
     return;
   }
 
   if (session.step === 'sopa') {
     const sopa = isCallback ? optionFromCallback(text, 'sopa', session.menu.sopas) : '';
     if (!sopa) {
+      await trace({
+        id_cliente: session.cliente?.id_cliente,
+        interpreted_payload: { source: 'buttons', step: 'sopa', callbackData: text },
+        outcome: 'failed',
+        error_message: 'Seleccion de sopa invalida',
+      });
       await sendMessage(chatId, 'Usa los botones para escoger tu sopa.', optionsKeyboard('sopa', session.menu.sopas));
       return;
     }
     session = { ...session, sopa, step: 'segundo' };
     await setState(stateKey(chatId), session);
+    await trace({
+      id_cliente: session.cliente?.id_cliente,
+      interpreted_payload: { source: 'buttons', step: session.step, sopa: session.sopa },
+      outcome: 'pending',
+      error_message: null,
+    });
     await sendMessage(chatId, `Sopa: ${sopa}\nAhora elige tu plato fuerte.`, optionsKeyboard('segundo', session.menu.segundos));
     return;
   }
@@ -469,11 +707,28 @@ const handleAcceptedSession = async (chatId, text, isCallback) => {
   if (session.step === 'segundo') {
     const segundo = isCallback ? optionFromCallback(text, 'segundo', session.menu.segundos) : '';
     if (!segundo) {
+      await trace({
+        id_cliente: session.cliente?.id_cliente,
+        interpreted_payload: { source: 'buttons', step: 'segundo', callbackData: text },
+        outcome: 'failed',
+        error_message: 'Seleccion de plato fuerte invalida',
+      });
       await sendMessage(chatId, 'Usa los botones para escoger tu plato fuerte.', optionsKeyboard('segundo', session.menu.segundos));
       return;
     }
     session = { ...session, segundo, step: 'guarnicion' };
     await setState(stateKey(chatId), session);
+    await trace({
+      id_cliente: session.cliente?.id_cliente,
+      interpreted_payload: {
+        source: 'buttons',
+        step: session.step,
+        sopa: session.sopa,
+        segundo: session.segundo,
+      },
+      outcome: 'pending',
+      error_message: null,
+    });
     await sendMessage(chatId, `Plato fuerte: ${segundo}\nAhora elige tu guarnicion.`, optionsKeyboard('guarnicion', session.menu.guarniciones));
     return;
   }
@@ -481,12 +736,53 @@ const handleAcceptedSession = async (chatId, text, isCallback) => {
   if (session.step === 'guarnicion') {
     const guarnicion = isCallback ? optionFromCallback(text, 'guarnicion', session.menu.guarniciones) : '';
     if (!guarnicion) {
+      await trace({
+        id_cliente: session.cliente?.id_cliente,
+        interpreted_payload: { source: 'buttons', step: 'guarnicion', callbackData: text },
+        outcome: 'failed',
+        error_message: 'Seleccion de guarnicion invalida',
+      });
       await sendMessage(chatId, 'Usa los botones para escoger tu guarnicion.', optionsKeyboard('guarnicion', session.menu.guarniciones));
       return;
     }
     session = { ...session, guarnicion };
-    const order = await insertOrder(session, chatId);
+    let order;
+    try {
+      order = await insertOrder(session, chatId);
+    } catch (error) {
+      await setState(stateKey(chatId), { ...session, step: 'guarnicion' });
+      await trace({
+        id_cliente: session.cliente?.id_cliente,
+        interpreted_payload: {
+          source: 'buttons',
+          step: 'registration_error',
+          quantity: Number(session.quantity || 1),
+          sopa: session.sopa,
+          segundo: session.segundo,
+          guarnicion: session.guarnicion,
+        },
+        outcome: 'failed',
+        error_message: error.message || 'No se pudo registrar el pedido',
+      });
+      await sendMessage(chatId, orderRegistrationFailureText(), optionsKeyboard('guarnicion', session.menu.guarniciones));
+      return;
+    }
+
     await deleteState(stateKey(chatId));
+    await trace({
+      id_cliente: session.cliente?.id_cliente,
+      id_orden: order.id_orden,
+      interpreted_payload: {
+        source: 'buttons',
+        step: 'completed',
+        quantity: Number(session.quantity || 1),
+        sopa: session.sopa,
+        segundo: session.segundo,
+        guarnicion: session.guarnicion,
+      },
+      outcome: order.duplicate ? 'rejected' : 'success',
+      error_message: order.duplicate ? 'Reserva duplicada para el dia' : null,
+    });
     await sendMessage(chatId, orderConfirmation(session, order));
   }
 };
@@ -587,7 +883,29 @@ const handleTelegramUpdate = async (update) => {
   }
 
   if (subscription?.consent_status !== 'accepted' || subscription.is_active === false) return;
-  if (isCallback) await handleAcceptedSession(chatId, text, isCallback);
+  if (isCallback || text.trim()) {
+    const traceId = await createOrderTrace(parsed, {
+      clientId: subscription.id_cliente,
+      subscriptionId: subscription.id,
+      phoneNormalized: subscription.phone_normalized,
+    });
+
+    try {
+      await handleAcceptedSession(chatId, text, isCallback, traceId);
+    } catch (error) {
+      await updateOrderTrace(traceId, {
+        id_cliente: subscription.id_cliente,
+        subscription_id: subscription.id,
+        interpreted_payload: {
+          source: isCallback ? 'buttons' : 'text',
+          step: 'processing_error',
+        },
+        outcome: 'failed',
+        error_message: error.message || 'Error inesperado al procesar el pedido',
+      });
+      throw error;
+    }
+  }
 };
 
 router.post('/webhook', async (req, res) => {
@@ -611,3 +929,12 @@ router.post('/webhook', async (req, res) => {
 
 module.exports = router;
 module.exports.handleTelegramUpdate = handleTelegramUpdate;
+module.exports._private = {
+  saveAcceptedSubscription,
+  parseTextOrder,
+  correctionText,
+  orderConfirmation,
+  orderRegistrationFailureText,
+  processTextSession,
+  readUpdate,
+};

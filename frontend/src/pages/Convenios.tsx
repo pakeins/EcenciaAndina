@@ -90,7 +90,7 @@ interface ReportEmployee {
     cupo_maximo: 0,
   });
 
-  // --- GESTIÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œN DE COLABORADORES ---
+  // --- GESTION DE COLABORADORES ---
   const [associatedClients, setAssociatedClients] = useState<Client[]>([]);
   const [availableClients, setAvailableClients] = useState<Client[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
@@ -114,7 +114,7 @@ interface ReportEmployee {
       const response = await apiFetch('/convenios');
       const data = await response.json();
       if (response.ok) setConvenios(data);
-    } catch (err) { toast.error('Error de conexiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n'); }
+    } catch (err) { toast.error('Error de conexión'); }
     finally { setIsLoading(false); }
   };
 
@@ -205,7 +205,7 @@ interface ReportEmployee {
           setConvenios(convenios.map(c => c.id === editingConvenio.id ? data : c));
         } else {
           setConvenios([data, ...convenios]);
-          // Generar PDF automÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ticamente para el nuevo convenio
+          // Generar PDF automaticamente para el nuevo convenio
           setTimeout(() => handleExportPDF(data), 500);
         }
         toast.success(editingConvenio ? 'Actualizado' : 'Convenio creado. Generando documento para firma...');
@@ -228,12 +228,12 @@ interface ReportEmployee {
         const data = await response.json();
         toast.error(data.error);
       }
-    } catch (err) { toast.error('Error de conexiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n'); }
+    } catch (err) { toast.error('Error de conexión'); }
   };
 
   const handleCreateAndAddClient = async () => {
     if (!newClientData.cedula || !newClientData.nombre || !newClientData.apellido) {
-      toast.error('CÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dula, nombre y apellido son obligatorios'); return;
+      toast.error('Cédula, nombre y apellido son obligatorios'); return;
     }
     if (!isValidEcDocument(newClientData.cedula)) {
       toast.error('Ingrese una cedula o RUC ecuatoriano valido');
@@ -278,7 +278,7 @@ interface ReportEmployee {
         setAssociatedClients(associatedClients.filter(c => c.id !== clientId));
         fetchConvenios();
       }
-    } catch (err) { toast.error('Error de conexiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n'); }
+    } catch (err) { toast.error('Error de conexión'); }
   };
 
   const fetchHistorial = async (id: string) => {
@@ -526,7 +526,7 @@ interface ReportEmployee {
         toast.error(errData.error || 'Error al subir archivo');
       }
     } catch (err) {
-      toast.error('Error de conexiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n al subir archivo');
+      toast.error('Error de conexión al subir archivo');
     } finally {
       setIsUploading(false);
     }
@@ -602,13 +602,13 @@ interface ReportEmployee {
           <body>
             <div class="header">
               <h2 style="margin:0">ECENCIA ANDINA</h2>
-              <p style="margin:0; font-size:12px">CONVENIOS DE ALIMENTACIÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œN</p>
+              <p style="margin:0; font-size:12px">CONVENIOS DE ALIMENTACIÓN</p>
             </div>
-            <div class="titulo">CONTRATO DE SERVICIO DE ALIMENTACIÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œN</div>
+            <div class="titulo">CONTRATO DE SERVICIO DE ALIMENTACIÓN</div>
 
             <p>Se celebra el presente convenio con fecha <span class="dato">${escapeHtml(new Date().toLocaleDateString())}</span> para brindar servicios de almuerzos a la empresa <span class="dato">${empresaContrato}</span> con RUC <span class="dato">${rucContrato}</span>.</p>
 
-            <p>El convenio contempla un mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ximo de <span class="dato">${cupoContrato}</span> colaboradores debidamente registrados en el sistema.</p>
+            <p>El convenio contempla un máximo de <span class="dato">${cupoContrato}</span> colaboradores debidamente registrados en el sistema.</p>
 
             <p>La duracion del contrato sera de <span class="dato">${anios} anio(s)</span>, iniciando el dia <span class="dato">${inicioContrato}</span> y finalizando el dia <span class="dato">${finContrato}</span>.</p>
 
@@ -644,18 +644,18 @@ interface ReportEmployee {
   ).slice(0, 10);
 
   const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â';
+    if (!dateStr) return '—';
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
             Convenios
           </h1>
-          <p className="text-muted-foreground text-lg">AdministraciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n de alianzas empresariales de Ecencia Andina</p>
+          <p className="text-lg text-muted-foreground">Administración de alianzas empresariales de Ecencia Andina</p>
         </div>
         <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
           <Plus className="h-5 w-5" /> Nuevo Convenio
@@ -665,16 +665,16 @@ interface ReportEmployee {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {convenios.map((convenio) => (
-            <Card key={convenio.id} className="border-border shadow-sm border-t-4 border-t-primary bg-primary/5 group hover:shadow-md transition-all duration-300">
+            <Card key={convenio.id} className="group min-w-0 overflow-hidden border-border border-t-4 border-t-primary bg-primary/5 shadow-sm transition-all duration-300 hover:shadow-md">
               <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white shadow-sm group-hover:scale-110 transition-transform">
                       <Building2 className="h-5 w-5" />
                     </div>
-                    <div><CardTitle className="text-lg font-bold text-cafe">{convenio.nombre_empresa}</CardTitle><CardDescription className="font-medium">RUC: {convenio.ruc}</CardDescription></div>
+                    <div className="min-w-0"><CardTitle className="break-words text-lg font-bold text-cafe">{convenio.nombre_empresa}</CardTitle><CardDescription className="break-words font-medium">RUC: {convenio.ruc}</CardDescription></div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Badge variant={isExpired(convenio.fecha_caducidad) ? 'destructive' : (convenio.activo ? 'default' : 'secondary')}>
@@ -685,12 +685,12 @@ interface ReportEmployee {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2 text-sm text-muted-foreground">
-                   <div className="flex items-center gap-2 text-foreground font-medium"><Users className="h-4 w-4 text-terracota" /> {convenio.representante || 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â'}</div>
-                   <div className="flex items-center gap-2 text-foreground font-medium"><CalendarDays className="h-4 w-4 text-oro" /> {formatDate(convenio.fecha_inicio)} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â {formatDate(convenio.fecha_caducidad)}</div>
+                   <div className="flex min-w-0 items-center gap-2 break-words font-medium text-foreground"><Users className="h-4 w-4 shrink-0 text-terracota" /> {convenio.representante || '—'}</div>
+                   <div className="flex min-w-0 items-center gap-2 break-words font-medium text-foreground"><CalendarDays className="h-4 w-4 shrink-0 text-oro" /> {formatDate(convenio.fecha_inicio)} — {formatDate(convenio.fecha_caducidad)}</div>
                 </div>
                 <div className="space-y-3 py-2">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground font-medium">MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ximo de Colaboradores</span>
+                    <span className="font-medium text-muted-foreground">Máximo de colaboradores</span>
                     <span className={`px-2 py-0.5 rounded-full ${convenio.totalColaboradores >= convenio.cupo_maximo ? "bg-destructive/10 text-destructive font-bold" : "bg-primary/10 text-primary font-bold"}`}>
                       {convenio.totalColaboradores} / {convenio.cupo_maximo}
                     </span>
@@ -758,12 +758,12 @@ interface ReportEmployee {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingConvenio ? 'Editar Convenio' : 'Nuevo Convenio'}</DialogTitle>
-            <DialogDescription>Gestione la informaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n y los colaboradores del convenio.</DialogDescription>
+            <DialogDescription>Gestione la información y los colaboradores del convenio.</DialogDescription>
           </DialogHeader>
 
           <Tabs defaultValue="info" className="w-full mt-4">
             <TabsList className={`grid w-full ${editingConvenio ? 'grid-cols-3' : 'grid-cols-2'}`}>
-              <TabsTrigger value="info">InformaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n General</TabsTrigger>
+              <TabsTrigger value="info">Información general</TabsTrigger>
               <TabsTrigger value="clients" disabled={!editingConvenio}>Colaboradores ({associatedClients.length})</TabsTrigger>
               {editingConvenio && <TabsTrigger value="history">Historial</TabsTrigger>}
             </TabsList>
@@ -775,7 +775,7 @@ interface ReportEmployee {
                </div>
                <div className="space-y-2"><Label>Representante</Label><Input value={formData.representante} onChange={e => setFormData({...formData, representante: e.target.value})} maxLength={FIELD_LIMITS.empresa} /></div>
                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2"><Label>TelÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©fono</Label><Input value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} maxLength={16} inputMode="tel" /></div>
+                  <div className="space-y-2"><Label>Teléfono</Label><Input value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} maxLength={16} inputMode="tel" /></div>
                   <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} maxLength={FIELD_LIMITS.email} /></div>
                </div>
                 <div className="grid gap-4 md:grid-cols-3">
@@ -801,7 +801,7 @@ interface ReportEmployee {
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label>MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ximo de Colaboradores *</Label>
+                      <Label>Máximo de colaboradores *</Label>
                       <ShieldCheck className="h-3 w-3 text-muted-foreground" />
                     </div>
                     <Input
@@ -844,7 +844,7 @@ interface ReportEmployee {
                     {!editingConvenio.archivo_firmado ? (
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-destructive">
-                          ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â El convenio aÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºn no cuenta con el documento firmado, por favor subirlo lo antes posible.
+                          El convenio aún no cuenta con el documento firmado. Por favor, súbalo lo antes posible.
                         </p>
                         <Input
                           type="file"
@@ -921,7 +921,7 @@ interface ReportEmployee {
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        placeholder="Buscar por nombre o cÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dula..."
+                        placeholder="Buscar por nombre o cédula..."
                         className="pl-10"
                         value={clientSearch}
                         onChange={e => setClientSearch(e.target.value)}
@@ -931,7 +931,7 @@ interface ReportEmployee {
                       {(clientSearch || isSearchFocused) && (
                         <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-[250px] overflow-y-auto">
                           <div className="p-2 border-b bg-accent/50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                            {clientSearch ? 'Resultados de bÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºsqueda' : 'Sugerencias de clientes'}
+                            {clientSearch ? 'Resultados de búsqueda' : 'Sugerencias de clientes'}
                           </div>
                           {filteredAvailableClients.length > 0 ? (
                             filteredAvailableClients.map(c => (
@@ -942,7 +942,7 @@ interface ReportEmployee {
                             ))
                           ) : (
                             <div className="p-4 text-center space-y-2">
-                              <p className="text-sm text-muted-foreground">No se encontrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ al cliente.</p>
+                              <p className="text-sm text-muted-foreground">No se encontró al cliente.</p>
                               <Button size="sm" variant="outline" onClick={() => setShowCreateForm(true)} className="gap-2 border-cafe text-cafe hover:bg-cafe/10"><Plus className="h-4 w-4" /> Registrar nuevo colaborador</Button>
                             </div>
                           )}
@@ -968,12 +968,12 @@ interface ReportEmployee {
                     <Button variant="ghost" size="sm" onClick={() => setShowCreateForm(false)} className="h-8 w-8 p-0"><ArrowLeft className="h-4 w-4" /></Button>
                     <h3 className="font-semibold">Nuevo Colaborador</h3>
                   </div>
-                  <div className="space-y-2"><Label>CÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dula *</Label><Input value={newClientData.cedula} onChange={e => setNewClientData({...newClientData, cedula: e.target.value})} maxLength={13} inputMode="numeric" /></div>
+                  <div className="space-y-2"><Label>Cédula *</Label><Input value={newClientData.cedula} onChange={e => setNewClientData({...newClientData, cedula: e.target.value})} maxLength={13} inputMode="numeric" /></div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2"><Label>Nombre *</Label><Input value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} maxLength={FIELD_LIMITS.nombre} /></div>
                     <div className="space-y-2"><Label>Apellido *</Label><Input value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} maxLength={FIELD_LIMITS.nombre} /></div>
                   </div>
-                  <div className="space-y-2"><Label>TelÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©fono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} maxLength={16} inputMode="tel" /></div>
+                  <div className="space-y-2"><Label>Teléfono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} maxLength={16} inputMode="tel" /></div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>Cancelar</Button>
                     <Button className="flex-1" onClick={handleCreateAndAddClient} disabled={isSaving}>{isSaving ? 'Guardando...' : 'Crear y Vincular'}</Button>
@@ -999,7 +999,7 @@ interface ReportEmployee {
                       <div key={h.id} className="flex items-center justify-between p-4 bg-accent/30 rounded-xl border group hover:border-primary/50 transition-colors">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold">{formatDate(h.fecha_inicio)} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â {formatDate(h.fecha_caducidad)}</span>
+                            <span className="text-sm font-bold">{formatDate(h.fecha_inicio)} — {formatDate(h.fecha_caducidad)}</span>
                             <Badge variant="outline" className="text-[10px]">Periodo Finalizado</Badge>
                           </div>
                           <p className="text-[10px] text-muted-foreground">Registrado el {new Date(h.fecha_registro).toLocaleString()}</p>
@@ -1029,15 +1029,15 @@ interface ReportEmployee {
 
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿Desactivar convenio?</AlertDialogTitle><AlertDialogDescription>El convenio quedarÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ inactivo hasta que se reactive manualmente.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel onClick={() => setConvenioToToggle(null)}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => convenioToToggle && confirmToggle(convenioToToggle.id, false)} className="bg-destructive text-destructive-foreground">SÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­, desactivar</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>¿Desactivar convenio?</AlertDialogTitle><AlertDialogDescription>El convenio quedará inactivo hasta que se reactive manualmente.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel onClick={() => setConvenioToToggle(null)}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => convenioToToggle && confirmToggle(convenioToToggle.id, false)} className="bg-destructive text-destructive-foreground">Sí, desactivar</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <Dialog open={isRenewalDialogOpen} onOpenChange={setIsRenewalDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>RenovaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n de Convenio</DialogTitle>
+            <DialogTitle>Renovación de convenio</DialogTitle>
             <DialogDescription>
               Su convenio debe renovarse. Por favor seleccione el nuevo periodo para reactivarlo.
             </DialogDescription>
@@ -1159,7 +1159,7 @@ interface ReportEmployee {
             </div>
           ) : (
             <div className="text-center py-10 text-muted-foreground bg-muted/5 rounded-xl border border-dashed">
-              {isGeneratingReport ? 'Cargando datos...' : 'No se encontraron consumos confirmados en este rango de fechas. AsegÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºrese de que los pedidos estÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©n en estado "Consumido".'}
+              {isGeneratingReport ? 'Cargando datos...' : 'No se encontraron consumos confirmados en este rango de fechas. Asegúrese de que los pedidos estén en estado "Consumido".'}
             </div>
           )}
         </DialogContent>

@@ -69,6 +69,7 @@ No incluyas `PORT` en ese archivo: Cloud Run lo reserva y lo define automaticame
 - `TELEGRAM_WEBHOOK_URL`
 - `N8N_MENU_WEBHOOK_URL`
 - `N8N_MENU_WEBHOOK_SECRET`
+- `N8N_ECIENCIA_BACKEND_URL`
 
 Ejemplo sin imprimir secretos en consola:
 

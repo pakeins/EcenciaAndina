@@ -106,6 +106,9 @@ Endpoints utiles:
 - `POST /api/menu/limpiar-imagenes`: limpia imagenes antiguas del bucket `eciencia-menu-assets`.
 - `GET /api/ordenes/telegram/trazabilidad`: consulta trazabilidad de pedidos automaticos.
 
+La consulta de trazabilidad es exclusiva para administradores, usa paginacion y permite
+filtrar por resultado o `chat_id`. En el frontend se encuentra en `/trazabilidad-telegram`.
+
 ## n8n y Telegram
 
 El workflow exportable esta en:
@@ -121,6 +124,7 @@ Variables requeridas:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
 - `N8N_MENU_WEBHOOK_SECRET`
+- `N8N_ECIENCIA_BACKEND_URL`
 - `N8N_ECIENCIA_TIMEZONE`
 - `N8N_ECIENCIA_MENU_IMAGE_URL`
 - `N8N_ECIENCIA_PRODUCTO_ALMUERZO_NOMBRE`
@@ -132,6 +136,9 @@ El webhook manual que llama el backend es:
 ```txt
 http://localhost:7000/webhook/eciencia-enviar-menu-manual
 ```
+
+El workflow ejecuta diariamente a las `02:30` (zona `America/Bogota`) la limpieza de
+imagenes `telegram/menu-dashboard-*` que superen la retencion de `menu_settings`.
 
 El bot usa webhook en el backend. Despues de desplegar el backend HTTPS, registra Telegram asi:
 

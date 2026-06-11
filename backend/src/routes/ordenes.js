@@ -155,17 +155,28 @@ router.get('/', async (req, res) => {
 });
 
 // CONSULTAR TRAZABILIDAD DE PEDIDOS AUTOMATICOS DE TELEGRAM
-router.get('/telegram/trazabilidad', async (req, res) => {
+router.get('/telegram/trazabilidad', roleMiddleware(['administrador']), async (req, res) => {
   try {
     const adminClient = getAdminClient();
-    const limit = Math.min(Number(req.query.limit || 50), 200);
+    const requestedLimit = Number(req.query.limit || 25);
+    const requestedPage = Number(req.query.page || 1);
+    const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 25;
+    const page = Number.isInteger(requestedPage) ? Math.max(requestedPage, 1) : 1;
+    const offset = (page - 1) * limit;
+    const outcome = String(req.query.outcome || '').trim();
+    const chatId = String(req.query.chat_id || '').trim();
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
 
-    const { data, error } = await adminClient
+    let query = adminClient
       .from('telegram_order_traces')
       .select(`
         id,
         chat_id,
         update_id,
+        id_cliente,
+        id_orden,
+        subscription_id,
         phone_normalized,
         original_message,
         interpreted_payload,
@@ -175,12 +186,29 @@ router.get('/telegram/trazabilidad', async (req, res) => {
         updated_at,
         clientes(nombre, apellido, telefono),
         ordenes(id_orden, created_at)
-      `)
+      `, { count: 'exact' });
+
+    if (['received', 'pending', 'success', 'failed', 'rejected'].includes(outcome)) {
+      query = query.eq('outcome', outcome);
+    }
+    if (chatId) query = query.eq('chat_id', chatId);
+    if (from) query = query.gte('created_at', from);
+    if (to) query = query.lte('created_at', to);
+
+    const { data, error, count } = await query
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
-    res.json(data || []);
+    res.json({
+      traces: data || [],
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

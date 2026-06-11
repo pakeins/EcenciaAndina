@@ -17,6 +17,7 @@ import Menu from './pages/Menu';
 import Productos from './pages/Productos';
 import NotFound from './pages/NotFound';
 import Perfil from './pages/Perfil';
+import TrazabilidadTelegram from './pages/TrazabilidadTelegram';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
                   <Route path="/usuarios" element={<Usuarios />} />
                   <Route path="/menu" element={<Menu />} />
                   <Route path="/productos" element={<Productos />} />
+                  <Route path="/trazabilidad-telegram" element={<TrazabilidadTelegram />} />
                 </Route>
               </Route>
             </Route>

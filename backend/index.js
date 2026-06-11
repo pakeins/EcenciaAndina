@@ -3,12 +3,17 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 require('dotenv').config();
 const cors = require('cors');
-const { supabase } = require('./src/config/supabase'); // ConfiguraciÃƒÂ³n de Supabase
+const { getAdminClient } = require('./src/config/supabase'); // ConfiguraciÃƒÂ³n de Supabase
 const authRoutes = require('./src/routes/auth'); // Importamos las nuevas rutas de login
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
+
+const checkDatabaseConnection = async (createClient = getAdminClient) => {
+  const { error } = await createClient().from('empleados').select('id').limit(1);
+  if (error) throw error;
+};
 
 // --- MIDDLEWARES ---
 app.set('trust proxy', 1);
@@ -63,13 +68,7 @@ app.get('/', (req, res) => {
 // 2. Ruta para verificar la base de datos (Supabase)
 app.get('/api/check-db', async (req, res) => {
   try {
-    // Si tienes una tabla Empleados en Supabase, esto funcionarÃƒÂ¡.
-    // Caso contrario, al menos verificamos que el cliente no se caiga.
-    const { error } = await supabase.from('empleados').select('id').limit(1);
-
-    if (error) {
-      throw error;
-    }
+    await checkDatabaseConnection();
 
     res.json({
       mensaje: 'Backend y Supabase conectados exitosamente',
@@ -145,3 +144,6 @@ if (require.main === module) {
 }
 
 module.exports = app;
+module.exports._private = {
+  checkDatabaseConnection,
+};
