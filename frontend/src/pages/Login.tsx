@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { UtensilsCrossed, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { PasswordRequirements } from '@/components/auth/PasswordRequirements';
+import { PasswordInput } from '@/components/ui/password-input';
 import { API_BASE_URL } from '@/lib/api';
 
 export default function Login() {
@@ -17,16 +18,21 @@ export default function Login() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || (user?.rol === 'administrador' ? '/dashboard' : '/pedidos');
 
   useEffect(() => {
     if (user && !window.location.hash.includes('type=recovery')) {
+      const from = location.state?.from?.pathname && location.state?.from?.pathname !== '/' 
+        ? location.state.from.pathname 
+        : (user.rol === 'administrador' ? '/dashboard' : '/pedidos');
       navigate(from, { replace: true });
     }
-  }, [user, navigate, from]);
+  }, [user, navigate, location.state]);
 
   // Recovery mode state
   const [recoveryToken, setRecoveryToken] = useState<string | null>(null);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isSendingForgot, setIsSendingForgot] = useState(false);
   const [recoveryUserName, setRecoveryUserName] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -58,8 +64,8 @@ export default function Login() {
         })
           .then((res) => res.json())
           .then((data) => {
-            if (data && data.nombre) {
-              setRecoveryUserName(data.nombre);
+            if (data && data.nombre_usuario) {
+              setRecoveryUserName(data.nombre_usuario);
             }
           })
           .catch((err) => console.error('Error fetching user profile:', err));
@@ -77,7 +83,10 @@ export default function Login() {
     const result = await login(email, password);
     if (result.success) {
       toast.success('Bienvenido al sistema');
-      navigate(from, { replace: true });
+      const navDest = location.state?.from?.pathname && location.state?.from?.pathname !== '/' 
+        ? location.state.from.pathname 
+        : (result.rol === 'administrador' ? '/dashboard' : '/pedidos');
+      navigate(navDest, { replace: true });
     } else {
       toast.error(result.message || 'Credenciales inválidas');
     }
@@ -115,7 +124,7 @@ export default function Login() {
 
     setIsResetting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/empleados/perfil/password`, {
+      const response = await fetch(`${API_BASE_URL}/empleados/perfil/recovery-password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -142,6 +151,31 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) { toast.error('Ingrese su correo'); return; }
+    setIsSendingForgot(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ correo: forgotEmail })
+      });
+      const data = await response.json();
+      if (response.ok) {
+         toast.success(data.mensaje);
+         setIsForgotPassword(false);
+         setForgotEmail('');
+      } else {
+         toast.error(data.error || 'Error al enviar');
+      }
+    } catch (err) {
+      toast.error('Error de conexión');
+    } finally {
+      setIsSendingForgot(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md shadow-lg">
@@ -156,7 +190,7 @@ export default function Login() {
             <CardDescription className="mt-1 text-sm">
               {recoveryToken
                 ? recoveryUserName
-                  ? `Bienvenido ${recoveryUserName}, a continuación podrá restablecer su contraseña`
+                  ? `Bienvenido usuario "${recoveryUserName}", por favor ingrese su nueva contraseña`
                   : 'Por favor ingrese su nueva contraseña'
                 : 'Sistema de Gestión de Almuerzos'}
             </CardDescription>
@@ -167,9 +201,8 @@ export default function Login() {
             <form onSubmit={handleResetSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="newPassword">Nueva Contraseña</Label>
-                <Input
+                <PasswordInput
                   id="newPassword"
-                  type="password"
                   placeholder="Escriba su nueva contraseña"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -178,9 +211,8 @@ export default function Login() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
-                <Input
+                <PasswordInput
                   id="confirmPassword"
-                  type="password"
                   placeholder="Repita la nueva contraseña"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -208,6 +240,31 @@ export default function Login() {
               >
                 {isResetting ? 'Actualizando...' : 'Guardar y Continuar'}
               </Button>
+            </form>
+          ) : isForgotPassword ? (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="forgotEmail">Correo Electrónico</Label>
+                <Input
+                  id="forgotEmail"
+                  type="email"
+                  placeholder="Ingrese su correo registrado"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Se enviará un enlace de recuperación si el correo existe en el sistema.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button type="button" variant="outline" className="w-full" onClick={() => setIsForgotPassword(false)}>
+                  Volver
+                </Button>
+                <Button type="submit" className="w-full" disabled={isSendingForgot || !forgotEmail}>
+                  {isSendingForgot ? 'Enviando...' : 'Enviar Enlace'}
+                </Button>
+              </div>
             </form>
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">
@@ -243,12 +300,19 @@ export default function Login() {
               <Button type="submit" className="w-full" size="lg">
                 Iniciar Sesión
               </Button>
+              <div className="text-center pt-2">
+                <Button type="button" variant="link" className="text-xs text-muted-foreground" onClick={() => setIsForgotPassword(true)}>
+                  ¿Olvidó su contraseña?
+                </Button>
+              </div>
             </form>
           )}
           <p className="mt-4 text-center text-xs text-muted-foreground">
             {recoveryToken
               ? 'Asegúrese de usar una contraseña segura'
-              : 'Ingrese sus credenciales oficiales para acceder al sistema.'}
+              : isForgotPassword
+                ? 'El sistema enviará instrucciones a su correo'
+                : 'Ingrese sus credenciales oficiales para acceder al sistema.'}
           </p>
         </CardContent>
       </Card>

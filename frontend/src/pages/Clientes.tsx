@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { Client } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,15 +46,14 @@ import {
 } from '@/components/ui/select';
 import { WalletDialog } from '@/components/clients/WalletDialog';
 import { RechargeDialog } from '@/components/clients/RechargeDialog';
+import { useClientsAndConvenios } from '@/hooks/useClientsAndConvenios';
 import { Banknote } from 'lucide-react';
 
 export default function Clientes() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  
+
   const [walletOpen, setWalletOpen] = useState(false);
   const [walletClient, setWalletClient] = useState<Client | null>(null);
 
@@ -62,6 +62,8 @@ export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+
+  const { convenios } = useClientsAndConvenios();
 
   // Confirmación para toggle activo/inactivo
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -73,63 +75,47 @@ export default function Clientes() {
     apellido: '',
     telefono: '',
     id_tipo_cliente: 1,
+    id_convenio: '',
   });
 
-  const [clientTypes, setClientTypes] = useState<
-    { id_tipo_cliente: number; nombre_tipo: string }[]
-  >([]);
-
-  // --- CARGAR CLIENTES DESDE EL BACKEND ---
-  useEffect(() => {
-    fetchClientes();
-    fetchTipos();
-  }, []);
-
-  const fetchTipos = async () => {
-    try {
+  const { data: clientTypes = [] } = useQuery<{ id_tipo_cliente: number; nombre_tipo: string }[]>({
+    queryKey: ['tipos-cliente'],
+    queryFn: async () => {
       const response = await apiFetch('/clientes/tipos');
-      if (response.ok) {
-        const data = await response.json();
-        setClientTypes(data);
-      }
-    } catch (err) {
-      console.error('Error fetching tipos:', err);
-    }
-  };
+      if (!response.ok) throw new Error('Error fetching tipos');
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 60, // 1 hora
+  });
 
-  const fetchClientes = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
+  const { data: clients = [], isLoading, error: queryError } = useQuery<Client[]>({
+    queryKey: ['clientes'],
+    queryFn: async () => {
       const response = await apiFetch('/clientes');
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Error al obtener clientes');
+      return data;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
 
-      if (response.ok) {
-        setClients(data);
-      } else {
-        setError(data.error || 'Error al obtener clientes');
-        toast.error(data.error || 'Error al cargar clientes');
-      }
-    } catch (err) {
-      console.error('Error fetching clientes:', err);
-      setError('Error de conexión con el servidor');
-      toast.error('Error de conexión con el servidor');
-    } finally {
-      setIsLoading(false);
-    }
+  const error = queryError?.message || null;
+
+  const fetchClientes = () => {
+    queryClient.invalidateQueries({ queryKey: ['clientes'] });
   };
 
   // --- FILTRO DE BÚSQUEDA ---
   const filteredClients = clients.filter((c) => {
-    const matchesSearch = 
+    const matchesSearch =
       `${c.nombre} ${c.apellido}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.cedula.includes(searchTerm) ||
       (c.telefono && c.telefono.includes(searchTerm));
-    
+
     const matchesType = filterType === 'all' || String(c.id_tipo_cliente) === filterType;
-    const matchesStatus = filterStatus === 'all' || 
-                          (filterStatus === 'active' && c.activo) || 
-                          (filterStatus === 'inactive' && !c.activo);
+    const matchesStatus = filterStatus === 'all' ||
+      (filterStatus === 'active' && c.activo) ||
+      (filterStatus === 'inactive' && !c.activo);
 
     return matchesSearch && matchesType && matchesStatus;
   });
@@ -143,6 +129,7 @@ export default function Clientes() {
       apellido: '',
       telefono: '',
       id_tipo_cliente: clientTypes[0]?.id_tipo_cliente || 1,
+      id_convenio: '',
     });
     setDialogOpen(true);
   };
@@ -156,6 +143,7 @@ export default function Clientes() {
       apellido: client.apellido,
       telefono: client.telefono,
       id_tipo_cliente: client.id_tipo_cliente || 1,
+      id_convenio: client.convenio?.id || '',
     });
     setDialogOpen(true);
   };
@@ -172,6 +160,11 @@ export default function Clientes() {
       return;
     }
 
+    if (formData.cedula.length !== 10) {
+      toast.error('La cédula debe tener exactamente 10 dígitos');
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (editingClient) {
@@ -183,7 +176,7 @@ export default function Clientes() {
         const data = await response.json();
 
         if (response.ok) {
-          setClients(clients.map((c) => (c.id === editingClient.id ? data : c)));
+          fetchClientes();
           toast.success('Cliente actualizado correctamente');
           setDialogOpen(false);
         } else {
@@ -198,7 +191,7 @@ export default function Clientes() {
         const data = await response.json();
 
         if (response.ok) {
-          setClients([data, ...clients]);
+          fetchClientes();
           toast.success('Cliente registrado correctamente');
           setDialogOpen(false);
         } else {
@@ -232,7 +225,7 @@ export default function Clientes() {
 
       if (response.ok) {
         const data = await response.json();
-        setClients(clients.map((c) => (c.id === id ? data : c)));
+        fetchClientes();
 
         const nombre = clients.find((c) => c.id === id);
         const nombreCompleto = nombre ? `${nombre.nombre} ${nombre.apellido}` : 'El cliente';
@@ -377,10 +370,10 @@ export default function Clientes() {
                   </SelectContent>
                 </Select>
               </div>
-              
-              <Button 
-                variant="ghost" 
-                size="sm" 
+
+              <Button
+                variant="ghost"
+                size="sm"
                 className="mb-1 text-muted-foreground hover:text-foreground h-9"
                 onClick={() => { setSearchTerm(''); setFilterType('all'); setFilterStatus('all'); }}
               >
@@ -523,9 +516,9 @@ export default function Clientes() {
               <Input
                 id="cedula"
                 value={formData.cedula}
-                onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, cedula: e.target.value.replace(/\D/g, '') })}
                 placeholder="Ej: 1712345678"
-                maxLength={13}
+                maxLength={10}
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -534,7 +527,7 @@ export default function Clientes() {
                 <Input
                   id="nombre"
                   value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value.replace(/[\d]/g, '') })}
                   placeholder="Nombre del cliente"
                 />
               </div>
@@ -543,7 +536,7 @@ export default function Clientes() {
                 <Input
                   id="apellido"
                   value={formData.apellido}
-                  onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, apellido: e.target.value.replace(/[\d]/g, '') })}
                   placeholder="Apellido del cliente"
                 />
               </div>
@@ -554,8 +547,9 @@ export default function Clientes() {
                 <Input
                   id="telefono"
                   value={formData.telefono}
-                  onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                  placeholder="+593 999999999"
+                  onChange={(e) => setFormData({ ...formData, telefono: e.target.value.replace(/\D/g, '') })}
+                  placeholder="Ej: 0999999999"
+                  maxLength={10}
                 />
               </div>
               <div className="space-y-2">
@@ -580,6 +574,31 @@ export default function Clientes() {
               </div>
             </div>
 
+            {/* SECCIÓN DE CONVENIO - PARA CLIENTES TIPO CONVENIO (Creación o sin convenio actual) */}
+            {formData.id_tipo_cliente === 1 && !editingClient?.convenio && (
+              <div className="space-y-2">
+                <Label htmlFor="id_convenio">Vincular a Convenio (Opcional)</Label>
+                <Select
+                  value={String(formData.id_convenio || 'none')}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, id_convenio: value === 'none' ? '' : value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un convenio (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin convenio por ahora</SelectItem>
+                    {convenios.filter(c => c.activo).map((conv) => (
+                      <SelectItem key={conv.id} value={String(conv.id)}>
+                        {conv.nombre_empresa}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* SECCIÓN DE CONVENIO */}
             {editingClient?.convenio && (
               <div className="rounded-lg border border-border p-4 bg-accent/30 space-y-3">
@@ -594,9 +613,9 @@ export default function Clientes() {
                   <span className="text-sm text-foreground font-semibold">
                     {editingClient.convenio.nombre}
                   </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 h-8"
                     onClick={async () => {
                       if (confirm(`¿Quitar a ${editingClient.nombre} del convenio ${editingClient.convenio?.nombre}?`)) {
@@ -608,7 +627,7 @@ export default function Clientes() {
                             toast.success('Vínculo eliminado');
                             // Actualizar localmente
                             setEditingClient({ ...editingClient, convenio: null });
-                            setClients(clients.map(c => c.id === editingClient.id ? { ...c, convenio: null } : c));
+                            fetchClientes();
                           }
                         } catch (err) {
                           toast.error('Error al desvincular');
@@ -641,7 +660,7 @@ export default function Clientes() {
         </DialogContent>
       </Dialog>
 
-      <WalletDialog 
+      <WalletDialog
         open={walletOpen}
         onOpenChange={setWalletOpen}
         client={walletClient}

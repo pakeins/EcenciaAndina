@@ -116,6 +116,23 @@ router.post('/', authMiddleware, roleMiddleware(['administrador']), async (req, 
 // Los demás métodos también deben usar adminClient si hay RLS...
 // Pero por ahora actualicemos los básicos de lectura.
 
+// Obtener perfil del usuario autenticado
+router.get('/perfil', authMiddleware, async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { data, error } = await adminClient
+      .from('empleados')
+      .select('*, roles(nombre_rol)')
+      .eq('id', req.user.id)
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Actualizar perfil del usuario autenticado
 router.put('/perfil', authMiddleware, async (req, res) => {
   try {
@@ -166,6 +183,32 @@ router.put('/perfil/password', authMiddleware, async (req, res) => {
 
     if (error) throw error;
     res.json({ mensaje: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enviar enlace de restablecimiento de contraseña
+router.post('/:id/reset-password', authMiddleware, roleMiddleware(['administrador']), async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    
+    const { data: empleado, error: dbError } = await adminClient
+      .from('empleados')
+      .select('correo')
+      .eq('id', req.params.id)
+      .single();
+
+    if (dbError || !empleado) {
+      return res.status(404).json({ error: 'Empleado no encontrado' });
+    }
+
+    // Usar el cliente normal para enviar el email configurado en Supabase
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(empleado.correo);
+
+    if (authError) throw authError;
+
+    res.json({ mensaje: `Enlace de restablecimiento enviado a ${empleado.correo}` });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -239,6 +282,22 @@ router.put('/:id/password', authMiddleware, roleMiddleware(['administrador']), a
 
     if (error) throw error;
     res.json({ mensaje: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Restablecer contraseña con token de recuperación (sin requerir la anterior)
+router.put('/perfil/recovery-password', authMiddleware, async (req, res) => {
+  try {
+    const { password } = req.body;
+    const adminClient = getAdminClient();
+    const { error } = await adminClient.auth.admin.updateUserById(req.user.id, {
+      password
+    });
+
+    if (error) throw error;
+    res.json({ mensaje: 'Contraseña recuperada exitosamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

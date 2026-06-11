@@ -35,19 +35,19 @@ const App = () => (
             {/* Rutas protegidas generales (Cualquier rol) */}
             <Route element={<ProtectedRoute />}>
               <Route element={<DashboardLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/pedidos" element={<Pedidos />} />
                 <Route path="/historial-pedidos" element={<HistorialPedidos />} />
                 <Route path="/perfil" element={<Perfil />} />
+                <Route path="/convenios" element={<Convenios />} />
+                <Route path="/clientes" element={<Clientes />} />
+                <Route path="/productos" element={<Productos />} />
                 
                 {/* Rutas exclusivas de administrador */}
                 <Route element={<ProtectedRoute allowedRoles={['administrador']} />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/reportes" element={<Reportes />} />
-                  <Route path="/convenios" element={<Convenios />} />
-                  <Route path="/clientes" element={<Clientes />} />
                   <Route path="/usuarios" element={<Usuarios />} />
                   <Route path="/menu" element={<Menu />} />
-                  <Route path="/productos" element={<Productos />} />
                 </Route>
               </Route>
             </Route>

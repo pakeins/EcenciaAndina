@@ -143,4 +143,36 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
+router.post('/forgot-password', async (req, res) => {
+  const { correo } = req.body;
+  if (!correo) return res.status(400).json({ error: 'Correo obligatorio' });
+  
+  try {
+    const adminClient = getAdminClient();
+    
+    const { data: empleado, error: dbError } = await adminClient
+      .from('empleados')
+      .select('correo, esta_activo')
+      .eq('correo', correo)
+      .single();
+      
+    if (dbError || !empleado) {
+      // Se devuelve success igual para no revelar qué correos existen en el sistema (seguridad)
+      return res.json({ mensaje: 'Si el correo está registrado, recibirá un enlace pronto.' });
+    }
+    
+    if (!empleado.esta_activo) {
+      return res.status(403).json({ error: 'La cuenta asociada está inactiva.' });
+    }
+
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(correo);
+    if (authError) throw authError;
+
+    res.json({ mensaje: 'Si el correo está registrado, recibirá un enlace pronto.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al procesar la solicitud' });
+  }
+});
+
 module.exports = router;

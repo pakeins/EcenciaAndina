@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -17,11 +18,26 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from '@/components/ui/table';
 import { FileDown, Calendar, Filter, FileText, PieChart, Users, Building2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { Convenio, Client } from '@/types';
+
+interface Consumo {
+  fecha: string;
+  producto: string;
+  cantidad: number;
+  valor: number;
+}
+
+interface ColaboradorConsumo {
+  empleado: string;
+  cedula: string;
+  consumos: Consumo[];
+  total: number;
+}
 
 export default function Reportes() {
   const [reportType, setReportType] = useState('ventas');
@@ -48,6 +64,29 @@ export default function Reportes() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
 
+  const isDateRangeInvalid = fechaInicio && fechaFin && new Date(fechaFin) < new Date(fechaInicio);
+  const [desglosarConvenio, setDesglosarConvenio] = useState(false);
+
+  const calculateTotal = () => {
+    return reportData.reduce((acc, row) => {
+      if ((reportType === 'estados' || reportType === 'clientes') && row.estado === 'Cancelado' && idEstado !== '3') {
+        return acc;
+      }
+      if (reportType === 'convenio') {
+        return acc + (row.total || 0);
+      }
+      return acc + (row.totalConsumo || row.ingresosGenerados || 0);
+    }, 0);
+  };
+
+  const getColSpan = () => {
+    if (reportType === 'estados' || reportType === 'clientes') return 4;
+    if (reportType === 'convenio') return desglosarConvenio ? 4 : 3;
+    if (reportType === 'productos') return 3;
+    if (reportType === 'ventas') return 2;
+    return 3;
+  };
+
   useEffect(() => {
     fetchCatalogos();
   }, []);
@@ -66,12 +105,7 @@ export default function Reportes() {
   };
 
   const handleGenerateReport = async () => {
-    if (!fechaInicio || !fechaFin) {
-      toast.error('Las fechas Desde y Hasta son obligatorias.');
-      return;
-    }
-    
-    if (new Date(fechaFin) < new Date(fechaInicio)) {
+    if (isDateRangeInvalid) {
       toast.error('La fecha "Hasta" no puede ser inferior a la fecha "Desde".');
       return;
     }
@@ -102,22 +136,7 @@ export default function Reportes() {
 
       const response = await apiFetch(endpoint);
       if (response.ok) {
-        let data = await response.json();
-        
-        // Aplanar datos para convenio según HU Jira
-        if (reportType === 'convenio') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          data = data.flatMap((emp: any) => 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (emp.consumos || []).map((c: any) => ({
-              cliente: emp.empleado,
-              fecha: c.fecha,
-              producto: c.producto,
-              cantidad: c.cantidad,
-              totalConsumo: c.valor
-            }))
-          );
-        }
+        const data = await response.json();
         
         setReportData(data);
         setHasGenerated(true);
@@ -175,6 +194,7 @@ export default function Reportes() {
           <tr>
             <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Fecha</th>
             ${reportType === 'estados' ? '<th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Cliente</th>' : ''}
+            ${reportType === 'clientes' ? '<th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Convenio</th>' : ''}
             <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Estado</th>
             <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Descripción</th>
             <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Total</th>
@@ -185,6 +205,7 @@ export default function Reportes() {
             <tr>
               <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${new Date(row.fecha).toLocaleString()}</td>
               ${reportType === 'estados' ? `<td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.cliente}</td>` : ''}
+              ${reportType === 'clientes' ? `<td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.convenio || 'N/A'}</td>` : ''}
               <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.estado}</td>
               <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.descripcion}</td>
               <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.totalConsumo.toFixed(2)}</td>
@@ -211,27 +232,63 @@ export default function Reportes() {
           `;
         });
       } else if (reportType === 'convenio') {
-         htmlRows = `
-          <tr>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Colaborador</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Fecha / Hora</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Tipo de Almuerzo</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Cantidad</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Costo Total</th>
-          </tr>
-        `;
-        reportData.forEach(row => {
-          htmlRows += `
+        if (!desglosarConvenio) {
+          htmlRows = `
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.cliente}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${new Date(row.fecha).toLocaleString()}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.producto}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${row.cantidad}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.totalConsumo.toFixed(2)}</td>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Colaborador</th>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Cédula</th>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Almuerzos Consumidos</th>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Costo Total</th>
             </tr>
           `;
-        });
+          reportData.forEach((emp: ColaboradorConsumo) => {
+            const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
+            htmlRows += `
+              <tr>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${emp.empleado}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${emp.cedula}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${totalAlmuerzos}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${emp.total.toFixed(2)}</td>
+              </tr>
+            `;
+          });
+        } else {
+          htmlRows = `
+            <tr>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Colaborador</th>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Fecha / Hora</th>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Tipo de Almuerzo</th>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Cantidad</th>
+              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Costo Total</th>
+            </tr>
+          `;
+          reportData.forEach((emp: ColaboradorConsumo) => {
+            (emp.consumos || []).forEach((c: Consumo) => {
+              htmlRows += `
+                <tr>
+                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${emp.empleado}</td>
+                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${new Date(c.fecha).toLocaleString()}</td>
+                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${c.producto}</td>
+                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${c.cantidad}</td>
+                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${c.valor.toFixed(2)}</td>
+                </tr>
+              `;
+            });
+          });
+        }
       }
+
+      const totalAmount = calculateTotal();
+      htmlRows += `
+        <tr style="background-color: #f8f9fa;">
+          <td colspan="${getColSpan()}" style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 14px; border-top: 2px solid #ddd;">${
+            reportType === 'estados' && idEstado === '3' 
+              ? 'Total Cancelado:' 
+              : 'Total Neto:'
+          }</td>
+          <td style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 14px; border-top: 2px solid #ddd; color: #8B4513;">$${totalAmount.toFixed(2)}</td>
+        </tr>
+      `;
 
       const contenido = `
         <!DOCTYPE html>
@@ -275,6 +332,191 @@ export default function Reportes() {
     }
   };
 
+  const handleExportXML = () => {
+    try {
+      let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      xmlContent += `<reporte tipo="${reportType}" fechaInicio="${fechaInicio}" fechaFin="${fechaFin}">\n`;
+      xmlContent += `  <metadatos>\n`;
+      xmlContent += `    <generadoPor>Sistema ECencia Andina</generadoPor>\n`;
+      xmlContent += `    <fechaGenerado>${new Date().toISOString()}</fechaGenerado>\n`;
+      xmlContent += `  </metadatos>\n`;
+      xmlContent += `  <datos>\n`;
+
+      if (reportType === 'ventas') {
+        reportData.forEach(row => {
+          xmlContent += `    <item>\n`;
+          xmlContent += `      <metodoPago>${row.metodo_pago}</metodoPago>\n`;
+          xmlContent += `      <cantidadAlmuerzos>${row.cantidadAlmuerzos}</cantidadAlmuerzos>\n`;
+          xmlContent += `      <totalConsumo>${row.totalConsumo.toFixed(2)}</totalConsumo>\n`;
+          xmlContent += `    </item>\n`;
+        });
+      } else if (reportType === 'estados' || reportType === 'clientes') {
+        reportData.forEach(row => {
+          xmlContent += `    <item>\n`;
+          xmlContent += `      <idOrden>${row.id}</idOrden>\n`;
+          xmlContent += `      <fecha>${row.fecha}</fecha>\n`;
+          if (reportType === 'estados') {
+            xmlContent += `      <cliente>${row.cliente}</cliente>\n`;
+          } else {
+            xmlContent += `      <convenio>${row.convenio || 'N/A'}</convenio>\n`;
+          }
+          xmlContent += `      <estado>${row.estado}</estado>\n`;
+          xmlContent += `      <descripcion>${row.descripcion}</descripcion>\n`;
+          xmlContent += `      <totalConsumo>${row.totalConsumo.toFixed(2)}</totalConsumo>\n`;
+          xmlContent += `    </item>\n`;
+        });
+      } else if (reportType === 'productos') {
+        reportData.forEach(row => {
+          xmlContent += `    <item>\n`;
+          xmlContent += `      <nombre>${row.nombre}</nombre>\n`;
+          xmlContent += `      <categoria>${row.categoria}</categoria>\n`;
+          xmlContent += `      <cantidadVendida>${row.cantidadVendida}</cantidadVendida>\n`;
+          xmlContent += `      <ingresosGenerados>${row.ingresosGenerados.toFixed(2)}</ingresosGenerados>\n`;
+          xmlContent += `    </item>\n`;
+        });
+      } else if (reportType === 'convenio') {
+        if (!desglosarConvenio) {
+          reportData.forEach((emp: ColaboradorConsumo) => {
+            const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
+            xmlContent += `    <colaborador>\n`;
+            xmlContent += `      <nombre>${emp.empleado}</nombre>\n`;
+            xmlContent += `      <cedula>${emp.cedula}</cedula>\n`;
+            xmlContent += `      <cantidadAlmuerzos>${totalAlmuerzos}</cantidadAlmuerzos>\n`;
+            xmlContent += `      <costoTotal>${emp.total.toFixed(2)}</costoTotal>\n`;
+            xmlContent += `    </colaborador>\n`;
+          });
+        } else {
+          reportData.forEach((emp: ColaboradorConsumo) => {
+            (emp.consumos || []).forEach((c: Consumo) => {
+              xmlContent += `    <consumo>\n`;
+              xmlContent += `      <colaborador>${emp.empleado}</colaborador>\n`;
+              xmlContent += `      <fecha>${c.fecha}</fecha>\n`;
+              xmlContent += `      <producto>${c.producto}</producto>\n`;
+              xmlContent += `      <cantidad>${c.cantidad}</cantidad>\n`;
+              xmlContent += `      <costo>${c.valor.toFixed(2)}</costo>\n`;
+              xmlContent += `    </consumo>\n`;
+            });
+          });
+        }
+      }
+
+      xmlContent += `  </datos>\n`;
+      xmlContent += `  <resumen>\n`;
+      xmlContent += `    <totalNeto>${calculateTotal().toFixed(2)}</totalNeto>\n`;
+      xmlContent += `  </resumen>\n`;
+      xmlContent += `</reporte>\n`;
+
+      const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `reporte_${reportType}_${fechaInicio}_al_${fechaFin}.xml`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Archivo XML descargado exitosamente');
+    } catch (err) {
+      toast.error('Error al exportar reporte a XML');
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const csvContent = '\uFEFF'; // UTF-8 BOM for Excel compatibility
+      let headers: string[] = [];
+      let rows: string[][] = [];
+
+      if (reportType === 'ventas') {
+        headers = ['Método de Pago', 'Cantidad de Almuerzos', 'Ingresos Generados'];
+        rows = reportData.map(row => [
+          row.metodo_pago,
+          row.cantidadAlmuerzos.toString(),
+          `$${row.totalConsumo.toFixed(2)}`
+        ]);
+      } else if (reportType === 'estados' || reportType === 'clientes') {
+        headers = [
+          'Fecha/Hora',
+          reportType === 'estados' ? 'Cliente' : 'Convenio',
+          'Estado',
+          'Descripción',
+          'Costo'
+        ];
+        rows = reportData.map(row => [
+          new Date(row.fecha).toLocaleString(),
+          reportType === 'estados' ? row.cliente : (row.convenio || 'N/A'),
+          row.estado,
+          row.descripcion,
+          `$${row.totalConsumo.toFixed(2)}`
+        ]);
+      } else if (reportType === 'productos') {
+        headers = ['Producto', 'Categoría', 'Cantidad Vendida', 'Ingresos Estimados'];
+        rows = reportData.map(row => [
+          row.nombre,
+          row.categoria,
+          row.cantidadVendida.toString(),
+          `$${row.ingresosGenerados.toFixed(2)}`
+        ]);
+      } else if (reportType === 'convenio') {
+        if (!desglosarConvenio) {
+          headers = ['Colaborador', 'Cédula', 'Almuerzos Consumidos', 'Costo Total'];
+          rows = reportData.map((emp: ColaboradorConsumo) => {
+            const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
+            return [
+              emp.empleado,
+              emp.cedula,
+              totalAlmuerzos.toString(),
+              `$${emp.total.toFixed(2)}`
+            ];
+          });
+        } else {
+          headers = ['Colaborador', 'Fecha/Hora', 'Tipo de Almuerzo', 'Cantidad', 'Costo Total'];
+          reportData.forEach((emp: ColaboradorConsumo) => {
+            (emp.consumos || []).forEach((c: Consumo) => {
+              rows.push([
+                emp.empleado,
+                new Date(c.fecha).toLocaleString(),
+                c.producto,
+                c.cantidad.toString(),
+                `$${c.valor.toFixed(2)}`
+              ]);
+            });
+          });
+        }
+      }
+
+      // Prepend headers
+      const csvRows = [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',')];
+      
+      // Map rows escaping fields
+      rows.forEach(row => {
+        csvRows.push(row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','));
+      });
+
+      // Add Total row
+      const totalAmount = calculateTotal();
+      const totalLabel = reportType === 'estados' && idEstado === '3' ? 'Total Cancelado' : 'Total Neto';
+      
+      // Match total column length
+      const totalRow = Array(headers.length).fill('');
+      totalRow[headers.length - 2] = totalLabel;
+      totalRow[headers.length - 1] = `$${totalAmount.toFixed(2)}`;
+      csvRows.push(totalRow.map(cell => `"${cell}"`).join(','));
+
+      const fullCsv = csvRows.join('\n');
+      const blob = new Blob([csvContent + fullCsv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `facturacion_${reportType}_${fechaInicio}_al_${fechaFin}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Archivo de facturación CSV descargado exitosamente');
+    } catch (err) {
+      toast.error('Error al generar archivo de facturación CSV');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -295,41 +537,53 @@ export default function Reportes() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-4">
-            
-            {/* 1. Tipo de Reporte */}
-            <div className="space-y-2 md:col-span-1">
-              <Label className="flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Tipo de Reporte
-              </Label>
-              <Select value={reportType} onValueChange={(val) => { setReportType(val); setHasGenerated(false); }}>
-                <SelectTrigger className="border-primary/20">
-                  <SelectValue placeholder="Seleccione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ventas"><div className="flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Ingresos Generales</div></SelectItem>
-                  <SelectItem value="estados"><div className="flex items-center gap-2"><PieChart className="h-4 w-4" /> Pedidos por Estado</div></SelectItem>
-                  <SelectItem value="productos"><div className="flex items-center gap-2"><FileText className="h-4 w-4" /> Popularidad de Productos</div></SelectItem>
-                  <SelectItem value="convenio"><div className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Consolidado por Convenio</div></SelectItem>
-                  <SelectItem value="clientes"><div className="flex items-center gap-2"><Users className="h-4 w-4" /> Consumos por Cliente</div></SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 2. Filtros Dinámicos */}
-            <div className="md:col-span-2 grid grid-cols-2 gap-4">
+          <div className="space-y-4">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-4 items-end">
+              
+              {/* 1. Tipo de Reporte */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Desde</Label>
-                <Input type="date" value={fechaInicio} onChange={(e) => {setFechaInicio(e.target.value); setHasGenerated(false);}} />
-              </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Hasta</Label>
-                <Input type="date" value={fechaFin} onChange={(e) => {setFechaFin(e.target.value); setHasGenerated(false);}} />
+                <Label className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-cafe" /> Tipo de Reporte
+                </Label>
+                <Select value={reportType} onValueChange={(val) => { setReportType(val); setHasGenerated(false); }}>
+                  <SelectTrigger className="border-primary/20">
+                    <SelectValue placeholder="Seleccione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ventas"><div className="flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Ingresos Generales</div></SelectItem>
+                    <SelectItem value="estados"><div className="flex items-center gap-2"><PieChart className="h-4 w-4" /> Pedidos por Estado</div></SelectItem>
+                    <SelectItem value="productos"><div className="flex items-center gap-2"><FileText className="h-4 w-4" /> Popularidad de Productos</div></SelectItem>
+                    <SelectItem value="convenio"><div className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Consolidado por Convenio</div></SelectItem>
+                    <SelectItem value="clientes"><div className="flex items-center gap-2"><Users className="h-4 w-4" /> Consumos por Cliente</div></SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Filtro extra según tipo */}
+              {/* 2. Desde */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Calendar className="h-4 w-4 text-cafe" /> Desde</Label>
+                <Input 
+                  type="date" 
+                  value={fechaInicio} 
+                  onChange={(e) => {setFechaInicio(e.target.value); setHasGenerated(false);}} 
+                  className={isDateRangeInvalid ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+              </div>
+
+              {/* 3. Hasta */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Calendar className="h-4 w-4 text-cafe" /> Hasta</Label>
+                <Input 
+                  type="date" 
+                  value={fechaFin} 
+                  onChange={(e) => {setFechaFin(e.target.value); setHasGenerated(false);}} 
+                  className={isDateRangeInvalid ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+              </div>
+
+              {/* 4. Filtro Específico (si aplica) */}
               {reportType === 'estados' && (
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2">
                   <Label>Estado de Pedido</Label>
                   <Select value={idEstado} onValueChange={setIdEstado}>
                     <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
@@ -343,7 +597,7 @@ export default function Reportes() {
                 </div>
               )}
               {reportType === 'clientes' && (
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2">
                   <Label>Seleccionar Cliente</Label>
                   <Select value={idCliente} onValueChange={setIdCliente}>
                     <SelectTrigger><SelectValue placeholder="Seleccione cliente..." /></SelectTrigger>
@@ -357,7 +611,7 @@ export default function Reportes() {
                 </div>
               )}
               {reportType === 'convenio' && (
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2">
                   <Label>Seleccionar Convenio Empresa</Label>
                   <Select value={idConvenio} onValueChange={setIdConvenio}>
                     <SelectTrigger><SelectValue placeholder="Seleccione convenio..." /></SelectTrigger>
@@ -370,14 +624,41 @@ export default function Reportes() {
                   </Select>
                 </div>
               )}
+              {/* Celda vacía para mantener alineación del grid cuando no hay filtro extra */}
+              {!['estados', 'clientes', 'convenio'].includes(reportType) && (
+                <div className="hidden md:block h-[38px]" />
+              )}
+
             </div>
 
-            {/* 3. Acción */}
-            <div className="flex flex-col justify-end pb-2 md:col-span-1">
+            {/* Alerta de validación de fechas */}
+            {isDateRangeInvalid && (
+              <p className="text-xs font-semibold text-destructive mt-1">
+                ⚠️ La fecha "Hasta" no puede ser anterior a la fecha "Desde".
+              </p>
+            )}
+
+            {/* Fila de acciones al fondo */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-border/50 mt-2">
+              <div className="flex-1">
+                {reportType === 'convenio' && (
+                  <div className="flex items-center gap-2">
+                    <Switch 
+                      id="desglosar-convenio"
+                      checked={desglosarConvenio} 
+                      onCheckedChange={(checked) => { setDesglosarConvenio(checked); }} 
+                    />
+                    <Label htmlFor="desglosar-convenio" className="font-semibold text-xs text-muted-foreground cursor-pointer">
+                      Desglosar consumos individuales por colaborador
+                    </Label>
+                  </div>
+                )}
+              </div>
+              
               <Button 
                 onClick={handleGenerateReport} 
-                disabled={isGenerating}
-                className="w-full bg-cafe hover:bg-cafe/90 shadow-lg"
+                disabled={isGenerating || isDateRangeInvalid}
+                className="bg-cafe hover:bg-cafe/90 shadow-lg px-8 font-bold h-10 w-full sm:w-auto"
               >
                 {isGenerating ? 'Calculando...' : 'Generar Reporte'}
               </Button>
@@ -390,14 +671,22 @@ export default function Reportes() {
       {/* Resultados */}
       {hasGenerated && (
         <Card className="border-border shadow-sm animate-in fade-in slide-in-from-bottom-4">
-          <CardHeader className="flex flex-row items-center justify-between bg-muted/20 border-b pb-4">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-muted/20 border-b pb-4 gap-4">
             <div>
               <CardTitle className="text-foreground text-xl">Resultados del Análisis</CardTitle>
               <CardDescription>Período analizado: {new Date(fechaInicio).toLocaleDateString('es-EC')} al {new Date(fechaFin).toLocaleDateString('es-EC')}</CardDescription>
             </div>
-            <Button onClick={handleExportPDF} className="gap-2 bg-slate-800 hover:bg-slate-700 text-white shadow-md">
-              <FileDown className="h-4 w-4" /> Exportar PDF
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={handleExportPDF} className="gap-2 bg-slate-800 hover:bg-slate-700 text-white shadow-md h-9 text-xs">
+                <FileDown className="h-4 w-4" /> Exportar PDF
+              </Button>
+              <Button onClick={handleExportXML} variant="outline" className="gap-2 border-primary/30 text-primary hover:bg-primary/10 h-9 text-xs">
+                <FileDown className="h-4 w-4" /> Exportar XML
+              </Button>
+              <Button onClick={handleExportCSV} variant="outline" className="gap-2 border-cafe/30 text-cafe hover:bg-cafe/10 h-9 text-xs">
+                <FileDown className="h-4 w-4" /> Exportar CSV
+              </Button>
+            </div>
           </CardHeader>
           
           <CardContent className="pt-6">
@@ -425,6 +714,7 @@ export default function Reportes() {
                         <>
                           <TableHead className="text-cafe font-bold">Fecha / Hora</TableHead>
                           {reportType === 'estados' && <TableHead className="text-cafe font-bold">Cliente</TableHead>}
+                          {reportType === 'clientes' && <TableHead className="text-cafe font-bold">Convenio</TableHead>}
                           <TableHead className="text-cafe font-bold">Estado</TableHead>
                           <TableHead className="text-cafe font-bold">Descripción</TableHead>
                           <TableHead className="text-right text-cafe font-bold">Costo</TableHead>
@@ -443,9 +733,18 @@ export default function Reportes() {
                       {reportType === 'convenio' && (
                         <>
                           <TableHead className="text-cafe font-bold">Colaborador</TableHead>
-                          <TableHead className="text-cafe font-bold">Fecha / Hora</TableHead>
-                          <TableHead className="text-cafe font-bold">Tipo de Almuerzo</TableHead>
-                          <TableHead className="text-center text-cafe font-bold">Cantidad</TableHead>
+                          {!desglosarConvenio ? (
+                            <>
+                              <TableHead className="text-cafe font-bold">Cédula</TableHead>
+                              <TableHead className="text-center text-cafe font-bold">Almuerzos Consumidos</TableHead>
+                            </>
+                          ) : (
+                            <>
+                              <TableHead className="text-cafe font-bold">Fecha / Hora</TableHead>
+                              <TableHead className="text-cafe font-bold">Tipo de Almuerzo</TableHead>
+                              <TableHead className="text-center text-cafe font-bold">Cantidad</TableHead>
+                            </>
+                          )}
                           <TableHead className="text-right text-cafe font-bold">Costo Total</TableHead>
                         </>
                       )}
@@ -465,6 +764,7 @@ export default function Reportes() {
                       <TableRow key={i}>
                         <TableCell className="text-xs">{new Date(row.fecha).toLocaleString()}</TableCell>
                         {reportType === 'estados' && <TableCell className="font-medium">{row.cliente}</TableCell>}
+                        {reportType === 'clientes' && <TableCell className="font-medium">{row.convenio || 'N/A'}</TableCell>}
                         <TableCell>
                           <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
                             row.estado === 'Consumido' ? 'bg-green-100 text-green-700' :
@@ -488,16 +788,48 @@ export default function Reportes() {
                       </TableRow>
                     ))}
 
-                    {reportType === 'convenio' && reportData.map((row, i) => (
+                    {reportType === 'convenio' && !desglosarConvenio && reportData.map((emp: ColaboradorConsumo, i) => {
+                      const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
+                      return (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{emp.empleado}</TableCell>
+                          <TableCell>{emp.cedula}</TableCell>
+                          <TableCell className="text-center">{totalAlmuerzos}</TableCell>
+                          <TableCell className="text-right font-semibold text-green-700">${emp.total.toFixed(2)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+
+                    {reportType === 'convenio' && desglosarConvenio && reportData.flatMap((emp: ColaboradorConsumo) =>
+                      (emp.consumos || []).map((c: Consumo) => ({
+                        cliente: emp.empleado,
+                        fecha: c.fecha,
+                        producto: c.producto,
+                        cantidad: c.cantidad,
+                        valor: c.valor
+                      }))
+                    ).map((row, i) => (
                       <TableRow key={i}>
                         <TableCell className="font-medium">{row.cliente}</TableCell>
                         <TableCell className="text-xs">{new Date(row.fecha).toLocaleString()}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{row.producto}</TableCell>
                         <TableCell className="text-center">{row.cantidad}</TableCell>
-                        <TableCell className="text-right font-semibold text-green-700">${row.totalConsumo.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-semibold text-green-700">${row.valor.toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={getColSpan()} className="text-right font-bold text-[15px]">
+                        {reportType === 'estados' && idEstado === '3' 
+                          ? 'Total Cancelado' 
+                          : 'Total Neto (sin cancelados)'}
+                      </TableCell>
+                      <TableCell className="text-right font-black text-[16px] text-cafe">
+                        ${calculateTotal().toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </div>
             )}

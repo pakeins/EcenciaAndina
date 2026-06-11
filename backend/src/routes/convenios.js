@@ -29,7 +29,8 @@ const upload = multer({
 });
 
 router.use(authMiddleware);
-router.use(roleMiddleware(['administrador']));
+router.use(roleMiddleware(['administrador', 'caja']));
+const adminOnly = roleMiddleware(['administrador']);
 
 // Función auxiliar para formatear la respuesta del convenio
 const formatConvenio = (conv) => ({
@@ -179,7 +180,7 @@ router.post('/:id/clientes/nuevo', async (req, res) => {
 });
 
 // QUITAR CLIENTE DE CONVENIO
-router.delete('/:id/clientes/:clienteId', async (req, res) => {
+router.delete('/:id/clientes/:clienteId', adminOnly, async (req, res) => {
   try {
     const adminClient = getAdminClient();
     const { error } = await adminClient.from('clientes_convenios').delete().eq('id_convenio', req.params.id).eq('id_cliente', req.params.clienteId);
@@ -191,7 +192,7 @@ router.delete('/:id/clientes/:clienteId', async (req, res) => {
 });
 
 // CREAR NUEVO CONVENIO
-router.post('/', async (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
   const { ruc, nombre_empresa, representante, telefono, email, fecha_inicio, fecha_caducidad, cupo_maximo } = req.body;
   
   if (cupo_maximo !== undefined && cupo_maximo < 0) {
@@ -213,7 +214,7 @@ router.post('/', async (req, res) => {
 });
 
 // ACTUALIZAR CONVENIO (Y manejar historial si es renovación)
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
   const { id } = req.params;
   const { activo, ruc, nombre_empresa, fecha_inicio, fecha_caducidad, ...rest } = req.body;
   const actualizacion = { ...rest, updated_by: req.user.id };
@@ -290,7 +291,7 @@ router.get('/:id/historial', async (req, res) => {
 });
 
 // SUBIR ARCHIVO FIRMADO
-router.post('/:id/upload', upload.single('archivo'), async (req, res) => {
+router.post('/:id/upload', adminOnly, upload.single('archivo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo.' });
   
   const { id } = req.params;
@@ -314,6 +315,19 @@ router.post('/:id/upload', upload.single('archivo'), async (req, res) => {
 router.get('/:id/reporte', async (req, res) => {
   const { id } = req.params;
   const { fecha_inicio, fecha_fin } = req.query;
+
+  if (fecha_inicio || fecha_fin) {
+    if (!fecha_inicio || !fecha_fin) {
+      return res.status(400).json({ error: 'Ambas fechas (inicio y fin) son requeridas si se filtra por rango.' });
+    }
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(fecha_inicio) || !dateRegex.test(fecha_fin)) {
+      return res.status(400).json({ error: 'El formato de las fechas debe ser YYYY-MM-DD.' });
+    }
+    if (new Date(fecha_fin) < new Date(fecha_inicio)) {
+      return res.status(400).json({ error: 'La fecha de fin no puede ser anterior a la de inicio.' });
+    }
+  }
 
   try {
     const adminClient = getAdminClient();

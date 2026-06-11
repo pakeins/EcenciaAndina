@@ -302,22 +302,22 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
               <div className="grid gap-4 md:grid-cols-2 pt-2 animate-in slide-in-from-top-2 duration-300">
                 <div className="space-y-1.5 md:col-span-2">
                   <Label className="text-xs text-cafe/70">Cédula *</Label>
-                  <Input {...form.register('cedula')} placeholder="Ej: 1712345678" maxLength={13} className={`bg-background ${errors.cedula ? 'border-destructive' : ''}`} />
+                  <Input {...form.register('cedula')} onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, ''); form.setValue('cedula', e.currentTarget.value); }} placeholder="Ej: 1712345678" maxLength={13} className={`bg-background ${errors.cedula ? 'border-destructive' : ''}`} />
                   {errors.cedula && <span className="text-xs text-destructive">{errors.cedula.message}</span>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">Nombre *</Label>
-                  <Input {...form.register('nombre')} placeholder="Ej: Juan" className={`bg-background ${errors.nombre ? 'border-destructive' : ''}`} />
+                  <Input {...form.register('nombre')} onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/[\d]/g, ''); form.setValue('nombre', e.currentTarget.value); }} placeholder="Ej: Juan" className={`bg-background ${errors.nombre ? 'border-destructive' : ''}`} />
                   {errors.nombre && <span className="text-xs text-destructive">{errors.nombre.message}</span>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">Apellido *</Label>
-                  <Input {...form.register('apellido')} placeholder="Ej: Pérez" className={`bg-background ${errors.apellido ? 'border-destructive' : ''}`} />
+                  <Input {...form.register('apellido')} onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/[\d]/g, ''); form.setValue('apellido', e.currentTarget.value); }} placeholder="Ej: Pérez" className={`bg-background ${errors.apellido ? 'border-destructive' : ''}`} />
                   {errors.apellido && <span className="text-xs text-destructive">{errors.apellido.message}</span>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">App de Mensajería</Label>
-                  <Input {...form.register('appMensajeria')} placeholder="099..." className="bg-background" />
+                  <Input {...form.register('appMensajeria')} onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, ''); form.setValue('appMensajeria', e.currentTarget.value); }} placeholder="099..." maxLength={10} className="bg-background" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">Tipo de Cliente</Label>

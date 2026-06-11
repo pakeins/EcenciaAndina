@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 
 router.use(authMiddleware);
-router.use(roleMiddleware(['administrador']));
+router.use(roleMiddleware(['administrador', 'caja']));
 
 // Función auxiliar para formatear cliente con su convenio
 const formatCliente = (cli) => {
@@ -81,16 +81,40 @@ router.delete('/:id/convenio', async (req, res) => {
 
 // CREAR NUEVO CLIENTE
 router.post('/', async (req, res) => {
-  const { cedula, nombre, apellido, telefono, id_tipo_cliente } = req.body;
+  const { cedula, nombre, apellido, telefono, id_tipo_cliente, id_convenio } = req.body;
   try {
     const adminClient = getAdminClient();
+
+    if (telefono && telefono.trim() !== '') {
+      const { data: phoneCheck } = await adminClient
+        .from('clientes')
+        .select('id_cliente, esta_activo')
+        .eq('telefono', telefono.trim());
+
+      if (phoneCheck && phoneCheck.some(c => c.esta_activo)) {
+        return res.status(400).json({ error: 'Este teléfono ya está registrado y pertenece a un cliente activo.' });
+      }
+    }
+
     const { data, error } = await adminClient
       .from('clientes')
       .insert([{ cedula, nombre, apellido, telefono, id_tipo_cliente: id_tipo_cliente || 1, created_by: req.user.id }])
-      .select('*, tipos_cliente(nombre_tipo), clientes_convenios(convenios(id_convenio, nombre_empresa))')
+      .select('id_cliente')
       .single();
     if (error) throw error;
-    res.status(201).json(formatCliente(data));
+
+    if (id_tipo_cliente == 2 && id_convenio) {
+      await adminClient.from('clientes_convenios').insert([{ id_cliente: data.id_cliente, id_convenio }]);
+    }
+
+    const { data: finalData, error: finalError } = await adminClient
+      .from('clientes')
+      .select('*, tipos_cliente(nombre_tipo), clientes_convenios(convenios(id_convenio, nombre_empresa))')
+      .eq('id_cliente', data.id_cliente)
+      .single();
+    if (finalError) throw finalError;
+
+    res.status(201).json(formatCliente(finalData));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -99,7 +123,7 @@ router.post('/', async (req, res) => {
 // ACTUALIZAR CLIENTE
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { activo, cedula, nombre, apellido, telefono, id_tipo_cliente } = req.body;
+  const { activo, cedula, nombre, apellido, telefono, id_tipo_cliente, id_convenio } = req.body;
 
   const actualizacion = { updated_by: req.user.id };
   if (activo !== undefined) actualizacion.esta_activo = activo;
@@ -111,17 +135,49 @@ router.put('/:id', async (req, res) => {
 
   try {
     const adminClient = getAdminClient();
+
+    if (telefono && telefono.trim() !== '') {
+      const { data: phoneCheck } = await adminClient
+        .from('clientes')
+        .select('id_cliente, esta_activo')
+        .eq('telefono', telefono.trim())
+        .neq('id_cliente', id);
+
+      if (phoneCheck && phoneCheck.some(c => c.esta_activo)) {
+        return res.status(400).json({ error: 'Este teléfono ya está registrado y pertenece a un cliente activo.' });
+      }
+    }
+
     const { data, error } = await adminClient
       .from('clientes')
       .update(actualizacion)
       .eq('id_cliente', id)
-      .select('*, tipos_cliente(nombre_tipo), clientes_convenios(convenios(id_convenio, nombre_empresa))')
+      .select('id_cliente')
       .single();
 
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Cliente no encontrado' });
 
-    res.json(formatCliente(data));
+    if (id_tipo_cliente == 2) {
+      if (id_convenio) {
+        await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+        await adminClient.from('clientes_convenios').insert([{ id_cliente: id, id_convenio }]);
+      } else if (id_convenio === '') {
+        await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+      }
+    } else if (id_tipo_cliente == 1) {
+      await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+    }
+
+    const { data: finalData, error: finalError } = await adminClient
+      .from('clientes')
+      .select('*, tipos_cliente(nombre_tipo), clientes_convenios(convenios(id_convenio, nombre_empresa))')
+      .eq('id_cliente', id)
+      .single();
+
+    if (finalError) throw finalError;
+
+    res.json(formatCliente(finalData));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -685,9 +685,9 @@ interface ReportEmployee {
                   <div className="space-y-2"><Label>RUC *</Label><Input value={formData.ruc} onChange={e => setFormData({...formData, ruc: e.target.value})} /></div>
                   <div className="space-y-2"><Label>Empresa *</Label><Input value={formData.nombre_empresa} onChange={e => setFormData({...formData, nombre_empresa: e.target.value})} /></div>
                </div>
-               <div className="space-y-2"><Label>Representante</Label><Input value={formData.representante} onChange={e => setFormData({...formData, representante: e.target.value})} /></div>
+               <div className="space-y-2"><Label>Representante</Label><Input value={formData.representante} onChange={e => setFormData({...formData, representante: e.target.value.replace(/[\d]/g, '')})} /></div>
                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2"><Label>Teléfono</Label><Input value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} /></div>
+                  <div className="space-y-2"><Label>Teléfono</Label><Input value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value.replace(/\D/g, '')})} maxLength={10} /></div>
                   <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
                </div>
                 <div className="grid gap-4 md:grid-cols-3">
@@ -880,12 +880,12 @@ interface ReportEmployee {
                     <Button variant="ghost" size="sm" onClick={() => setShowCreateForm(false)} className="h-8 w-8 p-0"><ArrowLeft className="h-4 w-4" /></Button>
                     <h3 className="font-semibold">Nuevo Colaborador</h3>
                   </div>
-                  <div className="space-y-2"><Label>Cédula *</Label><Input value={newClientData.cedula} onChange={e => setNewClientData({...newClientData, cedula: e.target.value})} maxLength={13} /></div>
+                  <div className="space-y-2"><Label>Cédula *</Label><Input value={newClientData.cedula} onChange={e => setNewClientData({...newClientData, cedula: e.target.value.replace(/\D/g, '')})} maxLength={13} /></div>
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2"><Label>Nombre *</Label><Input value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} /></div>
-                    <div className="space-y-2"><Label>Apellido *</Label><Input value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} /></div>
+                    <div className="space-y-2"><Label>Nombre *</Label><Input value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value.replace(/[\d]/g, '')})} /></div>
+                    <div className="space-y-2"><Label>Apellido *</Label><Input value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value.replace(/[\d]/g, '')})} /></div>
                   </div>
-                  <div className="space-y-2"><Label>Teléfono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} /></div>
+                  <div className="space-y-2"><Label>Teléfono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value.replace(/\D/g, '')})} maxLength={10} /></div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>Cancelar</Button>
                     <Button className="flex-1" onClick={handleCreateAndAddClient} disabled={isSaving}>{isSaving ? 'Guardando...' : 'Crear y Vincular'}</Button>

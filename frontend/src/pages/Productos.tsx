@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +51,9 @@ interface Category {
 }
 
 export default function Productos() {
+  const { user } = useAuth();
+  const isAdministrador = user?.rol === 'administrador';
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,6 +127,11 @@ export default function Productos() {
   const saveProduct = async () => {
     if (!productForm.nombre || !productForm.precio || !productForm.id_categoria) {
       toast.error('Complete todos los campos'); return;
+    }
+
+    if (parseFloat(productForm.precio) < 0) {
+      toast.error('El precio no puede ser negativo');
+      return;
     }
     setIsSaving(true);
     try {
@@ -222,10 +231,12 @@ export default function Productos() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Buscar producto..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             </div>
-            <Button onClick={() => handleOpenProduct()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Producto
-            </Button>
+            {isAdministrador && (
+              <Button onClick={() => handleOpenProduct()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+                <Plus className="mr-2 h-4 w-4" />
+                Nuevo Producto
+              </Button>
+            )}
           </div>
 
           <Card>
@@ -238,7 +249,7 @@ export default function Productos() {
                     <TableHead className="text-cafe font-bold">Categoría</TableHead>
                     <TableHead className="text-cafe font-bold">Precio</TableHead>
                     <TableHead className="text-cafe font-bold">Estado</TableHead>
-                    <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>
+                    {isAdministrador && <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -261,19 +272,22 @@ export default function Productos() {
                           <Switch 
                             checked={p.activo} 
                             onCheckedChange={() => toggleProductStatus(p)} 
+                            disabled={!isAdministrador}
                           />
                           <Badge variant={p.activo ? 'default' : 'secondary'}>
                             {p.activo ? 'Activo' : 'Inactivo'}
                           </Badge>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                           <Button variant="outline" size="sm" onClick={() => handleOpenProduct(p)} title="Editar producto">
-                             <Pencil className="h-4 w-4" />
-                           </Button>
-                        </div>
-                      </TableCell>
+                      {isAdministrador && (
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                             <Button variant="outline" size="sm" onClick={() => handleOpenProduct(p)} title="Editar producto">
+                               <Pencil className="h-4 w-4" />
+                             </Button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -294,10 +308,12 @@ export default function Productos() {
                 onChange={e => setCategorySearchTerm(e.target.value)} 
               />
             </div>
-            <Button onClick={() => handleOpenCategory()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva Categoría
-            </Button>
+            {isAdministrador && (
+              <Button onClick={() => handleOpenCategory()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+                <Plus className="mr-2 h-4 w-4" />
+                Nueva Categoría
+              </Button>
+            )}
           </div>
 
           <Card>
@@ -308,7 +324,7 @@ export default function Productos() {
                     <TableRow className="bg-secondary/10 hover:bg-secondary/10">
                       <TableHead className="text-cafe font-bold">Nombre de la Categoría</TableHead>
                       <TableHead className="text-cafe font-bold">Productos Vinculados</TableHead>
-                      <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>
+                      {isAdministrador && <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -329,13 +345,15 @@ export default function Productos() {
                             {products.filter(p => p.id_categoria === c.id_categoria).length} productos
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleOpenCategory(c)} title="Editar categoría">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                        {isAdministrador && (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleOpenCategory(c)} title="Editar categoría">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -364,7 +382,7 @@ export default function Productos() {
                   <Label>Precio Unitario ($) *</Label>
                   <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Incluye IVA</span>
                 </div>
-                <Input type="number" step="0.01" value={productForm.precio} onChange={e => setProductForm({...productForm, precio: e.target.value})} placeholder="0.00" />
+                <Input type="number" step="0.01" min="0" value={productForm.precio} onChange={e => setProductForm({...productForm, precio: e.target.value})} placeholder="0.00" />
               </div>
               <div className="space-y-2">
                 <Label>Categoría *</Label>
