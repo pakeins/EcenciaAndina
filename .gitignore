@@ -15,6 +15,7 @@ frontend/node_modules/
 # Base de datos local
 mysql_data/
 backend/supabase/.temp/
+backend/supabase/.branches/
 
 # Compilacion y temporales
 dist/

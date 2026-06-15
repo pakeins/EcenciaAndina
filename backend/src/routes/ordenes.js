@@ -4,6 +4,8 @@ const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { ORDER_STATE } = require('../constants/domain');
+const { zonedStartOfDay, getDateInTimeZone } = require('../services/reporting');
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
@@ -84,13 +86,12 @@ router.get('/', async (req, res) => {
     const { fecha_inicio, fecha_fin } = req.query;
 
     // 1. Cancelar automáticamente pedidos reservados (estado 1) de días anteriores
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = zonedStartOfDay(getDateInTimeZone(new Date()));
     
     await adminClient
       .from('ordenes')
-      .update({ id_estado: 3 }) // 3 es Cancelado
-      .eq('id_estado', 1)
+      .update({ id_estado: ORDER_STATE.CANCELLED })
+      .eq('id_estado', ORDER_STATE.RESERVED)
       .lt('created_at', todayStart.toISOString());
     
     // 2. Construir la consulta principal
@@ -100,6 +101,7 @@ router.get('/', async (req, res) => {
         id_orden,
         id_estado,
         created_at,
+        consumed_at,
         updated_at,
         canal_origen,
         observaciones,
@@ -177,14 +179,13 @@ router.get('/telegram/trazabilidad', roleMiddleware(['administrador']), async (r
         id_cliente,
         id_orden,
         subscription_id,
-        phone_normalized,
         original_message,
         interpreted_payload,
         outcome,
         error_message,
         created_at,
         updated_at,
-        clientes(nombre, apellido, telefono),
+        clientes(nombre, apellido),
         ordenes(id_orden, created_at)
       `, { count: 'exact' });
 
@@ -268,7 +269,7 @@ router.put('/:id/estado', async (req, res) => {
     const adminClient = getAdminClient();
 
     // Si se marca como Consumido (2)
-    if (id_estado === 2) {
+    if (id_estado === ORDER_STATE.CONSUMED) {
       // Obtener detalles de la orden y cliente
       const { data: orden, error: errOrden } = await adminClient
         .from('ordenes')
@@ -411,9 +412,14 @@ router.put('/:id/estado', async (req, res) => {
       }
     }
 
+    const updatePayload = {
+      id_estado,
+      updated_by: req.user.id,
+    };
+
     const { data, error } = await adminClient
       .from('ordenes')
-      .update({ id_estado, updated_by: req.user.id })
+      .update(updatePayload)
       .eq('id_orden', id_orden)
       .select()
       .single();

@@ -32,6 +32,28 @@ const findEmployeeByUsername = async (adminClient, username) => {
   return matches.length === 1 ? matches[0] : null;
 };
 
+const PASSWORD_RESET_RESPONSE = 'Si el correo esta registrado, recibira un enlace pronto.';
+
+const requestPasswordReset = async ({
+  email,
+  adminClient,
+  authClient,
+  redirectTo = process.env.PASSWORD_RECOVERY_REDIRECT_URL,
+}) => {
+  const { data: employee, error } = await adminClient
+    .from('empleados')
+    .select('correo, esta_activo')
+    .ilike('correo', email)
+    .maybeSingle();
+  if (error) throw error;
+  if (!employee || employee.esta_activo === false) return PASSWORD_RESET_RESPONSE;
+
+  const options = redirectTo ? { redirectTo } : undefined;
+  const { error: authError } = await authClient.auth.resetPasswordForEmail(employee.correo, options);
+  if (authError) throw authError;
+  return PASSWORD_RESET_RESPONSE;
+};
+
 // Ruta para el LOGIN
 router.post('/login', async (req, res) => {
   try {
@@ -110,7 +132,7 @@ router.post('/login', async (req, res) => {
     const rolFrontend = mapRoleToAppRole(roleName);
 
     // ACTUALIZAR METADATOS EN SUPABASE AUTH (para que el middleware no tenga que consultar la DB)
-    // Solo lo hacemos si hay cambios o para asegurar sincronizaciÃƒÆ’Ã‚Â³n
+    // Solo lo hacemos si hay cambios o para asegurar sincronización
     if (authData.user.app_metadata?.rol !== rolFrontend || authData.user.user_metadata?.esta_activo !== empleadoData.esta_activo) {
       await adminClient.auth.admin.updateUserById(uid, {
         app_metadata: {
@@ -125,7 +147,7 @@ router.post('/login', async (req, res) => {
     }
 
     res.json({
-      mensaje: 'Ãƒâ€šÃ‚Â¡Acceso concedido!',
+      mensaje: '¡Acceso concedido!',
       token: authData.session.access_token,
       refresh_token: authData.session.refresh_token,
       user: {
@@ -164,8 +186,26 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { correo } = parseBody(schemas.forgotPassword, req.body);
+    const message = await requestPasswordReset({
+      email: correo.trim(),
+      adminClient: getAdminClient(),
+      authClient: supabase,
+    });
+    res.json({ mensaje: message });
+  } catch (error) {
+    if (sendValidationError(res, error)) return;
+    console.error('Error solicitando recuperacion de contrasena:', error);
+    res.status(500).json({ error: 'No se pudo procesar la solicitud.' });
+  }
+});
+
 router._private = {
   findEmployeeByUsername,
+  requestPasswordReset,
+  PASSWORD_RESET_RESPONSE,
   USERNAME_LOGIN_PATTERN,
 };
 

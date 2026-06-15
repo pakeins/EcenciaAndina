@@ -19,21 +19,25 @@ import { RegisteredMenuList } from '@/components/menu/RegisteredMenuList';
 import type { DailyMenu } from '@/components/menu/RegisteredMenuList';
 import { apiFetch } from '@/lib/api';
 import { buildTelegramMenuImage } from '@/lib/menuImage';
-import { Alimento } from '@/types';
+import type { Alimento } from '@/types';
 import { FIELD_LIMITS } from '@/lib/validation';
-
-interface Category {
-  id_categoria_menu: number;
-  nombre_categoria: string;
-}
+import { MENU_CATEGORY_CODE, type MenuCategoryCode } from '@/constants/domain';
+import { dateInBogota } from '@/lib/date';
+import {
+  getMenuCategoryId,
+  mergeFoodCatalog,
+  type MenuCategory,
+} from '@/lib/menuCatalog';
 
 export default function Menu() {
   const { sopas, segundos, guarniciones } = useMenu();
   const [isSending, setIsSending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isActivating, setIsActivating] = useState<string | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [allAlimentos, setAllAlimentos] = useState<Alimento[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [menus, setMenus] = useState<DailyMenu[]>([]);
   const [isLoadingMenus, setIsLoadingMenus] = useState(true);
   const [menuLoadError, setMenuLoadError] = useState<string | null>(null);
@@ -84,16 +88,27 @@ export default function Menu() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoadingCatalog(true);
+      setCatalogError(null);
       try {
         const [catRes, alimRes] = await Promise.all([
           apiFetch('/alimentos/categorias'),
           apiFetch('/alimentos')
         ]);
-        
-        if (catRes.ok) setCategories(await catRes.json());
-        if (alimRes.ok) setAllAlimentos(await alimRes.json());
-      } catch (err) {
-        // Error silenciado para limpieza
+
+        const categoryData = await catRes.json().catch(() => ({}));
+        const foodData = await alimRes.json().catch(() => ({}));
+        if (!catRes.ok) throw new Error(categoryData.error || 'No se pudieron cargar las categorías del menú.');
+        if (!alimRes.ok) throw new Error(foodData.error || 'No se pudieron cargar los alimentos.');
+
+        setCategories(Array.isArray(categoryData) ? categoryData : []);
+        setAllAlimentos(Array.isArray(foodData) ? foodData : []);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'No se pudo cargar el catálogo del menú.';
+        setCatalogError(message);
+        toast.error('No se pudo cargar el catálogo del menú', { description: message });
+      } finally {
+        setIsLoadingCatalog(false);
       }
     };
     fetchData();
@@ -158,7 +173,7 @@ export default function Menu() {
       return toast.error(`Cada opcion debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
     }
 
-    const fecha = selectedMenuDate || new Date().toISOString().split('T')[0];
+    const fecha = selectedMenuDate || dateInBogota();
     setIsSaving(true);
     try {
       const response = await apiFetch(`/menu/${fecha}`, {
@@ -209,13 +224,10 @@ export default function Menu() {
     }
   };
 
-  const getCategoryId = (name: string) => {
-    const search = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const cat = categories.find(c => {
-      const catName = c.nombre_categoria.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      return catName.includes(search);
-    });
-    return cat ? cat.id_categoria_menu : 0;
+  const getCategoryId = (code: MenuCategoryCode) => getMenuCategoryId(categories, code);
+
+  const handleFoodCreated = (food: Alimento) => {
+    setAllAlimentos((current) => mergeFoodCatalog(current, food));
   };
 
   const updateOption = (type: 'sopas' | 'segundos' | 'guarniciones', index: number, value: string) => {
@@ -260,10 +272,21 @@ export default function Menu() {
         >
           <CalendarDays style={{ color: '#BF5D30' }} className="h-5 w-5" />
           <span style={{ color: '#BF5D30' }} className="text-sm font-semibold capitalize">
-            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {new Date().toLocaleDateString('es-ES', {
+              timeZone: 'America/Bogota',
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
           </span>
         </div>
       </div>
+
+      {catalogError && (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          {catalogError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
@@ -303,10 +326,12 @@ export default function Menu() {
                     <FoodSelector 
                       value={sopa}
                       onChange={(val) => updateOption('sopas', index, val)}
-                      idCategoria={getCategoryId('Sopa')}
+                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.SOUPS)}
                       alimentos={allAlimentos}
                       placeholder="Seleccionar sopa..."
                       exclude={sopas.filter((_, i) => i !== index)}
+                      disabled={isLoadingCatalog || Boolean(catalogError)}
+                      onFoodCreated={handleFoodCreated}
                     />
                   </div>
                 ))}
@@ -352,10 +377,12 @@ export default function Menu() {
                     <FoodSelector 
                       value={segundo}
                       onChange={(val) => updateOption('segundos', index, val)}
-                      idCategoria={getCategoryId('Segundo')}
+                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.MAINS)}
                       alimentos={allAlimentos}
                       placeholder="Seleccionar plato fuerte..."
                       exclude={segundos.filter((_, i) => i !== index)}
+                      disabled={isLoadingCatalog || Boolean(catalogError)}
+                      onFoodCreated={handleFoodCreated}
                     />
                   </div>
                 ))}
@@ -401,10 +428,12 @@ export default function Menu() {
                     <FoodSelector 
                       value={guarnicion}
                       onChange={(val) => updateOption('guarniciones', index, val)}
-                      idCategoria={getCategoryId('Guarni')}
+                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.SIDES)}
                       alimentos={allAlimentos}
                       placeholder="Seleccionar guarnición..."
                       exclude={guarniciones.filter((_, i) => i !== index)}
+                      disabled={isLoadingCatalog || Boolean(catalogError)}
+                      onFoodCreated={handleFoodCreated}
                     />
                   </div>
                 ))}

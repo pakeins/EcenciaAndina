@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
-import { Client } from '@/types';
+import { Client, Convenio, TelegramOnboarding, TelegramStatus } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Pencil, User, Phone, Search, IdCard, Users, Building2, Trash2, Filter, Activity, UserCheck, Wallet } from 'lucide-react';
+import { Plus, Pencil, User, Phone, Search, IdCard, Users, Building2, Activity, UserCheck, Wallet, Send, ShieldCheck, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import {
@@ -46,10 +45,35 @@ import {
 import { WalletDialog } from '@/components/clients/WalletDialog';
 import { RechargeDialog } from '@/components/clients/RechargeDialog';
 import { Banknote } from 'lucide-react';
-import { FIELD_LIMITS, isValidEcDocument, isValidPhone, normalizePhone, onlyDigits } from '@/lib/validation';
+import { FIELD_LIMITS, isValidEcDocument, isValidEmail, isValidPhone, normalizePhone, onlyDigits } from '@/lib/validation';
+import { CLIENT_TYPE } from '@/constants/domain';
+import { useAuth } from '@/contexts/AuthContext';
+import { TelegramOnboardingDialog } from '@/components/clients/TelegramOnboardingDialog';
+import { TelegramPrivacyRequestsDialog } from '@/components/clients/TelegramPrivacyRequestsDialog';
+
+const telegramStatusLabel: Record<TelegramStatus, string> = {
+  no_invitation: 'Sin invitacion',
+  pending: 'Pendiente',
+  accepted: 'Aceptado',
+  rejected: 'Rechazado',
+  revoked: 'Revocado',
+  deletion_pending: 'Eliminacion pendiente',
+};
+
+const telegramStatusClass: Record<TelegramStatus, string> = {
+  no_invitation: 'bg-muted text-muted-foreground',
+  pending: 'border-amber-300 bg-amber-50 text-amber-800',
+  accepted: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+  rejected: 'border-red-300 bg-red-50 text-red-800',
+  revoked: 'border-slate-300 bg-slate-100 text-slate-700',
+  deletion_pending: 'border-purple-300 bg-purple-50 text-purple-800',
+};
 
 export default function Clientes() {
+  const { user } = useAuth();
+  const isAdmin = user?.rol === 'administrador';
   const [clients, setClients] = useState<Client[]>([]);
+  const [convenios, setConvenios] = useState<Convenio[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -63,8 +87,14 @@ export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [telegramOnboarding, setTelegramOnboarding] = useState<TelegramOnboarding | null>(null);
+  const [telegramClientName, setTelegramClientName] = useState('');
+  const [telegramClientId, setTelegramClientId] = useState('');
+  const [telegramDialogOpen, setTelegramDialogOpen] = useState(false);
+  const [privacyRequestsOpen, setPrivacyRequestsOpen] = useState(false);
+  const [reinvitingClientId, setReinvitingClientId] = useState<string | null>(null);
 
-  // ConfirmaciÃ³n para toggle activo/inactivo
+  // Confirmación para toggle activo/inactivo
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [clientToToggle, setClientToToggle] = useState<Client | null>(null);
 
@@ -73,7 +103,9 @@ export default function Clientes() {
     nombre: '',
     apellido: '',
     telefono: '',
-    id_tipo_cliente: 1,
+    correo: '',
+    id_tipo_cliente: CLIENT_TYPE.DIRECT,
+    id_convenio: '',
   });
 
   const [clientTypes, setClientTypes] = useState<
@@ -84,7 +116,20 @@ export default function Clientes() {
   useEffect(() => {
     fetchClientes();
     fetchTipos();
+    fetchConvenios();
   }, []);
+
+  const fetchConvenios = async () => {
+    try {
+      const response = await apiFetch('/convenios');
+      if (response.ok) {
+        const data: Convenio[] = await response.json();
+        setConvenios(data.filter((convenio) => convenio.activo));
+      }
+    } catch (err) {
+      console.error('Error fetching convenios:', err);
+    }
+  };
 
   const fetchTipos = async () => {
     try {
@@ -113,19 +158,20 @@ export default function Clientes() {
       }
     } catch (err) {
       console.error('Error fetching clientes:', err);
-      setError('Error de conexiÃ³n con el servidor');
-      toast.error('Error de conexiÃ³n con el servidor');
+      setError('Error de conexión con el servidor');
+      toast.error('Error de conexión con el servidor');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- FILTRO DE BÃšSQUEDA ---
+  // --- FILTRO DE BÚSQUEDA ---
   const filteredClients = clients.filter((c) => {
     const matchesSearch = 
       `${c.nombre} ${c.apellido}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.cedula.includes(searchTerm) ||
-      (c.telefono && c.telefono.includes(searchTerm));
+      (c.telefono && c.telefono.includes(searchTerm)) ||
+      c.correo.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesType = filterType === 'all' || String(c.id_tipo_cliente) === filterType;
     const matchesStatus = filterStatus === 'all' || 
@@ -143,12 +189,14 @@ export default function Clientes() {
       nombre: '',
       apellido: '',
       telefono: '',
-      id_tipo_cliente: clientTypes[0]?.id_tipo_cliente || 1,
+      correo: '',
+      id_tipo_cliente: CLIENT_TYPE.DIRECT,
+      id_convenio: '',
     });
     setDialogOpen(true);
   };
 
-  // --- FORMULARIO: ABRIR EDICIÃ“N ---
+  // --- FORMULARIO: ABRIR EDICIÓN ---
   const handleEdit = (client: Client) => {
     setEditingClient(client);
     setFormData({
@@ -156,7 +204,9 @@ export default function Clientes() {
       nombre: client.nombre,
       apellido: client.apellido,
       telefono: client.telefono,
-      id_tipo_cliente: client.id_tipo_cliente || 1,
+      correo: client.correo,
+      id_tipo_cliente: client.id_tipo_cliente || CLIENT_TYPE.DIRECT,
+      id_convenio: client.convenio?.id || '',
     });
     setDialogOpen(true);
   };
@@ -166,10 +216,47 @@ export default function Clientes() {
     setWalletOpen(true);
   };
 
+  const showTelegramOnboarding = (
+    onboarding: TelegramOnboarding,
+    clientName: string,
+    clientId: string,
+  ) => {
+    setTelegramOnboarding(onboarding);
+    setTelegramClientName(clientName);
+    setTelegramClientId(clientId);
+    setTelegramDialogOpen(true);
+  };
+
+  const handleTelegramReinvite = async (client: Client) => {
+    setReinvitingClientId(client.id);
+    try {
+      const response = await apiFetch(`/clientes/${client.id}/telegram/invitacion`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'No se pudo reinvitar al cliente.');
+      showTelegramOnboarding(
+        data.telegram_onboarding,
+        `${client.nombre} ${client.apellido}`,
+        client.id,
+      );
+      await fetchClientes();
+      toast.success(
+        data.telegram_onboarding?.status === 'sent'
+          ? 'Aviso enviado al chat vinculado.'
+          : 'Nueva invitacion Telegram generada.',
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo reinvitar al cliente.');
+    } finally {
+      setReinvitingClientId(null);
+    }
+  };
+
   // --- GUARDAR (CREAR O ACTUALIZAR) ---
   const handleSave = async () => {
-    if (!formData.cedula || !formData.nombre || !formData.apellido) {
-      toast.error('CÃ©dula, nombre y apellido son requeridos');
+    if (!formData.cedula || !formData.nombre || !formData.apellido || !formData.correo) {
+      toast.error('Cedula, nombre, apellido y correo son requeridos');
       return;
     }
 
@@ -185,12 +272,27 @@ export default function Clientes() {
       toast.error('El telefono debe tener entre 8 y 15 digitos');
       return;
     }
+    if (!isValidEmail(formData.correo)) {
+      toast.error('Ingrese un correo electronico valido');
+      return;
+    }
+    if (
+      formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT &&
+      !formData.id_convenio
+    ) {
+      toast.error('Seleccione el convenio del cliente');
+      return;
+    }
     setIsSaving(true);
     try {
       const payload = {
         ...formData,
         cedula: onlyDigits(formData.cedula),
         telefono: normalizePhone(formData.telefono),
+        correo: formData.correo.trim().toLowerCase(),
+        id_convenio: formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT
+          ? formData.id_convenio || null
+          : null,
       };
       if (editingClient) {
         // ACTUALIZAR
@@ -219,16 +321,30 @@ export default function Clientes() {
           setClients([data, ...clients]);
           toast.success('Cliente registrado correctamente');
           setDialogOpen(false);
+          if (data.telegram_onboarding) {
+            showTelegramOnboarding(
+              data.telegram_onboarding,
+              `${data.nombre} ${data.apellido}`,
+              data.id,
+            );
+          }
         } else {
           toast.error(data.error || 'Error al crear el cliente');
         }
       }
     } catch (err) {
       console.error('Error guardando cliente:', err);
-      toast.error('Error de conexiÃ³n con el servidor');
+      toast.error('Error de conexión con el servidor');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const retryTelegramEmail = async () => {
+    if (!telegramClientId) return;
+    const client = clients.find((item) => item.id === telegramClientId);
+    if (!client) return;
+    await handleTelegramReinvite(client);
   };
 
   // --- TOGGLE ACTIVO/INACTIVO ---
@@ -265,7 +381,7 @@ export default function Clientes() {
       }
     } catch (err) {
       console.error(err);
-      toast.error('Error de conexiÃ³n');
+      toast.error('Error de conexión');
     } finally {
       setIsAlertOpen(false);
       setClientToToggle(null);
@@ -282,9 +398,19 @@ export default function Clientes() {
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
             Clientes
           </h1>
-          <p className="text-muted-foreground text-lg">AdministraciÃ³n de clientes y colaboradores de Ecencia Andina</p>
+          <p className="text-muted-foreground text-lg">Administración de clientes y colaboradores de Ecencia Andina</p>
         </div>
         <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Button
+              onClick={() => setPrivacyRequestsOpen(true)}
+              variant="outline"
+              className="gap-2 border-terracota text-terracota hover:bg-terracota/10"
+            >
+              <ShieldCheck className="h-5 w-5" />
+              Privacidad
+            </Button>
+          )}
           <Button onClick={() => setRechargeOpen(true)} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 shadow-lg shadow-cafe/5 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
             <Banknote className="h-5 w-5" />
             Recargar Saldo
@@ -345,15 +471,15 @@ export default function Clientes() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-foreground">Lista de Clientes</CardTitle>
-              <CardDescription>Administre los clientes y su informaciÃ³n</CardDescription>
+              <CardDescription>Administre los clientes y su información</CardDescription>
             </div>
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">BÃºsqueda</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Búsqueda</span>
                 <div className="relative w-72">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Nombre, cÃ©dula o telÃ©fono..."
+                    placeholder="Nombre, cédula, teléfono o correo..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 bg-muted/30 focus-visible:bg-background transition-colors"
@@ -414,8 +540,10 @@ export default function Clientes() {
                 <TableRow className="bg-secondary/10 hover:bg-secondary/10">
                   <TableHead className="text-cafe font-bold">Nombre de Cliente</TableHead>
                   <TableHead className="text-cafe font-bold">Tipo de Cliente</TableHead>
-                  <TableHead className="text-cafe font-bold">CÃ©dula</TableHead>
-                  <TableHead className="text-cafe font-bold">TelÃ©fono</TableHead>
+                  <TableHead className="text-cafe font-bold">Cédula</TableHead>
+                  <TableHead className="text-cafe font-bold">Teléfono</TableHead>
+                  <TableHead className="text-cafe font-bold">Correo</TableHead>
+                  <TableHead className="text-cafe font-bold">Telegram</TableHead>
                   <TableHead className="text-cafe font-bold">Estado</TableHead>
                   <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>
                 </TableRow>
@@ -423,7 +551,7 @@ export default function Clientes() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center">
+                    <TableCell colSpan={8} className="py-8 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                         <p className="animate-pulse text-muted-foreground">Cargando clientes...</p>
@@ -432,9 +560,9 @@ export default function Clientes() {
                   </TableRow>
                 ) : error ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-destructive">
+                    <TableCell colSpan={8} className="py-8 text-center text-destructive">
                       <div className="flex flex-col items-center gap-2">
-                        <p className="font-semibold">OcurriÃ³ un error</p>
+                        <p className="font-semibold">Ocurrió un error</p>
                         <p className="text-sm">{error}</p>
                         <Button
                           variant="outline"
@@ -449,9 +577,9 @@ export default function Clientes() {
                   </TableRow>
                 ) : filteredClients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       {searchTerm
-                        ? 'No se encontraron clientes con esa bÃºsqueda'
+                        ? 'No se encontraron clientes con esa búsqueda'
                         : 'No hay clientes registrados'}
                     </TableCell>
                   </TableRow>
@@ -490,7 +618,46 @@ export default function Clientes() {
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-foreground">
                           <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          {client.telefono || 'â€”'}
+                          {client.telefono || '—'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 text-foreground">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="max-w-[220px] truncate" title={client.correo}>
+                            {client.correo || '—'}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Badge
+                            variant="outline"
+                            className={`w-fit ${telegramStatusClass[client.telegram?.status || 'no_invitation']}`}
+                          >
+                            {telegramStatusLabel[client.telegram?.status || 'no_invitation']}
+                          </Badge>
+                          {client.telegram?.status === 'accepted' && !client.telegram.policy_current && (
+                            <span className="text-xs text-amber-700">Requiere nueva politica</span>
+                          )}
+                          {client.telegram?.telegram_username && (
+                            <span className="text-xs text-muted-foreground">
+                              @{client.telegram.telegram_username}
+                            </span>
+                          )}
+                          {client.telegram?.email_delivery?.status && (
+                            <span className="text-xs text-muted-foreground">
+                              Correo: {
+                                client.telegram.email_delivery.status === 'sent'
+                                  ? 'enviado'
+                                  : client.telegram.email_delivery.status === 'not_configured'
+                                    ? 'sin configurar'
+                                    : client.telegram.email_delivery.status === 'failed'
+                                      ? 'fallido'
+                                      : 'pendiente'
+                              }
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -500,9 +667,24 @@ export default function Clientes() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2">
-                          {(!client.convenio && client.id_tipo_cliente === 2) && (
+                          {(!client.convenio && client.id_tipo_cliente === CLIENT_TYPE.DIRECT) && (
                             <Button variant="ghost" size="icon" onClick={() => handleOpenWallet(client)} title="Monedero Virtual">
                               <Wallet className="h-4 w-4 text-primary" />
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleTelegramReinvite(client)}
+                              disabled={reinvitingClientId === client.id}
+                              title="Reinvitar por Telegram"
+                            >
+                              <Send
+                                className={`h-4 w-4 text-terracota ${
+                                  reinvitingClientId === client.id ? 'animate-pulse' : ''
+                                }`}
+                              />
                             </Button>
                           )}
                           <Switch
@@ -537,7 +719,7 @@ export default function Clientes() {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="cedula">CÃ©dula *</Label>
+              <Label htmlFor="cedula">Cédula *</Label>
               <Input
                 id="cedula"
                 value={formData.cedula}
@@ -545,6 +727,18 @@ export default function Clientes() {
                 placeholder="Ej: 1712345678"
                 maxLength={13}
                 inputMode="numeric"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="correo">Correo electrónico *</Label>
+              <Input
+                id="correo"
+                type="email"
+                value={formData.correo}
+                onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
+                placeholder="cliente@example.test"
+                maxLength={FIELD_LIMITS.email}
+                autoComplete="email"
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -571,7 +765,7 @@ export default function Clientes() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="telefono">TelÃ©fono</Label>
+                <Label htmlFor="telefono">Teléfono</Label>
                 <Input
                   id="telefono"
                   value={formData.telefono}
@@ -585,64 +779,58 @@ export default function Clientes() {
                 <Label htmlFor="tipo">Tipo de Cliente</Label>
                 <Select
                   value={String(formData.id_tipo_cliente)}
+                  disabled={!isAdmin}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, id_tipo_cliente: parseInt(value) })
+                    setFormData({
+                      ...formData,
+                      id_tipo_cliente: parseInt(value),
+                      id_convenio: parseInt(value) === CLIENT_TYPE.AGREEMENT
+                        ? formData.id_convenio
+                        : '',
+                    })
                   }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccione un tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clientTypes.map((tipo) => (
+                    {clientTypes
+                      .filter((tipo) => isAdmin || tipo.id_tipo_cliente === CLIENT_TYPE.DIRECT)
+                      .map((tipo) => (
                       <SelectItem key={tipo.id_tipo_cliente} value={String(tipo.id_tipo_cliente)}>
                         {tipo.nombre_tipo}
                       </SelectItem>
-                    ))}
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {/* SECCIÃ“N DE CONVENIO */}
-            {editingClient?.convenio && (
-              <div className="rounded-lg border border-border p-4 bg-accent/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Vinculado a Convenio</span>
-                  </div>
-                  <Badge variant="outline" className="bg-primary/10">Activo</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-foreground font-semibold">
-                    {editingClient.convenio.nombre}
-                  </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 h-8"
-                    onClick={async () => {
-                      if (confirm(`Â¿Quitar a ${editingClient.nombre} del convenio ${editingClient.convenio?.nombre}?`)) {
-                        try {
-                          const res = await apiFetch(`/clientes/${editingClient.id}/convenio`, {
-                            method: 'DELETE'
-                          });
-                          if (res.ok) {
-                            toast.success('VÃ­nculo eliminado');
-                            // Actualizar localmente
-                            setEditingClient({ ...editingClient, convenio: null });
-                            setClients(clients.map(c => c.id === editingClient.id ? { ...c, convenio: null } : c));
-                          }
-                        } catch (err) {
-                          toast.error('Error al desvincular');
-                        }
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Quitar del Convenio
-                  </Button>
-                </div>
+            {/* SECCIÓN DE CONVENIO */}
+            {isAdmin && formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT && (
+              <div className="space-y-2">
+                <Label htmlFor="convenio">Convenio</Label>
+                <Select
+                  value={formData.id_convenio || 'none'}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, id_convenio: value === 'none' ? '' : value })
+                  }
+                >
+                  <SelectTrigger id="convenio">
+                    <SelectValue placeholder="Sin convenio asignado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin convenio asignado</SelectItem>
+                    {convenios.map((convenio) => (
+                      <SelectItem key={convenio.id} value={convenio.id}>
+                        {convenio.nombre_empresa}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Solo los clientes de tipo convenio pueden vincularse a una empresa.
+                </p>
               </div>
             )}
           </div>
@@ -676,20 +864,37 @@ export default function Clientes() {
         clients={clients}
       />
 
-      {/* ConfirmaciÃ³n para desactivar */}
+      <TelegramOnboardingDialog
+        open={telegramDialogOpen}
+        onOpenChange={setTelegramDialogOpen}
+        clientName={telegramClientName}
+        onboarding={telegramOnboarding}
+        onRetryEmail={isAdmin ? retryTelegramEmail : undefined}
+        retryingEmail={Boolean(reinvitingClientId)}
+      />
+
+      {isAdmin && (
+        <TelegramPrivacyRequestsDialog
+          open={privacyRequestsOpen}
+          onOpenChange={setPrivacyRequestsOpen}
+          onResolved={fetchClientes}
+        />
+      )}
+
+      {/* Confirmación para desactivar */}
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Â¿Desactivar cliente?</AlertDialogTitle>
+            <AlertDialogTitle>¿Desactivar cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Â¿EstÃ¡ seguro que desea desactivar a{' '}
+              ¿Está seguro que desea desactivar a{' '}
               <strong>
                 {clientToToggle?.nombre} {clientToToggle?.apellido}
               </strong>
               ?
               <br />
               <br />
-              El cliente quedarÃ¡ inactivo hasta que se reactive manualmente.
+              El cliente quedará inactivo hasta que se reactive manualmente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -698,7 +903,7 @@ export default function Clientes() {
               onClick={() => clientToToggle && confirmToggle(clientToToggle.id, false)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              SÃ­, desactivar
+              Sí, desactivar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

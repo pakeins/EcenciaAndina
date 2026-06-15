@@ -12,6 +12,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const CONFIG = {
   timezone: cfg('N8N_ECIENCIA_TIMEZONE', 'America/Bogota'),
+  consentVersion: cfg('TELEGRAM_CONSENT_VERSION'),
   menuImageUrl: cfg(
     'N8N_ECIENCIA_MENU_IMAGE_URL',
     'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/eciencia-menu-demo.png'
@@ -20,6 +21,9 @@ const CONFIG = {
   origenName: cfg('N8N_ECIENCIA_ORIGEN_NOMBRE', 'Telegram'),
   estadoReservadoName: cfg('N8N_ECIENCIA_ESTADO_RESERVADO_NOMBRE', 'Reservado'),
 };
+if (!CONFIG.consentVersion) {
+  throw new Error('Falta TELEGRAM_CONSENT_VERSION en n8n.');
+}
 
 function todayInTimezone(timeZone) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -184,8 +188,7 @@ function optionsKeyboard(kind, options) {
 function menuCaption(today) {
   return trimTelegramCaption(
     'Ecencia Andina - Menu del dia ' + today + '\n\n' +
-      'Toca una sopa para comenzar. Luego elegiras el plato fuerte y la guarnicion.\n\n' +
-      'Tambien puedes responder con texto: sopa 1, segundo 1, guarnicion 1.'
+      'Realiza toda la reserva con los botones. Primero elige una sopa.'
   );
 }
 
@@ -265,9 +268,10 @@ async function getClients() {
 
 async function getAcceptedSubscriptions() {
   return supa('/telegram_subscriptions?' + queryString([
-    ['select', 'id,id_cliente,phone_normalized,chat_id,consent_status,is_active'],
+    ['select', 'id,id_cliente,phone_normalized,chat_id,consent_status,is_active,consent_notice_version'],
     ['consent_status', 'eq.accepted'],
     ['is_active', 'eq.true'],
+    ['consent_notice_version', 'eq.' + CONFIG.consentVersion],
     ['chat_id', 'not.is.null'],
   ]));
 }
@@ -348,12 +352,11 @@ for (const client of clients) {
     date: today,
     menuDate: activeMenu?.date || today,
     menu,
-    quantity: 1,
+    quantity: null,
     cliente: {
       id_cliente: client.id_cliente,
       nombre: client.nombre,
       apellido: client.apellido,
-      telefono: client.telefono,
     },
     convenio,
     product,

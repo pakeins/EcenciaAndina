@@ -20,6 +20,11 @@ const trimToUndefined = (value) => {
   return text || undefined;
 };
 
+const normalizeEmail = (value) => {
+  const email = trimToUndefined(value);
+  return email ? email.toLowerCase() : undefined;
+};
+
 const toNumber = (value) => {
   if (value === '' || value === null || value === undefined) return undefined;
   return Number(value);
@@ -106,6 +111,23 @@ const phoneSchema = z
   .preprocess(normalizePhone, z.string().regex(/^\d{8,15}$/, 'El telefono debe tener entre 8 y 15 digitos.').optional())
   .optional();
 
+const requiredEmailSchema = z.preprocess(
+  normalizeEmail,
+  z
+    .string({ required_error: 'El correo es obligatorio.' })
+    .email('El correo no es valido.')
+    .max(MAX_LENGTHS.email, 'El correo es demasiado largo.'),
+);
+
+const optionalEmailSchema = z.preprocess(
+  normalizeEmail,
+  z
+    .string()
+    .email('El correo no es valido.')
+    .max(MAX_LENGTHS.email, 'El correo es demasiado largo.')
+    .optional(),
+);
+
 const rucSchema = z.preprocess(
   onlyDigits,
   z
@@ -128,6 +150,12 @@ const positiveInt = (field, max = 1000000) =>
       .int(`${field} debe ser entero.`)
       .positive(`${field} debe ser mayor a 0.`)
       .max(max, `${field} supera el maximo permitido.`),
+  );
+
+const uuid = (field) =>
+  z.preprocess(
+    trimToUndefined,
+    z.string({ required_error: `${field} es obligatorio.` }).uuid(`${field} no es valido.`),
   );
 
 const nonNegativeInt = (field, max = 1000000) =>
@@ -160,6 +188,11 @@ const isoDate = z
   .preprocess(trimToUndefined, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato YYYY-MM-DD.').optional())
   .optional();
 
+const optionalNullableUuid = z.preprocess((value) => {
+  if (value === '') return null;
+  return value;
+}, z.union([z.string().uuid('El convenio no es valido.'), z.null()]).optional());
+
 const empleadoBase = {
   nombre: requiredText(MAX_LENGTHS.nombre, 'Nombre'),
   apellido: requiredText(MAX_LENGTHS.nombre, 'Apellido'),
@@ -189,12 +222,17 @@ const schemas = {
   refresh: z.object({
     refresh_token: requiredText(2048, 'Refresh token'),
   }),
+  forgotPassword: z.object({
+    correo: z.string().email('El correo no es valido.').max(MAX_LENGTHS.email, 'El correo es demasiado largo.'),
+  }),
   clienteCreate: z.object({
     cedula: documentSchema,
     nombre: requiredText(MAX_LENGTHS.nombre, 'Nombre'),
     apellido: requiredText(MAX_LENGTHS.nombre, 'Apellido'),
     telefono: phoneSchema,
+    correo: requiredEmailSchema,
     id_tipo_cliente: positiveInt('Tipo de cliente').optional().default(1),
+    id_convenio: optionalNullableUuid,
   }),
   clienteUpdate: z.object({
     activo: booleanSchema.optional(),
@@ -202,7 +240,9 @@ const schemas = {
     nombre: requiredText(MAX_LENGTHS.nombre, 'Nombre').optional(),
     apellido: requiredText(MAX_LENGTHS.nombre, 'Apellido').optional(),
     telefono: phoneSchema,
+    correo: optionalEmailSchema,
     id_tipo_cliente: positiveInt('Tipo de cliente').optional(),
+    id_convenio: optionalNullableUuid,
   }),
   recarga: z.object({
     id_producto: positiveInt('Producto'),
@@ -238,7 +278,7 @@ const schemas = {
     cupo_maximo: nonNegativeInt('Cupo maximo', 10000).optional(),
   }),
   convenioAddClient: z.object({
-    id_cliente: positiveInt('Cliente'),
+    id_cliente: uuid('Cliente'),
   }),
   productoCreate: z.object({
     id_categoria: positiveInt('Categoria'),
@@ -254,7 +294,7 @@ const schemas = {
     descripcion: optionalText(MAX_LENGTHS.descripcion, 'Descripcion'),
   }),
   ordenCreate: z.object({
-    id_cliente: positiveInt('Cliente'),
+    id_cliente: uuid('Cliente'),
     id_estado: positiveInt('Estado'),
     id_origen: positiveInt('Origen'),
     canal_origen: optionalText(MAX_LENGTHS.canal, 'Canal'),
@@ -310,6 +350,10 @@ const schemas = {
     image: optionalText(8 * 1024 * 1024, 'Imagen'),
     confirmarEdicion: booleanSchema.optional(),
     clientIds: z.array(z.union([z.string(), z.number()])).optional(),
+  }),
+  telegramPrivacyResolution: z.object({
+    status: z.enum(['in_review', 'resolved', 'rejected']),
+    resolution_notes: optionalText(1000, 'Notas de resolucion'),
   }),
 };
 

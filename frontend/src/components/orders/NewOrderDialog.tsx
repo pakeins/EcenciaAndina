@@ -27,7 +27,9 @@ import {
 import { UserPlus, X } from 'lucide-react';
 import { OrderFormFields, OrderFormState } from './OrderFormFields';
 import { toast } from 'sonner';
-import { FIELD_LIMITS, isValidEcDocument, isValidPhone, normalizePhone, onlyDigits } from '@/lib/validation';
+import { FIELD_LIMITS, isValidEcDocument, isValidEmail, isValidPhone, normalizePhone, onlyDigits } from '@/lib/validation';
+import { CLIENT_TYPE, ORDER_SOURCE, ORDER_STATE } from '@/constants/domain';
+import { useAuth } from '@/contexts/AuthContext';
 
 const formSchema = z.object({
   clientMode: z.enum(['existing', 'new']),
@@ -35,6 +37,7 @@ const formSchema = z.object({
   cedula: z.string().optional(),
   nombre: z.string().optional(),
   apellido: z.string().optional(),
+  correo: z.string().optional(),
   appMensajeria: z.string().optional(),
   tipoCliente: z.enum(['cliente', 'convenio']),
   convenioId: z.string().optional(),
@@ -59,6 +62,9 @@ const formSchema = z.object({
     if (data.apellido && data.apellido.trim().length > FIELD_LIMITS.nombre) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Apellido demasiado largo", path: ["apellido"] });
     }
+    if (!data.correo || !isValidEmail(data.correo)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingrese un correo valido", path: ["correo"] });
+    }
     if (data.appMensajeria && !isValidPhone(data.appMensajeria)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Telefono invalido", path: ["appMensajeria"] });
     }
@@ -77,6 +83,8 @@ interface NewOrderDialogProps {
 }
 
 export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogProps) {
+  const { user } = useAuth();
+  const isAdmin = user?.rol === 'administrador';
   const { clientes, convenios, isLoading, refetchClients } = useClientsAndConvenios();
 
   const form = useForm<FormValues>({
@@ -87,6 +95,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
       cedula: '',
       nombre: '',
       apellido: '',
+      correo: '',
       appMensajeria: '',
       tipoCliente: 'cliente',
       convenioId: '',
@@ -116,6 +125,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
         cedula: '',
         nombre: '',
         apellido: '',
+        correo: '',
         appMensajeria: '',
         tipoCliente: 'cliente',
         convenioId: '',
@@ -129,11 +139,17 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
   }, [open, reset]);
 
   const selectedClient = clientes.find((c) => c.id === clienteId);
-  const effectiveTipoCliente: ClientType = clientMode === 'existing' ? 'cliente' : (tipoCliente as ClientType);
+  const effectiveTipoCliente: ClientType = clientMode === 'existing'
+    ? selectedClient?.convenio
+      ? 'convenio'
+      : 'cliente'
+    : (tipoCliente as ClientType);
   const showProductos = effectiveTipoCliente === 'convenio';
 
   const isClientSelected = (clientMode === 'existing' && !!clienteId) || (clientMode === 'new' && !!tipoCliente && !!watch('cedula'));
-  const isFrecuente = clientMode === 'existing' ? (!selectedClient?.convenio && selectedClient?.id_tipo_cliente === 2) : (tipoCliente === 'cliente');
+  const isFrecuente = clientMode === 'existing'
+    ? !selectedClient?.convenio && selectedClient?.id_tipo_cliente === CLIENT_TYPE.DIRECT
+    : tipoCliente === 'cliente';
 
   const showOrderForm = isClientSelected;
   const blockMessage = isClientSelected ? '' : 'Seleccione un cliente para continuar con el pedido.';
@@ -150,21 +166,22 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
       const telefonoNormalizado = normalizePhone(data.appMensajeria || '');
       const cedulaExists = clientes.some((c) => c.cedula === cedulaNormalizada);
       if (cedulaExists) {
-        toast.error('Ya existe un cliente registrado con esta cÃ©dula o RUC');
-        form.setError('cedula', { type: 'manual', message: 'CÃ©dula ya registrada' });
+        toast.error('Ya existe un cliente registrado con esta cédula o RUC');
+        form.setError('cedula', { type: 'manual', message: 'Cédula ya registrada' });
         return;
       }
 
       setIsSaving(true);
       try {
         let createRes;
-        if (data.tipoCliente === 'convenio') {
+        if (data.tipoCliente === 'convenio' && isAdmin) {
           createRes = await apiFetch(`/convenios/${data.convenioId}/clientes/nuevo`, {
             method: 'POST',
             body: JSON.stringify({
               cedula: cedulaNormalizada,
               nombre: data.nombre,
               apellido: data.apellido,
+              correo: data.correo?.trim().toLowerCase(),
               telefono: telefonoNormalizado
             })
           });
@@ -175,9 +192,10 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
               cedula: cedulaNormalizada,
               nombre: data.nombre,
               apellido: data.apellido,
+              correo: data.correo?.trim().toLowerCase(),
               telefono: telefonoNormalizado,
-              id_tipo_cliente: 2
-            }) // 2 = Frecuente
+              id_tipo_cliente: CLIENT_TYPE.DIRECT,
+            })
           });
         }
 
@@ -190,9 +208,9 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
 
         const newClientData = await createRes.json();
         finalClienteId = newClientData.id;
-        refetchClients(); // Actualizar cachÃ© de React Query
+        refetchClients(); // Actualizar caché de React Query
       } catch (err) {
-        toast.error('Error de conexiÃ³n al crear el cliente');
+        toast.error('Error de conexión al crear el cliente');
         setIsSaving(false);
         return;
       }
@@ -210,10 +228,10 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
         method: 'POST',
         body: JSON.stringify({
           id_cliente: finalClienteId,
-          id_estado: 1, // 'Reservado' - Assuming ID 1
-          id_origen: 2,
+          id_estado: ORDER_STATE.RESERVED,
+          id_origen: ORDER_SOURCE.SYSTEM,
           canal_origen: 'Sistema',
-          metodo_pago: (clientMode === 'existing' && (!selectedClient?.convenio && selectedClient?.id_tipo_cliente === 2)) || (clientMode === 'new' && tipoCliente === 'cliente') ? 'Saldo Prepago' : 'Convenio Empresa',
+          metodo_pago: (clientMode === 'existing' && (!selectedClient?.convenio && selectedClient?.id_tipo_cliente === CLIENT_TYPE.DIRECT)) || (clientMode === 'new' && tipoCliente === 'cliente') ? 'Saldo Prepago' : 'Convenio Empresa',
           observaciones: state.observaciones,
           detalles: state.items.map(item => {
             const opciones: Record<string, string> = {};
@@ -232,16 +250,14 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
 
       if (response.ok) {
         toast.success('Pedido registrado exitosamente en la base de datos');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        onCreate({} as any); // Refresh or handle local update if needed
+        onCreate({} as Order);
         onOpenChange(false);
       } else {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const errorData: any = await response.json();
+        const errorData = await response.json() as { error?: string };
         toast.error(`Error al guardar: ${errorData.error}`);
       }
     } catch (err) {
-      toast.error('Error de conexiÃ³n con el servidor');
+      toast.error('Error de conexión con el servidor');
     } finally {
       setIsSaving(false);
     }
@@ -273,14 +289,14 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
                       render={({ field }) => (
                         <Select value={field.value} onValueChange={field.onChange}>
                           <SelectTrigger className={`bg-background text-cafe ${errors.clienteId ? 'border-destructive' : ''}`}>
-                            <SelectValue placeholder={isLoading ? "Cargando clientes..." : "Buscar cliente por nombre o telÃ©fonoâ€¦"} />
+                            <SelectValue placeholder={isLoading ? "Cargando clientes..." : "Buscar cliente por nombre o teléfono…"} />
                           </SelectTrigger>
                           <SelectContent className="bg-white border-border shadow-xl">
                             {clientes
                               .filter((c) => c.activo)
                               .map((c) => (
                                 <SelectItem key={c.id} value={c.id}>
-                                  {c.nombre} {c.apellido} â€” {c.telefono || 'Sin TelÃ©fono'}
+                                  {c.nombre} {c.apellido} — {c.telefono || 'Sin Teléfono'}
                                 </SelectItem>
                               ))}
                           </SelectContent>
@@ -304,7 +320,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
                   setValue('clientMode', clientMode === 'existing' ? 'new' : 'existing');
                   setValue('clienteId', '');
                 }}
-                title={clientMode === 'existing' ? 'Crear Nuevo Cliente' : 'Cancelar creaciÃ³n'}
+                title={clientMode === 'existing' ? 'Crear Nuevo Cliente' : 'Cancelar creación'}
               >
                 {clientMode === 'existing' ? <UserPlus className="h-4 w-4" /> : <X className="h-4 w-4" />}
               </Button>
@@ -313,7 +329,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
             {clientMode === 'new' && (
               <div className="grid gap-4 md:grid-cols-2 pt-2 animate-in slide-in-from-top-2 duration-300">
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label className="text-xs text-cafe/70">CÃ©dula *</Label>
+                  <Label className="text-xs text-cafe/70">Cédula *</Label>
                   <Input {...form.register('cedula')} placeholder="Ej: 1712345678" maxLength={13} inputMode="numeric" className={`bg-background ${errors.cedula ? 'border-destructive' : ''}`} />
                   {errors.cedula && <span className="text-xs text-destructive">{errors.cedula.message}</span>}
                 </div>
@@ -324,11 +340,22 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">Apellido *</Label>
-                  <Input {...form.register('apellido')} placeholder="Ej: PÃ©rez" maxLength={FIELD_LIMITS.nombre} className={`bg-background ${errors.apellido ? 'border-destructive' : ''}`} />
+                  <Input {...form.register('apellido')} placeholder="Ej: Pérez" maxLength={FIELD_LIMITS.nombre} className={`bg-background ${errors.apellido ? 'border-destructive' : ''}`} />
                   {errors.apellido && <span className="text-xs text-destructive">{errors.apellido.message}</span>}
                 </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label className="text-xs text-cafe/70">Correo electrónico *</Label>
+                  <Input
+                    type="email"
+                    {...form.register('correo')}
+                    placeholder="cliente@example.test"
+                    maxLength={FIELD_LIMITS.email}
+                    className={`bg-background ${errors.correo ? 'border-destructive' : ''}`}
+                  />
+                  {errors.correo && <span className="text-xs text-destructive">{errors.correo.message}</span>}
+                </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-cafe/70">App de MensajerÃ­a</Label>
+                  <Label className="text-xs text-cafe/70">App de Mensajería</Label>
                   <Input {...form.register('appMensajeria')} placeholder="099..." maxLength={16} inputMode="tel" className="bg-background" />
                 </div>
                 <div className="space-y-1.5">
@@ -346,7 +373,9 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="cliente">Cliente Frecuente</SelectItem>
-                          <SelectItem value="convenio">Empresa / Convenio</SelectItem>
+                          {isAdmin && (
+                            <SelectItem value="convenio">Cliente de convenio</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     )}

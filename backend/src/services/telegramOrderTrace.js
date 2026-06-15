@@ -1,6 +1,5 @@
 const { getAdminClient } = require('../config/supabase');
 
-const MAX_MESSAGE_LENGTH = 4096;
 const MAX_ERROR_LENGTH = 1000;
 const MAX_JSON_LENGTH = 16000;
 const ALLOWED_OUTCOMES = new Set(['received', 'pending', 'success', 'failed', 'rejected']);
@@ -23,8 +22,7 @@ const boundedJson = (value) => {
 
 const buildOriginalMessage = (update) => ({
   type: update.isCallback ? 'callback' : update.contactPhone ? 'contact' : 'text',
-  text: truncate(update.text, MAX_MESSAGE_LENGTH),
-  callbackData: update.isCallback ? truncate(update.text, 128) : null,
+  callbackAction: update.isCallback ? truncate(String(update.text || '').split(':')[0], 32) : null,
   messageId: update.messageId || null,
   hasContact: Boolean(update.contactPhone),
   contactVerified: Boolean(update.contactVerified),
@@ -40,7 +38,6 @@ const createOrderTrace = async (update, context = {}, createClient = getAdminCli
         update_id: update.updateId || null,
         id_cliente: context.clientId || null,
         subscription_id: context.subscriptionId || null,
-        phone_normalized: context.phoneNormalized || null,
         original_message: buildOriginalMessage(update),
         outcome: 'received',
       })

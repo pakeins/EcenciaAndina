@@ -67,6 +67,10 @@ export const isValidPhone = (value: string) => {
   return !phone || /^\d{8,15}$/.test(phone);
 };
 
+export const isValidEmail = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase()) &&
+  value.trim().length <= FIELD_LIMITS.email;
+
 export const hasMaxLength = (value: string, max: number) => value.trim().length <= max;
 
 export const isNonNegativeNumber = (value: string | number) => {

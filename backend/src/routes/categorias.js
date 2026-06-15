@@ -6,10 +6,10 @@ const roleMiddleware = require('../middlewares/roleMiddleware');
 const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 
 router.use(authMiddleware);
-router.use(roleMiddleware(['administrador']));
+// Read access is shared; mutations remain administrator-only.
 
 // OBTENER TODAS LAS CATEGORÍAS
-router.get('/', async (req, res) => {
+router.get('/', roleMiddleware(['administrador', 'caja']), async (req, res) => {
   try {
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
 });
 
 // CREAR CATEGORÍA
-router.post('/', async (req, res) => {
+router.post('/', roleMiddleware(['administrador']), async (req, res) => {
   try {
     const { nombre_categoria } = parseBody(schemas.categoriaProducto, req.body);
     const adminClient = getAdminClient();
@@ -44,7 +44,7 @@ router.post('/', async (req, res) => {
 });
 
 // ACTUALIZAR CATEGORÍA
-router.put('/:id', async (req, res) => {
+router.put('/:id', roleMiddleware(['administrador']), async (req, res) => {
   try {
     const { nombre_categoria } = parseBody(schemas.categoriaProducto, req.body);
     const adminClient = getAdminClient();

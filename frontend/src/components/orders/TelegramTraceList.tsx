@@ -7,14 +7,13 @@ export interface TelegramOrderTrace {
   chat_id: string | null;
   update_id: number | null;
   id_orden: string | null;
-  phone_normalized: string | null;
   original_message: Record<string, unknown>;
   interpreted_payload: Record<string, unknown>;
   outcome: TraceOutcome;
   error_message: string | null;
   created_at: string;
   updated_at: string;
-  clientes?: { nombre?: string; apellido?: string; telefono?: string } | null;
+  clientes?: { nombre?: string; apellido?: string } | null;
   ordenes?: { id_orden?: string; created_at?: string } | null;
 }
 
@@ -102,7 +101,7 @@ export function TelegramTraceList({ traces, isLoading, error }: TelegramTraceLis
           <div className="grid gap-3 lg:grid-cols-3">
             <TraceStep number={1} title="Mensaje recibido">
               <p><strong>Tipo:</strong> {displayValue(trace.original_message?.type)}</p>
-              <p className="break-words"><strong>Contenido:</strong> {displayValue(trace.original_message?.text)}</p>
+              <p><strong>Accion:</strong> {displayValue(trace.original_message?.callbackAction)}</p>
               <p><strong>Update:</strong> {displayValue(trace.update_id)}</p>
             </TraceStep>
 

@@ -3,210 +3,339 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { CLIENT_TYPE } = require('../constants/domain');
+const {
+  aggregateDashboard,
+  applyDateRange,
+  getConsumedStateId,
+  getDefaultDashboardRanges,
+  getLunchCategoryIds,
+  getReportTimeZone,
+  parseDateRange,
+} = require('../services/reporting');
 
 router.use(authMiddleware);
-router.use(roleMiddleware(['administrador', 'caja']));
+router.use(roleMiddleware(['administrador']));
 
-// 1. REPORTE GENERAL DE VENTAS (INGRESOS)
-router.get('/ventas', async (req, res) => {
+const asArray = (value) => (Array.isArray(value) ? value : []);
+const asRelation = (value) => (Array.isArray(value) ? value[0] : value);
+const asNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const getProduct = (detail) => asRelation(detail?.productos);
+
+const handleRouteError = (res, error) => {
+  const status = Number(error?.status || 500);
+  res.status(status >= 400 && status < 600 ? status : 500).json({
+    error: status >= 500 ? 'No se pudo generar la informacion solicitada.' : error.message,
+  });
+};
+
+router.get('/dashboard', async (req, res) => {
   try {
     const adminClient = getAdminClient();
-    const { fecha_inicio, fecha_fin } = req.query;
+    const timeZone = getReportTimeZone();
+    const customRange = parseDateRange(req.query, { timeZone });
+    const defaultRanges = getDefaultDashboardRanges(new Date(), timeZone);
+    const analysisRanges = customRange
+      ? [customRange]
+      : [defaultRanges.day, defaultRanges.week, defaultRanges.month];
+    const analysisStart = analysisRanges.reduce(
+      (earliest, range) => (range.start < earliest ? range.start : earliest),
+      analysisRanges[0].start,
+    );
+    const analysisEndExclusive = analysisRanges.reduce(
+      (latest, range) => (range.endExclusive > latest ? range.endExclusive : latest),
+      analysisRanges[0].endExclusive,
+    );
 
-    let query = adminClient
+    let ordersQuery = adminClient
       .from('ordenes')
       .select(`
-        id_orden, id_estado, metodo_pago, created_at,
-        detalle_orden ( cantidad, precio_aplicado )
-      `);
+        id_orden,
+        created_at,
+        consumed_at,
+        id_estado,
+        metodo_pago,
+        clientes(
+          nombre,
+          apellido,
+          clientes_convenios(convenios(nombre_empresa))
+        ),
+        estados_orden(nombre_estado),
+        detalle_orden(
+          cantidad,
+          precio_aplicado,
+          productos(id_categoria, nombre_producto)
+        )
+      `)
+      .eq('id_estado', getConsumedStateId())
+      .order('consumed_at', { ascending: false });
+    ordersQuery = ordersQuery.gte('consumed_at', analysisStart).lt('consumed_at', analysisEndExclusive);
 
-    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
-    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
-
-    const { data: ordenes, error } = await query;
-    if (error) throw error;
-
-    // Solo tomamos en cuenta consumidos (id_estado = 2) para ingresos reales
-    const consumidos = ordenes.filter(o => o.id_estado === 2);
-
-    const resumen = {
-      efectivo: { cantidad: 0, total: 0 },
-      convenio: { cantidad: 0, total: 0 },
-      saldo: { cantidad: 0, total: 0 },
-      transferencia: { cantidad: 0, total: 0 },
-      otros: { cantidad: 0, total: 0 }
-    };
-
-    consumidos.forEach(orden => {
-      const metodo = orden.metodo_pago ? orden.metodo_pago.toLowerCase() : 'otros';
-      
-      let key = 'otros';
-      if (metodo.includes('efectivo')) key = 'efectivo';
-      else if (metodo.includes('convenio')) key = 'convenio';
-      else if (metodo.includes('saldo') || metodo.includes('prepago')) key = 'saldo';
-      else if (metodo.includes('transferencia')) key = 'transferencia';
-
-      let platos = 0;
-      let dinero = 0;
-
-      orden.detalle_orden.forEach(det => {
-        platos += det.cantidad;
-        dinero += det.cantidad * det.precio_aplicado;
-      });
-
-      resumen[key].cantidad += platos;
-      resumen[key].total += dinero;
-    });
-
-    const resultadoArray = Object.keys(resumen).map(k => ({
-      metodo_pago: k.charAt(0).toUpperCase() + k.slice(1),
-      cantidadAlmuerzos: resumen[k].cantidad,
-      totalConsumo: resumen[k].total
-    })).filter(r => r.cantidadAlmuerzos > 0);
-
-    res.json(resultadoArray);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 2. REPORTE DE PEDIDOS POR ESTADO
-router.get('/estados', async (req, res) => {
-  try {
-    const adminClient = getAdminClient();
-    const { fecha_inicio, fecha_fin, id_estado } = req.query;
-
-    let query = adminClient
+    let reservationsQuery = adminClient
       .from('ordenes')
-      .select(`
-        id_orden, created_at, id_estado, metodo_pago,
-        clientes ( nombre, apellido ),
-        estados_orden ( nombre_estado ),
-        detalle_orden ( cantidad, precio_aplicado, productos(nombre_producto) )
-      `);
+      .select('id_orden,created_at')
+      .order('created_at', { ascending: false });
+    reservationsQuery = applyDateRange(
+      reservationsQuery,
+      customRange || defaultRanges.week,
+    );
 
-    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
-    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
-    if (id_estado && id_estado !== 'all') query = query.eq('id_estado', id_estado);
+    const [ordersResult, reservationsResult, conveniosResult, clientsResult] = await Promise.all([
+      ordersQuery,
+      reservationsQuery,
+      adminClient
+        .from('convenios')
+        .select('*', { count: 'exact', head: true })
+        .eq('esta_activo', true)
+        .gte('fecha_caducidad', defaultRanges.day.startDate),
+      adminClient
+        .from('clientes')
+        .select('*', { count: 'exact', head: true })
+        .eq('esta_activo', true)
+        .eq('id_tipo_cliente', CLIENT_TYPE.DIRECT),
+    ]);
 
-    query = query.order('created_at', { ascending: false });
-
-    const { data: ordenes, error } = await query;
-    if (error) throw error;
-
-    const reporteFormateado = ordenes.map(o => {
-      const cantidadTotal = o.detalle_orden.reduce((sum, d) => sum + d.cantidad, 0);
-      const montoTotal = o.detalle_orden.reduce((sum, d) => sum + (d.cantidad * d.precio_aplicado), 0);
-      const descripciones = o.detalle_orden.map(d => `${d.cantidad}x ${d.productos?.nombre_producto}`).join(', ');
-
-      return {
-        id: o.id_orden,
-        fecha: o.created_at,
-        cliente: o.clientes ? `${o.clientes.nombre} ${o.clientes.apellido}` : 'Desconocido',
-        estado: o.estados_orden?.nombre_estado || 'Desconocido',
-        metodo_pago: o.metodo_pago || 'N/A',
-        descripcion: descripciones,
-        cantidadAlmuerzos: cantidadTotal,
-        totalConsumo: montoTotal
-      };
-    });
-
-    res.json(reporteFormateado);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 3. REPORTE DE POPULARIDAD DE PRODUCTOS
-router.get('/productos', async (req, res) => {
-  try {
-    const adminClient = getAdminClient();
-    const { fecha_inicio, fecha_fin } = req.query;
-
-    let query = adminClient
-      .from('ordenes')
-      .select(`
-        id_estado, created_at,
-        detalle_orden ( cantidad, precio_aplicado, productos(nombre_producto, categorias_productos(nombre_categoria)) )
-      `);
-
-    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
-    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
-
-    const { data: ordenes, error } = await query;
-    if (error) throw error;
-
-    // Solo contabilizar los consumidos
-    const consumidos = ordenes.filter(o => o.id_estado === 2);
-
-    const productosMap = {};
-
-    consumidos.forEach(orden => {
-      orden.detalle_orden.forEach(det => {
-        const nombre = det.productos?.nombre_producto || 'Desconocido';
-        const categoria = det.productos?.categorias_productos?.nombre_categoria || 'Otra';
-        if (!productosMap[nombre]) {
-          productosMap[nombre] = { nombre, categoria, cantidadVendida: 0, ingresosGenerados: 0 };
-        }
-        productosMap[nombre].cantidadVendida += det.cantidad;
-        productosMap[nombre].ingresosGenerados += (det.cantidad * det.precio_aplicado);
-      });
-    });
-
-    const resultadoArray = Object.values(productosMap).sort((a, b) => b.cantidadVendida - a.cantidadVendida);
-
-    res.json(resultadoArray);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 4. REPORTE POR CLIENTE
-router.get('/clientes', async (req, res) => {
-  try {
-    const adminClient = getAdminClient();
-    const { fecha_inicio, fecha_fin, id_cliente } = req.query;
-
-    if (!id_cliente || id_cliente === 'all') {
-      return res.status(400).json({ error: 'Debe seleccionar un cliente específico.' });
+    for (const result of [ordersResult, reservationsResult, conveniosResult, clientsResult]) {
+      if (result.error) throw result.error;
     }
 
+    res.json(
+      aggregateDashboard({
+        orders: ordersResult.data || [],
+        reservationOrders: reservationsResult.data || [],
+        customRange,
+        defaultRanges,
+        activeConvenios: conveniosResult.count || 0,
+        activeClients: clientsResult.count || 0,
+        timeZone,
+        lunchCategoryIds: getLunchCategoryIds(),
+        consumedStateId: getConsumedStateId(),
+      }),
+    );
+  } catch (error) {
+    handleRouteError(res, error);
+  }
+});
+
+router.get('/ventas', async (req, res) => {
+  try {
+    const range = parseDateRange(req.query, { required: true });
+    const adminClient = getAdminClient();
+    let query = adminClient
+      .from('ordenes')
+      .select('id_orden, metodo_pago, detalle_orden(cantidad, precio_aplicado)')
+      .eq('id_estado', getConsumedStateId());
+    query = applyDateRange(query, range, 'consumed_at');
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const summary = new Map();
+    for (const order of data || []) {
+      const rawMethod = String(order.metodo_pago || 'Otros').trim();
+      const normalized = rawMethod.toLowerCase();
+      let method = 'Otros';
+      if (normalized.includes('efectivo')) method = 'Efectivo';
+      else if (normalized.includes('convenio')) method = 'Convenio';
+      else if (normalized.includes('saldo') || normalized.includes('prepago')) method = 'Saldo';
+      else if (normalized.includes('transferencia')) method = 'Transferencia';
+
+      const current = summary.get(method) || { metodo_pago: method, cantidadAlmuerzos: 0, totalConsumo: 0 };
+      for (const detail of asArray(order.detalle_orden)) {
+        const quantity = asNumber(detail.cantidad);
+        current.cantidadAlmuerzos += quantity;
+        current.totalConsumo += quantity * asNumber(detail.precio_aplicado);
+      }
+      summary.set(method, current);
+    }
+
+    res.json(
+      [...summary.values()].map((row) => ({
+        ...row,
+        totalConsumo: Number(row.totalConsumo.toFixed(2)),
+      })),
+    );
+  } catch (error) {
+    handleRouteError(res, error);
+  }
+});
+
+router.get('/estados', async (req, res) => {
+  try {
+    const range = parseDateRange(req.query, { required: true });
+    const adminClient = getAdminClient();
+    let query = adminClient.from('ordenes').select(`
+      id_orden,
+      created_at,
+      id_estado,
+      metodo_pago,
+      clientes(nombre, apellido),
+      estados_orden(nombre_estado),
+      detalle_orden(cantidad, precio_aplicado, productos(nombre_producto))
+    `);
+    query = applyDateRange(query, range);
+    if (req.query.id_estado && req.query.id_estado !== 'all') {
+      query = query.eq('id_estado', req.query.id_estado);
+    }
+    query = query.order('created_at', { ascending: false });
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json(
+      (data || []).map((order) => {
+        const client = asRelation(order.clientes);
+        const state = asRelation(order.estados_orden);
+        const details = asArray(order.detalle_orden);
+        return {
+          id: order.id_orden,
+          fecha: order.created_at,
+          cliente: client ? `${client.nombre || ''} ${client.apellido || ''}`.trim() : 'Desconocido',
+          estado: state?.nombre_estado || 'Desconocido',
+          metodo_pago: order.metodo_pago || 'N/A',
+          descripcion: details
+            .map((detail) => `${asNumber(detail.cantidad)}x ${getProduct(detail)?.nombre_producto || 'Sin producto'}`)
+            .join(', '),
+          cantidadAlmuerzos: details.reduce((sum, detail) => sum + asNumber(detail.cantidad), 0),
+          totalConsumo: Number(
+            details
+              .reduce(
+                (sum, detail) =>
+                  sum + asNumber(detail.cantidad) * asNumber(detail.precio_aplicado),
+                0,
+              )
+              .toFixed(2),
+          ),
+        };
+      }),
+    );
+  } catch (error) {
+    handleRouteError(res, error);
+  }
+});
+
+router.get('/productos', async (req, res) => {
+  try {
+    const range = parseDateRange(req.query, { required: true });
+    const adminClient = getAdminClient();
     let query = adminClient
       .from('ordenes')
       .select(`
-        id_orden, created_at, id_estado, metodo_pago,
-        estados_orden ( nombre_estado ),
-        detalle_orden ( cantidad, precio_aplicado, productos(nombre_producto) )
+        id_orden,
+        consumed_at,
+        detalle_orden(
+          cantidad,
+          precio_aplicado,
+          productos(nombre_producto, categorias_productos(nombre_categoria))
+        )
       `)
-      .eq('id_cliente', id_cliente);
+      .eq('id_estado', getConsumedStateId());
+    query = applyDateRange(query, range, 'consumed_at');
 
-    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
-    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
-
-    query = query.order('created_at', { ascending: false });
-
-    const { data: ordenes, error } = await query;
+    const { data, error } = await query;
     if (error) throw error;
 
-    const reporteFormateado = ordenes.map(o => {
-      const cantidadTotal = o.detalle_orden.reduce((sum, d) => sum + d.cantidad, 0);
-      const montoTotal = o.detalle_orden.reduce((sum, d) => sum + (d.cantidad * d.precio_aplicado), 0);
-      const descripciones = o.detalle_orden.map(d => `${d.cantidad}x ${d.productos?.nombre_producto}`).join(', ');
+    const products = new Map();
+    for (const order of data || []) {
+      for (const detail of asArray(order.detalle_orden)) {
+        const product = getProduct(detail);
+        const category = asRelation(product?.categorias_productos);
+        const name = product?.nombre_producto || 'Sin producto';
+        const current = products.get(name) || {
+          nombre: name,
+          categoria: category?.nombre_categoria || 'Otra',
+          cantidadVendida: 0,
+          ingresosGenerados: 0,
+        };
+        const quantity = asNumber(detail.cantidad);
+        current.cantidadVendida += quantity;
+        current.ingresosGenerados += quantity * asNumber(detail.precio_aplicado);
+        products.set(name, current);
+      }
+    }
 
-      return {
-        id: o.id_orden,
-        fecha: o.created_at,
-        estado: o.estados_orden?.nombre_estado || 'Desconocido',
-        metodo_pago: o.metodo_pago || 'N/A',
-        descripcion: descripciones,
-        cantidadAlmuerzos: cantidadTotal,
-        totalConsumo: montoTotal
-      };
-    });
-
-    res.json(reporteFormateado);
+    res.json(
+      [...products.values()]
+        .map((row) => ({
+          ...row,
+          ingresosGenerados: Number(row.ingresosGenerados.toFixed(2)),
+        }))
+        .sort((left, right) => right.cantidadVendida - left.cantidadVendida),
+    );
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleRouteError(res, error);
+  }
+});
+
+router.get('/clientes', async (req, res) => {
+  try {
+    const range = parseDateRange(req.query, { required: true });
+    const clientId = String(req.query.id_cliente || '').trim();
+    if (!clientId || clientId === 'all') {
+      return res.status(400).json({ error: 'Debe seleccionar un cliente especifico.' });
+    }
+
+    const adminClient = getAdminClient();
+    const clientResult = await adminClient
+      .from('clientes')
+      .select('clientes_convenios(convenios(nombre_empresa))')
+      .eq('id_cliente', clientId)
+      .maybeSingle();
+    if (clientResult.error) throw clientResult.error;
+    if (!clientResult.data) return res.status(404).json({ error: 'Cliente no encontrado.' });
+
+    const link = asArray(clientResult.data.clientes_convenios)[0];
+    const convenio = asRelation(link?.convenios);
+    const convenioName = convenio?.nombre_empresa || 'N/A';
+
+    let query = adminClient
+      .from('ordenes')
+      .select(`
+        id_orden,
+        created_at,
+        metodo_pago,
+        estados_orden(nombre_estado),
+        detalle_orden(cantidad, precio_aplicado, productos(nombre_producto))
+      `)
+      .eq('id_cliente', clientId)
+      .order('created_at', { ascending: false });
+    query = applyDateRange(query, range);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json(
+      (data || []).map((order) => {
+        const state = asRelation(order.estados_orden);
+        const details = asArray(order.detalle_orden);
+        return {
+          id: order.id_orden,
+          fecha: order.created_at,
+          convenio: convenioName,
+          estado: state?.nombre_estado || 'Desconocido',
+          metodo_pago: order.metodo_pago || 'N/A',
+          descripcion: details
+            .map((detail) => `${asNumber(detail.cantidad)}x ${getProduct(detail)?.nombre_producto || 'Sin producto'}`)
+            .join(', '),
+          cantidadAlmuerzos: details.reduce((sum, detail) => sum + asNumber(detail.cantidad), 0),
+          totalConsumo: Number(
+            details
+              .reduce(
+                (sum, detail) =>
+                  sum + asNumber(detail.cantidad) * asNumber(detail.precio_aplicado),
+                0,
+              )
+              .toFixed(2),
+          ),
+        };
+      }),
+    );
+  } catch (error) {
+    handleRouteError(res, error);
   }
 });
 

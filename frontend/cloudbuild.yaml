@@ -5,25 +5,47 @@ substitutions:
   _IMAGE: frontend
   _TAG: preprod
   _VITE_API_BASE_URL: ''
-  _VITE_SUPABASE_URL: ''
-  _VITE_SUPABASE_PUBLISHABLE_KEY: ''
-  _VITE_SUPABASE_PROJECT_ID: ''
 
 steps:
+  - name: node:22.22.3-slim
+    entrypoint: npm
+    args: ['ci']
+
+  - name: node:22.22.3-slim
+    entrypoint: npm
+    args: ['audit', '--audit-level=moderate']
+
+  - name: node:22.22.3-slim
+    entrypoint: npm
+    args: ['test']
+
+  - name: node:22.22.3-slim
+    entrypoint: npm
+    args: ['run', 'lint']
+
   - name: gcr.io/cloud-builders/docker
     args:
       - build
       - --build-arg
       - PUBLIC_API_BASE_URL=${_VITE_API_BASE_URL}
-      - --build-arg
-      - PUBLIC_SUPABASE_URL=${_VITE_SUPABASE_URL}
-      - --build-arg
-      - PUBLIC_SUPABASE_VALUE=${_VITE_SUPABASE_PUBLISHABLE_KEY}
-      - --build-arg
-      - PUBLIC_SUPABASE_PROJECT_ID=${_VITE_SUPABASE_PROJECT_ID}
       - -t
       - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_IMAGE}:${_TAG}
       - .
 
+  - name: aquasec/trivy:0.71.0
+    args:
+      - image
+      - --timeout
+      - 20m
+      - --exit-code
+      - '1'
+      - --severity
+      - HIGH,CRITICAL
+      - --scanners
+      - vuln
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_IMAGE}:${_TAG}
+
 images:
   - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_IMAGE}:${_TAG}
+
+timeout: 1800s

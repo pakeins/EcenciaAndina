@@ -8,13 +8,12 @@ const trace: TelegramOrderTrace = {
   chat_id: '123456',
   update_id: 99,
   id_orden: 'order-1',
-  phone_normalized: '593999999999',
   original_message: {
-    type: 'text',
-    text: 'sopa 1, segundo 2, guarnicion 1',
+    type: 'callback',
+    callbackAction: 'confirm',
   },
   interpreted_payload: {
-    source: 'text',
+    source: 'buttons',
     step: 'completed',
     sopa: 'Locro',
     segundo: 'Carne asada',
@@ -28,11 +27,11 @@ const trace: TelegramOrderTrace = {
 };
 
 describe('TelegramTraceList', () => {
-  it('muestra el mensaje, la interpretacion y el resultado completo', () => {
+  it('muestra metadatos, interpretacion y resultado sin texto libre', () => {
     render(<TelegramTraceList traces={[trace]} isLoading={false} error={null} />);
 
     expect(screen.getByText('1. Mensaje recibido')).toBeInTheDocument();
-    expect(screen.getAllByText(/sopa 1, segundo 2, guarnicion 1/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/confirm/).length).toBeGreaterThan(0);
     expect(screen.getByText('2. Interpretacion')).toBeInTheDocument();
     expect(screen.getAllByText(/Carne asada/).length).toBeGreaterThan(0);
     expect(screen.getByText('3. Resultado')).toBeInTheDocument();

@@ -2,16 +2,21 @@
   "name": "backend",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "telegram:set-webhook": "node scripts/set-telegram-webhook.js"
+    "telegram:set-webhook": "node scripts/set-telegram-webhook.js",
+    "db:provision-admin": "node scripts/provision-first-admin.js",
+    "db:sanitize-test": "node scripts/sanitize-and-seed-test.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.104.0",
+    "@supabase/supabase-js": "^2.108.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.22.1",
@@ -19,6 +24,8 @@
     "helmet": "^8.2.0",
     "multer": "^2.1.1",
     "pdf-parse": "^2.4.5",
+    "qrcode": "^1.5.4",
+    "resend": "^6.12.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

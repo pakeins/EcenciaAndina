@@ -17,7 +17,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
 
   if (allowedRoles && user && !allowedRoles.includes(user.rol)) {
     // Si el usuario no tiene el rol permitido, redirigir al dashboard o una página de acceso denegado
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={user.rol === 'administrador' ? '/dashboard' : '/pedidos'} replace />;
   }
 
   return <Outlet />;

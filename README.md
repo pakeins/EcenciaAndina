@@ -7,7 +7,7 @@ Sistema operativo para Ecencia Andina: administracion de clientes, convenios, pr
 - Frontend React/Vite con Tailwind y shadcn-ui.
 - Backend Express conectado a Supabase.
 - Supabase Postgres, Storage y migraciones SQL.
-- Workflow n8n para enviar el menu diario por Telegram y registrar reservas.
+- Workflow n8n limitado a difundir el menu diario por Telegram.
 - Bot de Telegram con consentimiento, vinculacion por telefono y estado de suscripcion.
 
 ## Estructura
@@ -20,11 +20,12 @@ docs/                    notas de credenciales, despliegue y produccion
 PLAN_PRODUCCION_ECIENCIA.md
 ```
 
-Los PDFs, archivos de convenios subidos, backups locales, `.env` y logs no deben subirse al repositorio.
+Los PDFs, backups locales, `.env` y logs no deben subirse al repositorio. Los archivos
+firmados de convenios se guardan en un bucket privado de Supabase.
 
 ## Requisitos
 
-- Node.js 22 o superior.
+- Node.js 22.13 o superior.
 - npm.
 - Docker Desktop si se va a ejecutar n8n local.
 - Acceso a un proyecto Supabase.
@@ -94,8 +95,11 @@ backend/supabase/migrations
 Tablas relevantes para Telegram:
 
 - `telegram_subscriptions`: consentimiento, telefono normalizado, `chat_id`, estado y ultima fecha de envio.
+- `telegram_invitations`: invitaciones de un solo uso con el token almacenado solo como HMAC-SHA256.
+- `telegram_consent_events`: evidencia inmutable de aceptacion, rechazo, revocacion y reinvitacion.
+- `telegram_privacy_requests`: solicitudes que requieren revision administrativa.
 - `telegram_bot_state`: estado temporal de sesiones n8n.
-- `telegram_order_traces`: trazabilidad de mensaje recibido, interpretacion y resultado del pedido automatico.
+- `telegram_order_traces`: trazabilidad tecnica sin almacenar mensajes libres.
 - `menu_settings`: menu activo y dias de retencion para imagenes antiguas.
 
 Endpoints utiles:
@@ -123,6 +127,14 @@ Variables requeridas:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_BOT_USERNAME`
+- `TELEGRAM_PRIVACY_CONTACT`
+- `TELEGRAM_PRIVACY_POLICY_URL`
+- `TELEGRAM_CONSENT_VERSION`
+- `TELEGRAM_INVITE_TOKEN_SECRET`
+- `RESEND_API_KEY` (opcional mientras no exista dominio verificado)
+- `INVITATION_FROM_EMAIL` (obligatorio al configurar Resend)
+- `INVITATION_REPLY_TO` (opcional)
 - `N8N_MENU_WEBHOOK_SECRET`
 - `N8N_ECIENCIA_BACKEND_URL`
 - `N8N_ECIENCIA_TIMEZONE`
@@ -159,19 +171,36 @@ No uses `getUpdates` ni polling en n8n cuando el webhook este activo.
 
 Telegram no permite que un bot escriba primero a un usuario que nunca inicio conversacion.
 
-Comparte este formato de link:
+Al crear el cliente, la API genera un enlace privado con vigencia de siete dias:
 
 ```txt
-https://t.me/NOMBRE_DEL_BOT
+https://t.me/NOMBRE_DEL_BOT?start=TOKEN_DE_UN_SOLO_USO
 ```
 
 Para el bot de pruebas usado localmente:
 
 ```txt
-https://t.me/ECIENCIATESTEBOT
+https://t.me/ECIENCIATESTEBOT?start=TOKEN
 ```
 
-El primer mensaje del bot es el aviso de privacidad. El cliente debe abrir el bot, enviar `/start`, aceptar el consentimiento y compartir su telefono. Solo despues de eso queda vinculado y recibe el menu. Si rechaza, no se registra su telefono y no recibe menus hasta que un administrador resetee su estado.
+El frontend muestra el enlace y genera el QR localmente. Si Resend esta configurado,
+el backend envia el mismo enlace y un QR embebido al correo obligatorio del cliente.
+Un fallo de correo no revierte el alta y puede reintentarse desde Clientes.
+
+El cliente abre el enlace,
+acepta el aviso y comparte su propio contacto con el boton oficial de Telegram. El
+telefono debe coincidir con el cliente exacto de la invitacion. Rechazos y
+revocaciones quedan bloqueados hasta una reinvitacion administrativa.
+
+Los pedidos solo aceptan botones para menu, cantidad y confirmacion. Los comandos de
+privacidad son `/privacidad`, `/misdatos`, `/eliminarmisdatos`, `/revocar` y `/ayuda`.
+Publica `TELEGRAM_PRIVACY_POLICY_URL` tambien en BotFather.
+
+## Datos de simulacion
+
+El saneamiento del proyecto de pruebas usa nombres empresariales reconocibles de
+Ecuador como referencia visual. Todos los RUC, representantes, telefonos, correos y
+convenios generados son ficticios y no representan relaciones comerciales reales.
 
 ## Validacion rapida
 

@@ -7,6 +7,7 @@ const { getAdminClient } = require('./src/config/supabase'); // ConfiguraciÃƒ�
 const authRoutes = require('./src/routes/auth'); // Importamos las nuevas rutas de login
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { validateTelegramEnvironment } = require('./src/services/telegramConsent');
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.get('/api/check-db', async (req, res) => {
 app.use('/api', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/telegram', telegramLimiter, require('./src/routes/telegram'));
 app.use('/api/productos', require('./src/routes/productos'));
@@ -120,6 +122,9 @@ app.use((error, req, res, next) => {
 });
 
 if (require.main === module) {
+  if (process.env.NODE_ENV === 'production') {
+    validateTelegramEnvironment();
+  }
   // --- INICIO DEL SERVIDOR ---
   const PORT = process.env.PORT || 3001;
   const server = app.listen(PORT, () => {

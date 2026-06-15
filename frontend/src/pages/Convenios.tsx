@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Convenio, Client, ConvenioHistorial } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,10 +30,13 @@ import { toast } from 'sonner';
 import { API_BASE_URL, apiFetch } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { differenceInYears } from 'date-fns';
-import { FIELD_LIMITS, isNonNegativeNumber, isValidEcDocument, isValidPhone, isValidRuc, normalizePhone, onlyDigits } from '@/lib/validation';
+import { FIELD_LIMITS, isNonNegativeNumber, isValidEcDocument, isValidEmail, isValidPhone, isValidRuc, normalizePhone, onlyDigits } from '@/lib/validation';
 import { escapeHtml, formatMoney, openPrintWindow, openSafeBlankWindow, toFiniteNumber } from '@/lib/html';
+import { CLIENT_TYPE } from '@/constants/domain';
 
 export default function Convenios() {
+  const { user } = useAuth();
+  const isAdmin = user?.rol === 'administrador';
   const [convenios, setConvenios] = useState<Convenio[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +104,8 @@ interface ReportEmployee {
     cedula: '',
     nombre: '',
     apellido: '',
-    telefono: ''
+    telefono: '',
+    correo: '',
   });
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
@@ -232,8 +237,8 @@ interface ReportEmployee {
   };
 
   const handleCreateAndAddClient = async () => {
-    if (!newClientData.cedula || !newClientData.nombre || !newClientData.apellido) {
-      toast.error('Cédula, nombre y apellido son obligatorios'); return;
+    if (!newClientData.cedula || !newClientData.nombre || !newClientData.apellido || !newClientData.correo) {
+      toast.error('Cedula, nombre, apellido y correo son obligatorios'); return;
     }
     if (!isValidEcDocument(newClientData.cedula)) {
       toast.error('Ingrese una cedula o RUC ecuatoriano valido');
@@ -247,6 +252,10 @@ interface ReportEmployee {
       toast.error('El telefono debe tener entre 8 y 15 digitos');
       return;
     }
+    if (!isValidEmail(newClientData.correo)) {
+      toast.error('Ingrese un correo electronico valido');
+      return;
+    }
     if (!editingConvenio) return;
     setIsSaving(true);
     try {
@@ -256,6 +265,7 @@ interface ReportEmployee {
           ...newClientData,
           cedula: onlyDigits(newClientData.cedula),
           telefono: normalizePhone(newClientData.telefono),
+          correo: newClientData.correo.trim().toLowerCase(),
         })
       });
       const data = await response.json();
@@ -263,7 +273,7 @@ interface ReportEmployee {
         toast.success('Cliente creado y vinculado');
         setAssociatedClients([...associatedClients, data]);
         setShowCreateForm(false);
-        setNewClientData({ cedula: '', nombre: '', apellido: '', telefono: '' });
+        setNewClientData({ cedula: '', nombre: '', apellido: '', telefono: '', correo: '' });
         fetchConvenios();
       } else toast.error(data.error);
     } finally { setIsSaving(false); }
@@ -637,7 +647,7 @@ interface ReportEmployee {
   };
 
   const filteredAvailableClients = availableClients.filter(c =>
-    c.id_tipo_cliente === 1 &&
+    c.id_tipo_cliente === CLIENT_TYPE.DIRECT &&
     !c.convenio &&
     !associatedClients.find(ac => ac.id === c.id) &&
     (clientSearch === '' || c.nombre.toLowerCase().includes(clientSearch.toLowerCase()) || c.cedula.includes(clientSearch))
@@ -657,9 +667,16 @@ interface ReportEmployee {
           </h1>
           <p className="text-lg text-muted-foreground">Administración de alianzas empresariales de Ecencia Andina</p>
         </div>
-        <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
-          <Plus className="h-5 w-5" /> Nuevo Convenio
-        </Button>
+        {isAdmin && (
+          <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+            <Plus className="h-5 w-5" /> Nuevo Convenio
+          </Button>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Entorno de simulacion: los nombres empresariales son referencias demostrativas. RUC, representantes,
+        telefonos, correos y convenios son completamente ficticios y no representan acuerdos reales.
       </div>
 
       {isLoading ? (
@@ -709,12 +726,13 @@ interface ReportEmployee {
                         <Switch
                           checked={convenio.activo && !isExpired(convenio.fecha_caducidad)}
                           onCheckedChange={() => handleToggleClick(convenio)}
+                          disabled={!isAdmin}
                         />
                         <span className={`text-[10px] font-bold uppercase ${isExpired(convenio.fecha_caducidad) ? 'text-destructive' : (convenio.activo ? 'text-primary' : 'text-muted-foreground')}`}>
                           {isExpired(convenio.fecha_caducidad) ? 'Vencido' : (convenio.activo ? 'Activo' : 'Inactivo')}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      {isAdmin && <div className="flex items-center gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -723,7 +741,7 @@ interface ReportEmployee {
                         >
                           <Pencil className="mr-1 h-4 w-4" /> Editar
                         </Button>
-                      </div>
+                      </div>}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -731,7 +749,7 @@ interface ReportEmployee {
                         <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs flex-1 min-w-[100px] border-primary/30 text-primary hover:bg-primary/10" onClick={() => openProtectedFile(convenio.archivo_firmado)}>
                           <Eye className="h-3.5 w-3.5" /> Ver Contrato
                         </Button>
-                      ) : (
+                      ) : isAdmin ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -741,11 +759,13 @@ interface ReportEmployee {
                         >
                           <FileDown className="h-3.5 w-3.5 text-muted-foreground" /> Generar Contrato
                         </Button>
-                      )}
+                      ) : null}
 
-                      <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs flex-1 min-w-[100px] border-cafe/30 text-cafe hover:bg-cafe/10" onClick={() => handleOpenReport(convenio)}>
-                        <FileText className="h-3.5 w-3.5" /> Generar Reporte
-                      </Button>
+                      {isAdmin && (
+                        <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs flex-1 min-w-[100px] border-cafe/30 text-cafe hover:bg-cafe/10" onClick={() => handleOpenReport(convenio)}>
+                          <FileText className="h-3.5 w-3.5" /> Generar Reporte
+                        </Button>
+                      )}
                     </div>
                   </div>
               </CardContent>
@@ -974,6 +994,7 @@ interface ReportEmployee {
                     <div className="space-y-2"><Label>Apellido *</Label><Input value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} maxLength={FIELD_LIMITS.nombre} /></div>
                   </div>
                   <div className="space-y-2"><Label>Teléfono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} maxLength={16} inputMode="tel" /></div>
+                  <div className="space-y-2"><Label>Correo electrónico *</Label><Input type="email" value={newClientData.correo} onChange={e => setNewClientData({...newClientData, correo: e.target.value})} maxLength={FIELD_LIMITS.email} /></div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>Cancelar</Button>
                     <Button className="flex-1" onClick={handleCreateAndAddClient} disabled={isSaving}>{isSaving ? 'Guardando...' : 'Crear y Vincular'}</Button>

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Banknote, Receipt } from 'lucide-react';
 import { FIELD_LIMITS, isPositiveInteger } from '@/lib/validation';
+import { CLIENT_TYPE } from '@/constants/domain';
 
 interface RechargeDialogProps {
   open: boolean;
@@ -96,14 +97,16 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
         toast.error(data.error || 'Error al procesar recarga');
       }
     } catch (err) {
-      toast.error('Error de conexiÃ³n con el servidor');
+      toast.error('Error de conexión con el servidor');
     } finally {
       setIsSaving(false);
     }
   };
 
   // Solo mostrar clientes frecuentes (sin convenio)
-  const frequentClients = clients.filter(c => !c.convenio && c.id_tipo_cliente === 2);
+  const frequentClients = clients.filter(
+    (client) => !client.convenio && client.id_tipo_cliente === CLIENT_TYPE.DIRECT,
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,11 +122,11 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* NÃºmero de Factura â€” destacado al tope */}
+          {/* Número de Factura — destacado al tope */}
           <div className="rounded-lg border border-cafe/30 bg-cafe/5 p-3 space-y-2">
             <Label className="text-xs font-bold text-cafe flex items-center gap-1.5">
               <Receipt className="h-3.5 w-3.5" />
-              NÃºmero de Factura *
+              Número de Factura *
             </Label>
             <Input
               id="numero_factura"
@@ -134,7 +137,7 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
               maxLength={FIELD_LIMITS.factura}
             />
             <p className="text-[10px] text-muted-foreground">
-              Ingrese el nÃºmero de factura entregado en caja para trazabilidad.
+              Ingrese el número de factura entregado en caja para trazabilidad.
             </p>
           </div>
 

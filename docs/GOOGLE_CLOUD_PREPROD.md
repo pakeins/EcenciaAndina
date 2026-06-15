@@ -1,136 +1,111 @@
-# Google Cloud preproduccion low-cost
+# Google Cloud preproduccion
 
-Objetivo: desplegar pruebas con credito estudiantil sin dejar recursos caros encendidos.
-
-Proyecto Google Cloud fijo para esta preproduccion:
+Configuracion objetivo:
 
 - Project ID: `eciencia-andina-preprod`
-- Project number: `388587559842`
 - Region: `us-central1`
 - Artifact Registry: `eciencia`
+- Backend: Cloud Run, puerto `3001`
+- Frontend: Cloud Run, puerto `8080`
+- Base de datos y archivos persistentes: Supabase `lkffhdcavohaxdihvwlb`
 
-## Guardrails de costo
+## Preparacion
 
-- Usar Cloud Run, no GKE.
-- `min-instances=0` para backend, frontend y n8n.
-- `max-instances=1` en preproduccion.
-- Mantener Supabase personal/de pruebas como base de datos; no crear Cloud SQL para esta fase.
-- Para produccion final se migrara a Hostinger/MySQL; no mezclar datos finales del cliente en esta preproduccion.
-- Budgets/alerts en Billing son recomendados, pero si el plan no los permite, revisar costos manualmente y apagar servicios al terminar.
-- Usar una sola region, por ejemplo `us-central1`.
-- Desactivar o borrar servicios cuando terminen las pruebas.
+El despliegue usa Node `22.22.3`, ejecuta `npm ci`, `npm audit`, pruebas, ESLint y
+un escaneo Trivy de la imagen final en Cloud Build. No se publica una imagen cuando
+falla alguno de esos controles o aparece una CVE alta o critica.
 
-## Problema local de gcloud/Norton
+Aplica primero las migraciones de `backend/supabase/migrations`. La migracion
+`20260611200911_add_private_agreement_documents_bucket.sql` crea el bucket privado
+para documentos firmados. Cloud Run no debe usarse como almacenamiento persistente.
 
-En esta maquina, `gcloud projects list` sigue fallando por `SSLCertVerificationError`.
-La cadena TLS observada para `oauth2.googleapis.com` esta interceptada por `Norton Web/Mail Shield Root`, y esa CA local no es aceptada por Python/gcloud.
+Crea `backend/.env.cloudrun.preprod.yaml` a partir de `backend/.env.example`. El
+archivo es local e ignorado por Git. No incluyas `PORT`.
 
-Acciones manuales seguras:
+Variables esenciales:
 
-- Agregar excepcion en Norton para `oauth2.googleapis.com` y `*.googleapis.com`, o desactivar solo la inspeccion HTTPS mientras se ejecuta `gcloud`.
-- Volver a ejecutar `gcloud auth login` despues de corregir la inspeccion TLS.
-- No usar `disable_ssl_validation=true` como solucion permanente.
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `AGREEMENT_DOCUMENTS_BUCKET=eciencia-agreement-documents`
+- `CORS_ORIGINS`
+- `PASSWORD_RECOVERY_REDIRECT_URL`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_BOT_USERNAME`
+- `TELEGRAM_PRIVACY_CONTACT`
+- `TELEGRAM_PRIVACY_POLICY_URL`
+- `TELEGRAM_CONSENT_VERSION`
+- `TELEGRAM_INVITE_TOKEN_SECRET`
+- `RESEND_API_KEY` (opcional hasta verificar un dominio en Resend)
+- `INVITATION_FROM_EMAIL` (obligatorio cuando existe `RESEND_API_KEY`)
+- `INVITATION_REPLY_TO` (opcional)
+- `N8N_MENU_WEBHOOK_URL`
+- `N8N_MENU_WEBHOOK_SECRET`
 
-## Backend Cloud Run
+En Supabase Auth agrega `https://TU_FRONTEND/login` a las Redirect URLs permitidas.
 
-Antes de construir, verifica que Cloud Build no subira secretos locales:
+## Despliegue automatizado
+
+Desde la raiz:
 
 ```powershell
-gcloud meta list-files-for-upload backend | Select-String -Pattern "\.env"
+.\scripts\redeploy-preprod.ps1 -ValidateOnly
+.\scripts\redeploy-preprod.ps1
 ```
 
-El comando no debe devolver `.env`, `.env.local` ni archivos `*.env`.
+El primer comando valida el entorno sin construir, desplegar ni registrar webhooks.
+
+El script:
+
+1. Verifica acceso a Cloud Run y Cloud Build, y crea Artifact Registry si falta.
+2. Verifica que no se suban archivos `.env`.
+3. Construye backend y frontend con sus `cloudbuild.yaml`.
+4. Despliega ambos servicios con `min-instances=0` y `max-instances=1`.
+5. Configura CORS y recuperacion de contrasena con la URL final del frontend.
+6. Registra el webhook de Telegram y comprueba ambos servicios.
+
+El frontend recibe solamente `VITE_API_BASE_URL` durante el build. Ninguna clave de
+Supabase se incorpora al bundle.
+
+## Despliegue manual
+
+Backend:
 
 ```powershell
 gcloud builds submit backend `
   --project eciencia-andina-preprod `
-  --tag us-central1-docker.pkg.dev/eciencia-andina-preprod/eciencia/backend:preprod
-
-gcloud run deploy eciencia-backend `
-  --project eciencia-andina-preprod `
-  --image us-central1-docker.pkg.dev/eciencia-andina-preprod/eciencia/backend:preprod `
-  --region us-central1 `
-  --allow-unauthenticated `
-  --min-instances 0 `
-  --max-instances 1 `
-  --memory 512Mi `
-  --port 3001 `
-  --set-env-vars NODE_ENV=production
+  --config backend/cloudbuild.yaml `
+  --substitutions "_PROJECT_ID=eciencia-andina-preprod,_REGION=us-central1,_REPO=eciencia,_TAG=preprod"
 ```
 
-Configura variables reales en Cloud Run. Si Secret Manager no esta disponible en el plan, usa un archivo local ignorado, por ejemplo `backend/.env.cloudrun.preprod.yaml`, y pasalo con `--env-vars-file`.
-No incluyas `PORT` en ese archivo: Cloud Run lo reserva y lo define automaticamente desde `--port`.
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `CORS_ORIGINS`
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_WEBHOOK_SECRET`
-- `TELEGRAM_WEBHOOK_URL`
-- `N8N_MENU_WEBHOOK_URL`
-- `N8N_MENU_WEBHOOK_SECRET`
-- `N8N_ECIENCIA_BACKEND_URL`
-
-Ejemplo sin imprimir secretos en consola:
+Frontend:
 
 ```powershell
-gcloud run services update eciencia-backend `
-  --project eciencia-andina-preprod `
-  --region us-central1 `
-  --env-vars-file backend/.env.cloudrun.preprod.yaml
-```
-
-Despues del deploy:
-
-```powershell
-cd backend
-npm run telegram:set-webhook
-```
-
-## Frontend Cloud Run
-
-El frontend Vite toma `VITE_*` en tiempo de build. No dependas de `frontend/.env` para Docker/Cloud Build, porque los archivos `.env*` se excluyen del contexto.
-
-Puede apuntar a un proyecto Supabase distinto al backend si es una decision intencional de pruebas. Si necesitas que auth/storage/datos coincidan con el backend, usa el mismo `VITE_SUPABASE_URL`, publishable key y project ref del Supabase de preproduccion.
-
-```powershell
-gcloud meta list-files-for-upload frontend | Select-String -Pattern "\.env"
-
 gcloud builds submit frontend `
   --project eciencia-andina-preprod `
   --config frontend/cloudbuild.yaml `
-  --substitutions "_PROJECT_ID=eciencia-andina-preprod,_REGION=us-central1,_REPO=eciencia,_TAG=preprod,_VITE_API_BASE_URL=https://TU_BACKEND/api,_VITE_SUPABASE_URL=https://TU-PROYECTO.supabase.co,_VITE_SUPABASE_PUBLISHABLE_KEY=TU_PUBLISHABLE_KEY,_VITE_SUPABASE_PROJECT_ID=TU_PROJECT_REF"
-
-gcloud run deploy eciencia-frontend `
-  --project eciencia-andina-preprod `
-  --image us-central1-docker.pkg.dev/eciencia-andina-preprod/eciencia/frontend:preprod `
-  --region us-central1 `
-  --allow-unauthenticated `
-  --min-instances 0 `
-  --max-instances 1 `
-  --memory 256Mi
+  --substitutions "_PROJECT_ID=eciencia-andina-preprod,_REGION=us-central1,_REPO=eciencia,_TAG=preprod,_VITE_API_BASE_URL=https://TU_BACKEND/api"
 ```
 
-Si falta alguna variable `VITE_*` requerida, el Dockerfile falla a proposito para evitar publicar una imagen apuntando a `localhost`.
+Antes de enviar cada contexto:
 
-## n8n
-
-Para preproduccion barata, mantener el workflow exportado en `backend/n8n/workflows` y desplegar n8n solo cuando se pruebe el envio. Si se publica n8n:
-
-- Fijar una version de imagen probada; no usar `docker.io/n8nio/n8n:latest`.
-- Configurar `WEBHOOK_URL=https://TU_N8N`.
-- Configurar `N8N_MENU_WEBHOOK_SECRET`.
-- Configurar `N8N_PUBLIC_API_DISABLED=true` y `N8N_PUBLIC_API_SWAGGERUI_DISABLED=true` si no se usara la API publica de n8n.
-- No usar polling de Telegram.
-- Usar Cloud Scheduler para llamar `eciencia-enviar-menu-manual` si se requiere envio diario.
-- Con `min-instances=0`, no depender del Schedule Trigger interno de n8n: Cloud Run no despierta una instancia desde cero por tareas internas.
-
-## Telegram
-
-El bot queda con webhook:
-
-```txt
-https://TU_BACKEND/api/telegram/webhook
+```powershell
+gcloud meta list-files-for-upload backend | Select-String -Pattern "\.env"
+gcloud meta list-files-for-upload frontend | Select-String -Pattern "\.env"
 ```
 
-Telegram envia el header `X-Telegram-Bot-Api-Secret-Token`; el backend lo compara con `TELEGRAM_WEBHOOK_SECRET`.
+No deben aparecer secretos locales.
+
+## Costos y operacion
+
+- Usar Cloud Run, no GKE ni Cloud SQL en esta fase.
+- Mantener `min-instances=0` y `max-instances=1` en preproduccion.
+- Mantener frontend, backend y Artifact Registry en una sola region.
+- Configurar alertas de presupuesto cuando la cuenta lo permita.
+- Fijar una version probada de n8n; no usar `latest`.
+- n8n debe usar su propia base y conectarse a Supabase mediante `service_role`.
+- Con `min-instances=0`, usar Cloud Scheduler para tareas programadas de n8n.
+
+Si `gcloud` vuelve a fallar con `SSLCertVerificationError`, corrige la inspeccion TLS
+del antivirus para `oauth2.googleapis.com` y `*.googleapis.com`. No desactives la
+validacion SSL de forma permanente.

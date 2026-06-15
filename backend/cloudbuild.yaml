@@ -1,0 +1,48 @@
+substitutions:
+  _PROJECT_ID: eciencia-andina-preprod
+  _REGION: us-central1
+  _REPO: eciencia
+  _IMAGE: backend
+  _TAG: preprod
+
+steps:
+  - name: node:22.22.3-slim
+    entrypoint: npm
+    args: ['ci']
+
+  - name: node:22.22.3-slim
+    entrypoint: npm
+    args: ['audit', '--audit-level=moderate']
+
+  - name: node:22.22.3-slim
+    entrypoint: npm
+    args: ['test']
+
+  - name: node:22.22.3-slim
+    entrypoint: npm
+    args: ['run', 'lint']
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_IMAGE}:${_TAG}
+      - .
+
+  - name: aquasec/trivy:0.71.0
+    args:
+      - image
+      - --timeout
+      - 20m
+      - --exit-code
+      - '1'
+      - --severity
+      - HIGH,CRITICAL
+      - --scanners
+      - vuln
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_IMAGE}:${_TAG}
+
+images:
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_IMAGE}:${_TAG}
+
+timeout: 1800s

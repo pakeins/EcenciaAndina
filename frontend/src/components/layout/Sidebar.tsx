@@ -63,13 +63,13 @@ const navItems: NavItem[] = [
     label: 'Convenios',
     path: '/convenios',
     icon: <Building2 className="h-5 w-5" />,
-    roles: ['administrador'],
+    roles: ['administrador', 'caja'],
   },
   {
     label: 'Clientes',
     path: '/clientes',
     icon: <Users className="h-5 w-5" />,
-    roles: ['administrador'],
+    roles: ['administrador', 'caja'],
   },
   {
     label: 'Empleados',
@@ -81,7 +81,7 @@ const navItems: NavItem[] = [
     label: 'Productos',
     path: '/productos',
     icon: <Package className="h-5 w-5" />,
-    roles: ['administrador'],
+    roles: ['administrador', 'caja'],
   },
 ];
 

@@ -1,123 +1,114 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 
-let rows;
-let deletedIds;
 const require = createRequire(import.meta.url);
+let consent;
 
-const matchesFilters = (row, filters) =>
-  filters.every(({ column, value }) => String(row[column]) === String(value));
+beforeAll(() => {
+  consent = require('../services/telegramConsent.js');
+});
 
-class FakeQuery {
-  constructor(table) {
-    this.table = table;
-    this.filters = [];
-    this.operation = 'select';
-    this.payload = null;
-  }
+const invitation = (patch = {}) => ({
+  id: 'invite-1',
+  id_cliente: 'client-1',
+  expires_at: new Date(Date.now() + 60_000).toISOString(),
+  claimed_at: null,
+  claimed_chat_id: null,
+  consumed_at: null,
+  revoked_at: null,
+  clientes: { id_cliente: 'client-1', esta_activo: true },
+  ...patch,
+});
 
-  select() {
-    return this;
-  }
-
-  eq(column, value) {
-    this.filters.push({ column, value });
-    return this;
-  }
-
-  delete() {
-    this.operation = 'delete';
-    return this;
-  }
-
-  update(payload) {
-    this.operation = 'update';
-    this.payload = payload;
-    return this;
-  }
-
-  async maybeSingle() {
-    return { data: rows.find((row) => matchesFilters(row, this.filters)) || null, error: null };
-  }
-
-  async single() {
-    if (this.operation !== 'update') {
-      return { data: rows.find((row) => matchesFilters(row, this.filters)) || null, error: null };
-    }
-
-    const row = rows.find((item) => matchesFilters(item, this.filters));
-    if (!row) return { data: null, error: new Error('row not found') };
-
-    const chatConflict = rows.find(
-      (item) => item.id !== row.id && item.chat_id && item.chat_id === this.payload.chat_id,
-    );
-    if (chatConflict) return { data: null, error: new Error('duplicate chat_id') };
-
-    Object.assign(row, this.payload);
-    return { data: row, error: null };
-  }
-
-  then(resolve) {
-    if (this.operation === 'delete') {
-      const before = rows.length;
-      rows = rows.filter((row) => !matchesFilters(row, this.filters));
-      if (rows.length < before) deletedIds.push(this.filters.find((filter) => filter.column === 'id')?.value);
-      resolve({ error: null });
-      return;
-    }
-
-    resolve({ data: null, error: null });
-  }
-}
-
-const fakeClient = {
-  from(table) {
-    return new FakeQuery(table);
-  },
-};
-
-describe('Telegram subscriptions', () => {
-  beforeEach(() => {
-    rows = [];
-    deletedIds = [];
-    process.env.SUPABASE_URL = 'https://example.supabase.co';
-    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
-
-    delete require.cache[require.resolve('../routes/telegram.js')];
-    delete require.cache[require.resolve('../config/supabase.js')];
+describe('invitaciones Telegram', () => {
+  it('usa HMAC-SHA256 y un token alterado produce otro hash', () => {
+    const validHash = consent.hmacHex('token-original');
+    expect(validHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(consent.hmacHex('token-alterado')).not.toBe(validHash);
   });
 
-  it('elimina el pending por chat antes de vincular un telefono ya existente', async () => {
-    rows = [
-      {
-        id: 'pending-chat-row',
-        chat_id: '123',
-        phone_normalized: null,
-        consent_status: 'pending',
+  it('bloquea invitaciones expiradas, consumidas o revocadas', () => {
+    expect(
+      consent.invitationAvailability(
+        invitation({ expires_at: new Date(Date.now() - 1).toISOString() }),
+        'chat-1',
+      ),
+    ).toMatchObject({ valid: false, reason: 'expired' });
+    expect(
+      consent.invitationAvailability(invitation({ consumed_at: new Date().toISOString() }), 'chat-1'),
+    ).toMatchObject({ valid: false, reason: 'consumed' });
+    expect(
+      consent.invitationAvailability(invitation({ revoked_at: new Date().toISOString() }), 'chat-1'),
+    ).toMatchObject({ valid: false, reason: 'revoked' });
+  });
+
+  it('impide que un enlace reclamado se comparta con otro chat', () => {
+    expect(
+      consent.invitationAvailability(
+        invitation({ claimed_at: new Date().toISOString(), claimed_chat_id: 'chat-1' }),
+        'chat-2',
+      ),
+    ).toMatchObject({ valid: false, reason: 'claimed' });
+    expect(
+      consent.invitationAvailability(
+        invitation({ claimed_at: new Date().toISOString(), claimed_chat_id: 'chat-1' }),
+        'chat-1',
+      ),
+    ).toMatchObject({ valid: true });
+  });
+
+  it('revoca la invitacion abierta anterior antes de crear otra y nunca persiste el token', async () => {
+    const updates = [];
+    const inserts = [];
+    const fakeClient = {
+      from(table) {
+        expect(table).toBe('telegram_invitations');
+        return {
+          update(payload) {
+            updates.push(payload);
+            return {
+              eq() {
+                return {
+                  is() {
+                    return {
+                      async is() {
+                        return { error: null };
+                      },
+                    };
+                  },
+                };
+              },
+            };
+          },
+          insert(payload) {
+            inserts.push(payload);
+            return {
+              select() {
+                return {
+                  async single() {
+                    return {
+                      data: {
+                        id: 'invite-new',
+                        expires_at: new Date(Date.now() + consent.INVITATION_TTL_MS).toISOString(),
+                      },
+                      error: null,
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
       },
-      {
-        id: 'phone-row',
-        chat_id: null,
-        phone_normalized: '593998313804',
-        consent_status: 'pending',
-      },
-    ];
+    };
 
-    const supabaseConfig = require('../config/supabase.js');
-    supabaseConfig.getAdminClient = () => fakeClient;
+    const result = await consent.createInvitation('client-1', 'admin-1', () => fakeClient);
 
-    const telegramRouter = require('../routes/telegram.js');
-    const result = await telegramRouter._private.saveAcceptedSubscription(
-      '123',
-      { id_cliente: 'client-1', telefono: '0998313804' },
-      '0998313804',
-      true,
-    );
-
-    expect(result.subscription.id).toBe('phone-row');
-    expect(result.subscription.chat_id).toBe('123');
-    expect(result.subscription.consent_status).toBe('accepted');
-    expect(deletedIds).toEqual(['pending-chat-row']);
-    expect(rows.map((row) => row.id)).toEqual(['phone-row']);
+    expect(updates).toHaveLength(1);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).not.toHaveProperty('token');
+    expect(inserts[0].token_hmac).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.onboarding_url).toMatch(/^https:\/\/t\.me\/eciencia_test_bot\?start=/);
+    expect(result.onboarding_url).not.toContain(inserts[0].token_hmac);
   });
 });

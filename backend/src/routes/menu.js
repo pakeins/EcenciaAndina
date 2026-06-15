@@ -5,6 +5,8 @@ const roleMiddleware = require('../middlewares/roleMiddleware');
 const { getAdminClient } = require('../config/supabase');
 const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 const { cleanupOldMenuImages } = require('../services/menuImageCleanup');
+const { findOrCreateFood } = require('../services/menuCatalog');
+const { MENU_CATEGORY_CODE } = require('../constants/domain');
 
 const router = express.Router();
 
@@ -104,8 +106,8 @@ const hasAllowedImageSignature = (buffer, mimeType) => {
 };
 
 const uploadMenuImage = async (image) => {
-  if (!image) return null;
-  if (/^https:\/\//i.test(image)) return image;
+  if (!image) return { publicUrl: null, path: null };
+  if (/^https:\/\//i.test(image)) return { publicUrl: image, path: null };
   if (/^http:\/\//i.test(image)) {
     const error = new Error('La URL publica de imagen del menu debe usar HTTPS.');
     error.status = 400;
@@ -140,7 +142,13 @@ const uploadMenuImage = async (image) => {
   }
 
   const { data } = adminClient.storage.from(MENU_ASSETS_BUCKET).getPublicUrl(fileName);
-  return data.publicUrl;
+  return { publicUrl: data.publicUrl, path: fileName };
+};
+
+const removeUploadedMenuImage = async (adminClient, imageUpload) => {
+  if (!imageUpload?.path) return;
+  const { error } = await adminClient.storage.from(MENU_ASSETS_BUCKET).remove([imageUpload.path]);
+  if (error) console.error('No se pudo retirar la imagen huerfana del menu:', error);
 };
 
 const getMenuSettings = async (adminClient) => {
@@ -232,16 +240,15 @@ const groupMenuRows = (rows, activeDate) => {
 const getCategoryIds = async (adminClient) => {
   const { data, error } = await adminClient
     .from('categorias_menu')
-    .select('id_categoria_menu,nombre_categoria');
+    .select('id_categoria_menu,codigo');
 
   if (error) throw error;
 
   const categories = {};
   for (const row of data || []) {
-    const name = normalizeText(row.nombre_categoria);
-    if (name.includes('sopa')) categories.sopas = row.id_categoria_menu;
-    if (name.includes('segundo') || name.includes('plato')) categories.segundos = row.id_categoria_menu;
-    if (name.includes('guarn')) categories.guarniciones = row.id_categoria_menu;
+    if (Object.values(MENU_CATEGORY_CODE).includes(row.codigo)) {
+      categories[row.codigo] = row.id_categoria_menu;
+    }
   }
 
   if (!categories.sopas || !categories.segundos || !categories.guarniciones) {
@@ -254,29 +261,12 @@ const getCategoryIds = async (adminClient) => {
 };
 
 const ensureAlimento = async (adminClient, idCategoria, nombre, userId) => {
-  const { data: existing, error: selectError } = await adminClient
-    .from('alimentos')
-    .select('id_alimento,nombre_alimento')
-    .eq('id_categoria_menu', idCategoria)
-    .ilike('nombre_alimento', nombre)
-    .limit(1)
-    .maybeSingle();
-
-  if (selectError) throw selectError;
-  if (existing) return existing.id_alimento;
-
-  const { data, error } = await adminClient
-    .from('alimentos')
-    .insert({
-      id_categoria_menu: idCategoria,
-      nombre_alimento: nombre,
-      created_by: userId,
-    })
-    .select('id_alimento')
-    .single();
-
-  if (error) throw error;
-  return data.id_alimento;
+  const food = await findOrCreateFood(adminClient, {
+    categoryId: idCategoria,
+    name: nombre,
+    userId,
+  });
+  return food.id;
 };
 
 const fetchMenus = async (adminClient, fecha = null) => {
@@ -310,22 +300,15 @@ const saveDailyMenu = async (adminClient, menu, imageUrl, userId, fecha = todayI
     }
   }
 
-  const { error: deleteError } = await adminClient.from('menu_diario').delete().eq('fecha', fecha);
-  if (deleteError) throw deleteError;
+  const { data, error } = await adminClient.rpc('replace_daily_menu', {
+    p_fecha: fecha,
+    p_alimentos_ids: alimentosIds,
+    p_imagen_url: imageUrl,
+    p_user_id: userId,
+  });
+  if (error) throw error;
 
-  if (!alimentosIds.length) return { fecha, count: 0 };
-
-  const rows = alimentosIds.map((idAlimento) => ({
-    fecha,
-    id_alimento: idAlimento,
-    imagen_url: imageUrl,
-    created_by: userId,
-  }));
-
-  const { error: insertError } = await adminClient.from('menu_diario').insert(rows);
-  if (insertError) throw insertError;
-
-  return { fecha, count: rows.length };
+  return { fecha, count: Number(data ?? alimentosIds.length) };
 };
 
 const secureEquals = (left, right) => {
@@ -393,6 +376,9 @@ router.get('/activo', async (req, res) => {
 });
 
 router.put('/:fecha', async (req, res) => {
+  let adminClient;
+  let imageUpload;
+  let menuSaved = false;
   try {
     const fecha = req.params.fecha;
     if (!isIsoDate(fecha)) return res.status(400).json({ error: 'La fecha del menu debe tener formato YYYY-MM-DD.' });
@@ -405,7 +391,7 @@ router.put('/:fecha', async (req, res) => {
       });
     }
 
-    const adminClient = getAdminClient();
+    adminClient = getAdminClient();
     const settings = await getMenuSettings(adminClient);
     if (settings.active_date === fecha && !payload.confirmarEdicion) {
       return res.status(409).json({
@@ -415,8 +401,12 @@ router.put('/:fecha', async (req, res) => {
     }
 
     const current = await getMenuByDate(adminClient, fecha);
-    const photoUrl = payload.image ? await uploadMenuImage(payload.image) : current?.imagen_url || null;
+    imageUpload = payload.image
+      ? await uploadMenuImage(payload.image)
+      : { publicUrl: current?.imagen_url || null, path: null };
+    const photoUrl = imageUpload.publicUrl;
     const dailyMenu = await saveDailyMenu(adminClient, menu, photoUrl, req.user.id, fecha);
+    menuSaved = true;
 
     if (settings.active_date === fecha) {
       await saveActiveMenuState(adminClient, fecha, menu, photoUrl, req.user.id);
@@ -424,6 +414,9 @@ router.put('/:fecha', async (req, res) => {
 
     res.json({ mensaje: 'Menu actualizado correctamente.', dailyMenu, photoUrl });
   } catch (error) {
+    if (!menuSaved && adminClient && imageUpload?.path) {
+      await removeUploadedMenuImage(adminClient, imageUpload);
+    }
     console.error('Error actualizando menu:', error);
     if (sendValidationError(res, error)) return;
     res.status(error.status || 500).json({ error: error.message || 'No se pudo actualizar el menu.' });
@@ -464,6 +457,9 @@ router.post('/:fecha/activar', async (req, res) => {
 router.post('/limpiar-imagenes', runImageCleanup);
 
 router.post('/enviar', async (req, res) => {
+  let adminClient;
+  let imageUpload;
+  let menuSaved = false;
   try {
     const payload = parseBody(schemas.menuDashboard, req.body || {});
     const menu = buildMenuPayload(payload);
@@ -473,9 +469,11 @@ router.post('/enviar', async (req, res) => {
       });
     }
 
-    const photoUrl = await uploadMenuImage(payload.image);
-    const adminClient = getAdminClient();
+    imageUpload = await uploadMenuImage(payload.image);
+    const photoUrl = imageUpload.publicUrl;
+    adminClient = getAdminClient();
     const dailyMenu = await saveDailyMenu(adminClient, menu, photoUrl, req.user.id);
+    menuSaved = true;
     await saveActiveMenuState(adminClient, dailyMenu.fecha, menu, photoUrl, req.user.id);
     const cleanup = await cleanupOldMenuImages(adminClient);
     const webhookUrl = getN8nMenuWebhookUrl();
@@ -515,6 +513,9 @@ router.post('/enviar', async (req, res) => {
       cleanup,
     });
   } catch (error) {
+    if (!menuSaved && adminClient && imageUpload?.path) {
+      await removeUploadedMenuImage(adminClient, imageUpload);
+    }
     console.error('Error disparando flujo de menu en n8n:', error);
     if (sendValidationError(res, error)) return;
     res.status(error.status || 500).json({
@@ -526,4 +527,6 @@ router.post('/enviar', async (req, res) => {
 module.exports = router;
 module.exports._private = {
   groupMenuRows,
+  removeUploadedMenuImage,
+  saveDailyMenu,
 };

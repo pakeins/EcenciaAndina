@@ -54,13 +54,13 @@ router.post('/', authMiddleware, roleMiddleware(['administrador']), async (req, 
     const existingUser = [...(emailCheck.data || []), ...(usernameCheck.data || [])];
     if (existingUser.length > 0) {
       const dupe = existingUser.find((u) => u.correo === correo);
-      if (dupe) return res.status(400).json({ error: 'El correo electrÃ³nico ya estÃ¡ registrado.' });
+      if (dupe) return res.status(400).json({ error: 'El correo electrónico ya está registrado.' });
       const dupeUser = existingUser.find((u) => u.nombre_usuario === nombre_usuario);
-      if (dupeUser) return res.status(400).json({ error: 'El nombre de usuario ya estÃ¡ en uso.' });
+      if (dupeUser) return res.status(400).json({ error: 'El nombre de usuario ya está en uso.' });
     }
 
     // 1. Crear el usuario en Auth con metadatos de rol y estado
-    const rolNombre = id_rol === 1 || id_rol === '1' ? 'administrador' : 'caja'; // Ajustar segÃºn tus IDs de roles
+    const rolNombre = id_rol === 1 || id_rol === '1' ? 'administrador' : 'caja'; // Ajustar según tus IDs de roles
     
     const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
       email: correo,
@@ -120,8 +120,24 @@ router.post('/', authMiddleware, roleMiddleware(['administrador']), async (req, 
   }
 });
 
-// Los demÃ¡s mÃ©todos tambiÃ©n deben usar adminClient si hay RLS...
-// Pero por ahora actualicemos los bÃ¡sicos de lectura.
+// Los demás métodos también deben usar adminClient si hay RLS...
+// Pero por ahora actualicemos los básicos de lectura.
+
+// Obtener perfil del usuario autenticado
+router.get('/perfil', authMiddleware, async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { data, error } = await adminClient
+      .from('empleados')
+      .select('id, nombre, apellido, correo, nombre_usuario, esta_activo, roles(nombre_rol)')
+      .eq('id', req.user.id)
+      .single();
+    if (error) throw error;
+    res.json(data);
+  } catch {
+    res.status(500).json({ error: 'No se pudo cargar el perfil.' });
+  }
+});
 
 // Actualizar perfil del usuario autenticado
 router.put('/perfil', authMiddleware, async (req, res) => {
@@ -153,18 +169,18 @@ router.put('/perfil', authMiddleware, async (req, res) => {
   }
 });
 
-// Cambiar contraseÃ±a del usuario autenticado
+// Cambiar contraseña del usuario autenticado
 router.put('/perfil/password', authMiddleware, async (req, res) => {
   try {
     const { currentPassword, newPassword } = parseBody(schemas.passwordChange, req.body);
     
-    // Verificar contraseÃ±a actual
+    // Verificar contraseña actual
     const { error: authError } = await supabase.auth.signInWithPassword({
       email: req.user.email,
       password: currentPassword,
     });
     if (authError) {
-      return res.status(401).json({ error: 'La contraseÃ±a actual es incorrecta' });
+      return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
     }
 
     const adminClient = getAdminClient();
@@ -173,10 +189,48 @@ router.put('/perfil/password', authMiddleware, async (req, res) => {
     });
 
     if (error) throw error;
-    res.json({ mensaje: 'ContraseÃ±a actualizada correctamente' });
+    res.json({ mensaje: 'Contraseña actualizada correctamente' });
   } catch (error) {
     if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/perfil/recovery-password', authMiddleware, async (req, res) => {
+  try {
+    const { password } = parseBody(schemas.passwordAdmin, req.body);
+    const adminClient = getAdminClient();
+    const { error } = await adminClient.auth.admin.updateUserById(req.user.id, { password });
+    if (error) throw error;
+    res.json({ mensaje: 'Contrasena recuperada exitosamente' });
+  } catch (error) {
+    if (sendValidationError(res, error)) return;
+    res.status(500).json({ error: 'No se pudo actualizar la contrasena.' });
+  }
+});
+
+router.post('/:id/reset-password', authMiddleware, roleMiddleware(['administrador']), async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { data: employee, error } = await adminClient
+      .from('empleados')
+      .select('correo, esta_activo')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!employee) return res.status(404).json({ error: 'Empleado no encontrado.' });
+    if (employee.esta_activo === false) {
+      return res.status(400).json({ error: 'No se puede recuperar una cuenta inactiva.' });
+    }
+
+    const options = process.env.PASSWORD_RECOVERY_REDIRECT_URL
+      ? { redirectTo: process.env.PASSWORD_RECOVERY_REDIRECT_URL }
+      : undefined;
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(employee.correo, options);
+    if (authError) throw authError;
+    res.json({ mensaje: `Enlace de recuperacion enviado a ${employee.correo}` });
+  } catch {
+    res.status(500).json({ error: 'No se pudo enviar el enlace de recuperacion.' });
   }
 });
 
@@ -226,7 +280,7 @@ router.put('/:id', authMiddleware, roleMiddleware(['administrador']), async (req
 
     if (error) throw error;
 
-    // Sincronizar metadato de rol en Auth si cambiÃ³
+    // Sincronizar metadato de rol en Auth si cambió
     const rolNombre = id_rol === 1 || id_rol === '1' ? 'administrador' : 'caja';
     await adminClient.auth.admin.updateUserById(req.params.id, {
       app_metadata: { rol: rolNombre }
@@ -239,7 +293,7 @@ router.put('/:id', authMiddleware, roleMiddleware(['administrador']), async (req
   }
 });
 
-// Cambiar contraseÃ±a (Fuerza bruta administrativa)
+// Cambiar contraseña (Fuerza bruta administrativa)
 router.put('/:id/password', authMiddleware, roleMiddleware(['administrador']), async (req, res) => {
   try {
     const { password } = parseBody(schemas.passwordAdmin, req.body);
@@ -249,7 +303,7 @@ router.put('/:id/password', authMiddleware, roleMiddleware(['administrador']), a
     });
 
     if (error) throw error;
-    res.json({ mensaje: 'ContraseÃ±a actualizada correctamente' });
+    res.json({ mensaje: 'Contraseña actualizada correctamente' });
   } catch (error) {
     if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });

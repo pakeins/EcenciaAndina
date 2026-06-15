@@ -1,6 +1,8 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 let findEmployeeByUsername;
+let requestPasswordReset;
+let PASSWORD_RESET_RESPONSE;
 
 const makeAdminClient = (empleados) => ({
   from: () => ({
@@ -15,6 +17,55 @@ beforeAll(async () => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
   const authRouter = await import('../routes/auth.js');
   findEmployeeByUsername = authRouter.default._private.findEmployeeByUsername;
+  requestPasswordReset = authRouter.default._private.requestPasswordReset;
+  PASSWORD_RESET_RESPONSE = authRouter.default._private.PASSWORD_RESET_RESPONSE;
+});
+
+const makeRecoveryAdminClient = (employee) => ({
+  from: () => ({
+    select: () => ({
+      ilike: () => ({
+        maybeSingle: async () => ({ data: employee, error: null }),
+      }),
+    }),
+  }),
+});
+
+describe('recuperacion de contrasena', () => {
+  it.each([null, { correo: 'inactive@example.com', esta_activo: false }])(
+    'responde igual sin revelar cuentas inexistentes o inactivas',
+    async (employee) => {
+      const resetPasswordForEmail = vi.fn();
+      const result = await requestPasswordReset({
+        email: 'user@example.com',
+        adminClient: makeRecoveryAdminClient(employee),
+        authClient: { auth: { resetPasswordForEmail } },
+        redirectTo: 'https://app.example.com/login',
+      });
+
+      expect(result).toBe(PASSWORD_RESET_RESPONSE);
+      expect(resetPasswordForEmail).not.toHaveBeenCalled();
+    },
+  );
+
+  it('envia el enlace para una cuenta activa manteniendo la respuesta generica', async () => {
+    const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: null });
+    const result = await requestPasswordReset({
+      email: 'user@example.com',
+      adminClient: makeRecoveryAdminClient({
+        correo: 'user@example.com',
+        esta_activo: true,
+      }),
+      authClient: { auth: { resetPasswordForEmail } },
+      redirectTo: 'https://app.example.com/login',
+    });
+
+    expect(result).toBe(PASSWORD_RESET_RESPONSE);
+    expect(resetPasswordForEmail).toHaveBeenCalledWith(
+      'user@example.com',
+      { redirectTo: 'https://app.example.com/login' },
+    );
+  });
 });
 
 describe('login de empleados', () => {
