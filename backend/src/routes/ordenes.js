@@ -74,6 +74,52 @@ router.post('/', async (req, res) => {
 });
 
 // OBTENER TODAS LAS ORDENES
+router.get('/telegram/trazabilidad', async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const {
+      chat_id: chatId,
+      outcome,
+      id_cliente: idCliente,
+      id_orden: idOrden,
+    } = req.query;
+    const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(Math.max(1, Number.parseInt(String(req.query.limit || '20'), 10) || 20), 250);
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    let query = adminClient
+      .from('telegram_order_traces')
+      .select(`
+        *,
+        clientes(nombre,apellido,telefono),
+        ordenes(id_orden,created_at)
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (outcome) query = query.eq('outcome', outcome);
+    if (chatId) query = query.eq('chat_id', chatId);
+    if (idCliente) query = query.eq('id_cliente', idCliente);
+    if (idOrden) query = query.eq('id_orden', idOrden);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    const total = Number(count || 0);
+    res.json({
+      traces: data || [],
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     const adminClient = getAdminClient();
