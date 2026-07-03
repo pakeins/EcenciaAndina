@@ -35,6 +35,12 @@ jobs:
           npm run lint
 
       - name: Run Tests
+        env:
+          SUPABASE_URL: "https://example.supabase.co"
+          SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
+          SUPABASE_ANON_KEY: "dummy-key"
+          JWT_SECRET: "dummy-secret"
+          PORT: 3000
         run: |
           cd backend
           npm test
