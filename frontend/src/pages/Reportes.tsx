@@ -24,6 +24,7 @@ import { FileDown, Calendar, Filter, FileText, PieChart, Users, Building2, Trend
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { Convenio, Client } from '@/types';
+import { escapeHtml, formatMoney, openPrintWindow, toFiniteNumber } from '@/lib/html';
 
 interface Consumo {
   fecha: string;
@@ -38,6 +39,15 @@ interface ColaboradorConsumo {
   consumos: Consumo[];
   total: number;
 }
+
+const SALES_LUNCH_COLUMNS = [
+  { key: 'ejecutivoCompleto', label: 'Ejecutivo completo', xmlTag: 'ejecutivoCompleto' },
+  { key: 'ejecutivoSinSopa', label: 'Sin sopa', xmlTag: 'ejecutivoSinSopa' },
+  { key: 'ejecutivoSimple', label: 'Ejecutivo simple', xmlTag: 'ejecutivoSimple' },
+  { key: 'almuerzoDia', label: 'Almuerzo dia', xmlTag: 'almuerzoDia' },
+  { key: 'almuerzoDiaSimple', label: 'Dia simple', xmlTag: 'almuerzoDiaSimple' },
+  { key: 'otrosAlmuerzos', label: 'Otros almuerzos', xmlTag: 'otrosAlmuerzos' },
+] as const;
 
 export default function Reportes() {
   const [reportType, setReportType] = useState('ventas');
@@ -83,7 +93,7 @@ export default function Reportes() {
     if (reportType === 'estados' || reportType === 'clientes') return 4;
     if (reportType === 'convenio') return desglosarConvenio ? 4 : 3;
     if (reportType === 'productos') return 3;
-    if (reportType === 'ventas') return 2;
+    if (reportType === 'ventas') return 10;
     return 3;
   };
 
@@ -137,8 +147,9 @@ export default function Reportes() {
       const response = await apiFetch(endpoint);
       if (response.ok) {
         const data = await response.json();
-        
-        setReportData(data);
+
+        // rowId estable para las keys de React (se genera una vez por reporte).
+        setReportData(data.map((row: Record<string, unknown>, index: number) => ({ ...row, rowId: `${reportType}-${index}` })));
         setHasGenerated(true);
         toast.success('Reporte generado exitosamente');
       } else {
@@ -146,6 +157,7 @@ export default function Reportes() {
         toast.error(err.error || 'Error al generar reporte');
       }
     } catch (error) {
+      console.error('Error generando el reporte:', error);
       toast.error('Error de conexión al generar reporte');
     } finally {
       setIsGenerating(false);
@@ -154,12 +166,6 @@ export default function Reportes() {
 
   const handleExportPDF = () => {
     try {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        toast.error('El navegador bloqueó la ventana emergente');
-        return;
-      }
-
       const reportTitleMap: Record<string, string> = {
         'ventas': 'Resumen General de Ingresos',
         'estados': 'Reporte de Pedidos por Estado',
@@ -168,24 +174,39 @@ export default function Reportes() {
         'productos': 'Popularidad de Almuerzos y Productos'
       };
 
-      const title = reportTitleMap[reportType];
+      const title = reportTitleMap[reportType] || 'Reporte';
+      const safeTitle = escapeHtml(title);
+      const safeFechaInicio = escapeHtml(new Date(fechaInicio).toLocaleDateString('es-EC'));
+      const safeFechaFin = escapeHtml(new Date(fechaFin).toLocaleDateString('es-EC'));
       
       let htmlRows = '';
       
       if (reportType === 'ventas') {
+        const salesLunchHeaderCells = SALES_LUNCH_COLUMNS.map((column) =>
+          `<th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">${column.label}</th>`,
+        ).join('');
         htmlRows = `
           <tr>
             <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Método de Pago</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Cantidad Almuerzos</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Principales</th>
+            ${salesLunchHeaderCells}
+            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Extras</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Valor extras</th>
             <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Ingresos Generados</th>
           </tr>
         `;
         reportData.forEach(row => {
+          const salesLunchCells = SALES_LUNCH_COLUMNS.map((column) =>
+            `<td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row[column.key])}</td>`,
+          ).join('');
           htmlRows += `
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.metodo_pago}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${row.cantidadAlmuerzos}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.totalConsumo.toFixed(2)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.metodo_pago)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.almuerzosPrincipales ?? row.cantidadAlmuerzos)}</td>
+              ${salesLunchCells}
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.extrasCantidad)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.valorExtras)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.totalConsumo)}</td>
             </tr>
           `;
         });
@@ -224,10 +245,10 @@ export default function Reportes() {
         reportData.forEach(row => {
           htmlRows += `
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.nombre}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.categoria}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${row.cantidadVendida}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.ingresosGenerados.toFixed(2)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.nombre)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.categoria)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.cantidadVendida)}</td>
+              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.ingresosGenerados)}</td>
             </tr>
           `;
         });
@@ -286,7 +307,7 @@ export default function Reportes() {
               ? 'Total Cancelado:' 
               : 'Total Neto:'
           }</td>
-          <td style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 14px; border-top: 2px solid #ddd; color: #8B4513;">$${totalAmount.toFixed(2)}</td>
+          <td style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 14px; border-top: 2px solid #ddd; color: #7A402E;">$${totalAmount.toFixed(2)}</td>
         </tr>
       `;
 
@@ -296,10 +317,10 @@ export default function Reportes() {
           <head>
             <title>Reporte ECencia Andina</title>
             <style>
-              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
-              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #8B4513; padding-bottom: 20px; }
-              .title { font-size: 24px; font-weight: bold; color: #8B4513; margin: 0 0 10px 0; }
-              .subtitle { font-size: 14px; color: #666; margin: 0; }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #2F4D49; }
+              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #7A402E; padding-bottom: 20px; }
+              .title { font-size: 24px; font-weight: bold; color: #7A402E; margin: 0 0 10px 0; }
+              .subtitle { font-size: 14px; color: #61603C; margin: 0; }
               table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
               .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #999; }
             </style>
@@ -307,27 +328,31 @@ export default function Reportes() {
           <body>
             <div class="header">
               <h1 class="title">ECENCIA ANDINA</h1>
-              <p class="subtitle">${title}</p>
-              <p class="subtitle">Período: ${new Date(fechaInicio).toLocaleDateString('es-EC')} - ${new Date(fechaFin).toLocaleDateString('es-EC')}</p>
+              <p class="subtitle">${safeTitle}</p>
+              <p class="subtitle">Período: ${safeFechaInicio} - ${safeFechaFin}</p>
             </div>
             <table>
               ${htmlRows}
             </table>
             <div class="footer">
-              Generado el ${new Date().toLocaleString('es-EC')}
+              Generado el ${escapeHtml(new Date().toLocaleString('es-EC'))}
             </div>
           </body>
         </html>
       `;
 
-      printWindow.document.write(contenido);
-      printWindow.document.close();
-      
+      const printWindow = openPrintWindow(contenido);
+      if (!printWindow) {
+        toast.error('El navegador bloqueó la ventana emergente');
+        return;
+      }
+
       setTimeout(() => {
         printWindow.focus();
         printWindow.print();
       }, 500);
     } catch (err) {
+      console.error('Error generando el PDF del reporte:', err);
       toast.error('Error al generar el documento PDF');
     }
   };
@@ -346,7 +371,12 @@ export default function Reportes() {
         reportData.forEach(row => {
           xmlContent += `    <item>\n`;
           xmlContent += `      <metodoPago>${row.metodo_pago}</metodoPago>\n`;
-          xmlContent += `      <cantidadAlmuerzos>${row.cantidadAlmuerzos}</cantidadAlmuerzos>\n`;
+          xmlContent += `      <almuerzosPrincipales>${toFiniteNumber(row.almuerzosPrincipales ?? row.cantidadAlmuerzos)}</almuerzosPrincipales>\n`;
+          SALES_LUNCH_COLUMNS.forEach((column) => {
+            xmlContent += `      <${column.xmlTag}>${toFiniteNumber(row[column.key])}</${column.xmlTag}>\n`;
+          });
+          xmlContent += `      <extrasCantidad>${toFiniteNumber(row.extrasCantidad)}</extrasCantidad>\n`;
+          xmlContent += `      <valorExtras>${formatMoney(row.valorExtras)}</valorExtras>\n`;
           xmlContent += `      <totalConsumo>${row.totalConsumo.toFixed(2)}</totalConsumo>\n`;
           xmlContent += `    </item>\n`;
         });
@@ -413,9 +443,10 @@ export default function Reportes() {
       link.setAttribute('download', `reporte_${reportType}_${fechaInicio}_al_${fechaFin}.xml`);
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       toast.success('Archivo XML descargado exitosamente');
     } catch (err) {
+      console.error('Error exportando el reporte a XML:', err);
       toast.error('Error al exportar reporte a XML');
     }
   };
@@ -427,11 +458,21 @@ export default function Reportes() {
       let rows: string[][] = [];
 
       if (reportType === 'ventas') {
-        headers = ['Método de Pago', 'Cantidad de Almuerzos', 'Ingresos Generados'];
+        headers = [
+          'Método de Pago',
+          'Almuerzos Principales',
+          ...SALES_LUNCH_COLUMNS.map((column) => column.label),
+          'Extras',
+          'Valor Extras',
+          'Ingresos Generados'
+        ];
         rows = reportData.map(row => [
           row.metodo_pago,
-          row.cantidadAlmuerzos.toString(),
-          `$${row.totalConsumo.toFixed(2)}`
+          toFiniteNumber(row.almuerzosPrincipales ?? row.cantidadAlmuerzos).toString(),
+          ...SALES_LUNCH_COLUMNS.map((column) => toFiniteNumber(row[column.key]).toString()),
+          toFiniteNumber(row.extrasCantidad).toString(),
+          `$${formatMoney(row.valorExtras)}`,
+          `$${formatMoney(row.totalConsumo)}`
         ]);
       } else if (reportType === 'estados' || reportType === 'clientes') {
         headers = [
@@ -497,7 +538,7 @@ export default function Reportes() {
       const totalLabel = reportType === 'estados' && idEstado === '3' ? 'Total Cancelado' : 'Total Neto';
       
       // Match total column length
-      const totalRow = Array(headers.length).fill('');
+      const totalRow = new Array(headers.length).fill('');
       totalRow[headers.length - 2] = totalLabel;
       totalRow[headers.length - 1] = `$${totalAmount.toFixed(2)}`;
       csvRows.push(totalRow.map(cell => `"${cell}"`).join(','));
@@ -510,9 +551,10 @@ export default function Reportes() {
       link.setAttribute('download', `facturacion_${reportType}_${fechaInicio}_al_${fechaFin}.csv`);
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       toast.success('Archivo de facturación CSV descargado exitosamente');
     } catch (err) {
+      console.error('Error generando el CSV de facturación:', err);
       toast.error('Error al generar archivo de facturación CSV');
     }
   };
@@ -697,15 +739,20 @@ export default function Reportes() {
                 <p>No se encontraron datos para los parámetros seleccionados.</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-                <Table>
+              <div className="rounded-xl border border-border overflow-x-auto shadow-sm">
+                <Table className={reportType === 'ventas' ? 'min-w-[1240px]' : undefined}>
                   <TableHeader>
                     <TableRow className="bg-secondary/20 hover:bg-secondary/20">
                       
                       {reportType === 'ventas' && (
                         <>
                           <TableHead className="text-cafe font-bold">Método de Pago</TableHead>
-                          <TableHead className="text-center text-cafe font-bold">Cant. Almuerzos</TableHead>
+                          <TableHead className="text-center text-cafe font-bold">Principales</TableHead>
+                          {SALES_LUNCH_COLUMNS.map((column) => (
+                            <TableHead key={column.key} className="text-center text-cafe font-bold">{column.label}</TableHead>
+                          ))}
+                          <TableHead className="text-center text-cafe font-bold">Extras</TableHead>
+                          <TableHead className="text-right text-cafe font-bold">Valor extras</TableHead>
                           <TableHead className="text-right text-cafe font-bold">Ingresos Generados</TableHead>
                         </>
                       )}
@@ -752,16 +799,21 @@ export default function Reportes() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {reportType === 'ventas' && reportData.map((row, i) => (
-                      <TableRow key={i}>
+                    {reportType === 'ventas' && reportData.map((row) => (
+                      <TableRow key={row.rowId}>
                         <TableCell className="font-medium">{row.metodo_pago}</TableCell>
-                        <TableCell className="text-center">{row.cantidadAlmuerzos}</TableCell>
-                        <TableCell className="text-right font-semibold text-green-700">${row.totalConsumo.toFixed(2)}</TableCell>
+                        <TableCell className="text-center">{toFiniteNumber(row.almuerzosPrincipales ?? row.cantidadAlmuerzos)}</TableCell>
+                        {SALES_LUNCH_COLUMNS.map((column) => (
+                          <TableCell key={column.key} className="text-center">{toFiniteNumber(row[column.key])}</TableCell>
+                        ))}
+                        <TableCell className="text-center">{toFiniteNumber(row.extrasCantidad)}</TableCell>
+                        <TableCell className="text-right font-semibold text-cafe">${formatMoney(row.valorExtras)}</TableCell>
+                        <TableCell className="text-right font-semibold text-cafe">${formatMoney(row.totalConsumo)}</TableCell>
                       </TableRow>
                     ))}
 
-                    {(reportType === 'estados' || reportType === 'clientes') && reportData.map((row, i) => (
-                      <TableRow key={i}>
+                    {(reportType === 'estados' || reportType === 'clientes') && reportData.map((row) => (
+                      <TableRow key={row.rowId}>
                         <TableCell className="text-xs">{new Date(row.fecha).toLocaleString()}</TableCell>
                         {reportType === 'estados' && <TableCell className="font-medium">{row.cliente}</TableCell>}
                         {reportType === 'clientes' && <TableCell className="font-medium">{row.convenio || 'N/A'}</TableCell>}
@@ -779,8 +831,8 @@ export default function Reportes() {
                       </TableRow>
                     ))}
 
-                    {reportType === 'productos' && reportData.map((row, i) => (
-                      <TableRow key={i}>
+                    {reportType === 'productos' && reportData.map((row) => (
+                      <TableRow key={row.rowId}>
                         <TableCell className="font-medium">{row.nombre}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{row.categoria}</TableCell>
                         <TableCell className="text-center">{row.cantidadVendida}</TableCell>
@@ -788,10 +840,10 @@ export default function Reportes() {
                       </TableRow>
                     ))}
 
-                    {reportType === 'convenio' && !desglosarConvenio && reportData.map((emp: ColaboradorConsumo, i) => {
+                    {reportType === 'convenio' && !desglosarConvenio && reportData.map((emp: ColaboradorConsumo) => {
                       const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
                       return (
-                        <TableRow key={i}>
+                        <TableRow key={emp.cedula}>
                           <TableCell className="font-medium">{emp.empleado}</TableCell>
                           <TableCell>{emp.cedula}</TableCell>
                           <TableCell className="text-center">{totalAlmuerzos}</TableCell>
@@ -802,14 +854,15 @@ export default function Reportes() {
 
                     {reportType === 'convenio' && desglosarConvenio && reportData.flatMap((emp: ColaboradorConsumo) =>
                       (emp.consumos || []).map((c: Consumo) => ({
+                        rowId: `${emp.cedula}|${c.fecha}|${c.producto}|${c.cantidad}|${c.valor}`,
                         cliente: emp.empleado,
                         fecha: c.fecha,
                         producto: c.producto,
                         cantidad: c.cantidad,
                         valor: c.valor
                       }))
-                    ).map((row, i) => (
-                      <TableRow key={i}>
+                    ).map((row) => (
+                      <TableRow key={row.rowId}>
                         <TableCell className="font-medium">{row.cliente}</TableCell>
                         <TableCell className="text-xs">{new Date(row.fecha).toLocaleString()}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{row.producto}</TableCell>

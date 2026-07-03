@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Pencil, User, Phone, Search, IdCard, Users, Building2, Trash2, Filter, Activity, UserCheck, Wallet } from 'lucide-react';
+import { Plus, Pencil, User, Phone, Search, IdCard, Users, Building2, Trash2, Filter, Activity, UserCheck, Wallet, Mail, Send, Banknote } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import {
@@ -47,7 +47,28 @@ import {
 import { WalletDialog } from '@/components/clients/WalletDialog';
 import { RechargeDialog } from '@/components/clients/RechargeDialog';
 import { useClientsAndConvenios } from '@/hooks/useClientsAndConvenios';
-import { Banknote } from 'lucide-react';
+import { isConvenioVigente, isValidPersonName, normalizePersonName, sanitizePersonNameInput } from '@/lib/businessRules';
+import { FIELD_LIMITS, isValidEmail, normalizeEmail, onlyDigits, normalizePhone } from '@/lib/validation';
+import { emailBadgeVariant, emailStatusLabel } from './convenios.helpers';
+
+const FRECUENTE_CLIENT_TYPE = 1;
+const CONVENIO_CLIENT_TYPE = 2;
+
+const matchesClientFilters = (c: Client, searchTerm: string, filterType: string, filterStatus: string) => {
+  const term = searchTerm.toLowerCase();
+  const matchesSearch =
+    `${c.nombre} ${c.apellido}`.toLowerCase().includes(term) ||
+    c.cedula.includes(searchTerm) ||
+    c.email?.toLowerCase().includes(term) ||
+    c.telefono?.includes(searchTerm);
+
+  const matchesType = filterType === 'all' || String(c.id_tipo_cliente) === filterType;
+  const matchesStatus = filterStatus === 'all' ||
+    (filterStatus === 'active' && c.activo) ||
+    (filterStatus === 'inactive' && !c.activo);
+
+  return Boolean(matchesSearch) && matchesType && matchesStatus;
+};
 
 export default function Clientes() {
   const queryClient = useQueryClient();
@@ -59,6 +80,7 @@ export default function Clientes() {
 
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [resendingClientId, setResendingClientId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -73,8 +95,9 @@ export default function Clientes() {
     cedula: '',
     nombre: '',
     apellido: '',
+    email: '',
     telefono: '',
-    id_tipo_cliente: 1,
+    id_tipo_cliente: FRECUENTE_CLIENT_TYPE,
     id_convenio: '',
   });
 
@@ -106,19 +129,7 @@ export default function Clientes() {
   };
 
   // --- FILTRO DE BÚSQUEDA ---
-  const filteredClients = clients.filter((c) => {
-    const matchesSearch =
-      `${c.nombre} ${c.apellido}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.cedula.includes(searchTerm) ||
-      (c.telefono && c.telefono.includes(searchTerm));
-
-    const matchesType = filterType === 'all' || String(c.id_tipo_cliente) === filterType;
-    const matchesStatus = filterStatus === 'all' ||
-      (filterStatus === 'active' && c.activo) ||
-      (filterStatus === 'inactive' && !c.activo);
-
-    return matchesSearch && matchesType && matchesStatus;
-  });
+  const filteredClients = clients.filter((c) => matchesClientFilters(c, searchTerm, filterType, filterStatus));
 
   // --- FORMULARIO: ABRIR NUEVO ---
   const handleOpenNew = () => {
@@ -127,8 +138,9 @@ export default function Clientes() {
       cedula: '',
       nombre: '',
       apellido: '',
+      email: '',
       telefono: '',
-      id_tipo_cliente: clientTypes[0]?.id_tipo_cliente || 1,
+      id_tipo_cliente: FRECUENTE_CLIENT_TYPE,
       id_convenio: '',
     });
     setDialogOpen(true);
@@ -141,6 +153,7 @@ export default function Clientes() {
       cedula: client.cedula,
       nombre: client.nombre,
       apellido: client.apellido,
+      email: client.email || '',
       telefono: client.telefono,
       id_tipo_cliente: client.id_tipo_cliente || 1,
       id_convenio: client.convenio?.id || '',
@@ -155,8 +168,8 @@ export default function Clientes() {
 
   // --- GUARDAR (CREAR O ACTUALIZAR) ---
   const handleSave = async () => {
-    if (!formData.cedula || !formData.nombre || !formData.apellido) {
-      toast.error('Cédula, nombre y apellido son requeridos');
+    if (!formData.cedula || !formData.nombre || !formData.apellido || (!editingClient && !formData.email)) {
+      toast.error('Cédula, nombre, apellido y correo son requeridos');
       return;
     }
 
@@ -165,13 +178,32 @@ export default function Clientes() {
       return;
     }
 
+    if (!isValidPersonName(formData.nombre) || !isValidPersonName(formData.apellido)) {
+      toast.error('Nombre y apellido solo deben contener letras y separadores validos');
+      return;
+    }
+
+    if (formData.email && !isValidEmail(formData.email)) {
+      toast.error('El correo no es valido');
+      return;
+    }
+
     setIsSaving(true);
     try {
+      const payload = {
+        ...formData,
+        cedula: onlyDigits(formData.cedula),
+        nombre: normalizePersonName(formData.nombre),
+        apellido: normalizePersonName(formData.apellido),
+        email: normalizeEmail(formData.email),
+        telefono: normalizePhone(formData.telefono),
+      };
+
       if (editingClient) {
         // ACTUALIZAR
         const response = await apiFetch(`/clientes/${editingClient.id}`, {
           method: 'PUT',
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
         const data = await response.json();
 
@@ -186,13 +218,20 @@ export default function Clientes() {
         // CREAR
         const response = await apiFetch('/clientes', {
           method: 'POST',
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
         const data = await response.json();
 
         if (response.ok) {
           fetchClientes();
-          toast.success('Cliente registrado correctamente');
+          const emailStatus = data.invitationResult?.emailStatus;
+          if (emailStatus && emailStatus !== 'sent') {
+            toast.warning(
+              'Cliente registrado, pero el correo de invitación no se pudo enviar (límite del proveedor de correo). Usa "Reenviar invitación" más tarde.',
+            );
+          } else {
+            toast.success('Cliente registrado correctamente');
+          }
           setDialogOpen(false);
         } else {
           toast.error(data.error || 'Error al crear el cliente');
@@ -203,6 +242,38 @@ export default function Clientes() {
       toast.error('Error de conexión con el servidor');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleResendInvitation = async (client: Client) => {
+    if (!client.email) {
+      toast.error('El cliente no tiene correo registrado');
+      return;
+    }
+
+    setResendingClientId(client.id);
+    try {
+      const response = await apiFetch(`/clientes/${client.id}/telegram-invitacion`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        fetchClientes();
+        const statusText = emailStatusLabel(data.emailStatus);
+        if (data.emailStatus === 'sent') {
+          toast.success(`Invitación enviada a ${data.emailTo || client.email}`);
+        } else {
+          toast.warning(`Invitación generada, correo: ${statusText}`);
+        }
+      } else {
+        toast.error(data.error || 'No se pudo reenviar la invitacion');
+      }
+    } catch (err) {
+      console.error('Error reenviando invitacion:', err);
+      toast.error('Error de conexion al reenviar invitacion');
+    } finally {
+      setResendingClientId(null);
     }
   };
 

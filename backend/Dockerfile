@@ -1,14 +1,17 @@
 FROM node:18-alpine
 
-WORKDIR /app
+# Crear directorio de trabajo
+WORKDIR /usr/src/app
 
+# Instalar dependencias
 COPY package*.json ./
+RUN npm install --production
 
-RUN npm install
-
+# Copiar el resto del código
 COPY . .
 
-EXPOSE 3000
+# Exponer el puerto del backend
+EXPOSE 3001
 
-CMD ["npm", "start"]
-
+# Iniciar la aplicación
+CMD ["node", "index.js"]

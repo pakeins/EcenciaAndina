@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Plus, Pencil, Users, Building2, Mail, Phone, CalendarDays, Trash2, Search, UserPlus, ArrowLeft, FileDown, ShieldCheck, Eye, Upload, History, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, API_BASE_URL } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { differenceInYears } from 'date-fns';
 
@@ -454,7 +454,7 @@ interface ReportEmployee {
     try {
       // Usamos fetch directo para manejar FormData correctamente sin los headers JSON de apiFetch
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/convenios/${id}/upload`, {
+      const response = await fetch(`${API_BASE_URL}/convenios/${id}/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

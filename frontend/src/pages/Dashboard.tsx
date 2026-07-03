@@ -12,7 +12,20 @@ import {
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
-import { UtensilsCrossed, CalendarDays, Building2, Users, Loader2, RefreshCw } from 'lucide-react';
+import {
+  UtensilsCrossed,
+  CalendarDays,
+  Building2,
+  Users,
+  Loader2,
+  RefreshCw,
+  ChefHat,
+  Leaf,
+  ListPlus,
+  Soup,
+  Sparkles,
+  PackagePlus,
+} from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -39,6 +52,18 @@ export default function Dashboard() {
     almuerzosMesDesc?: string;
     conveniosActivos: number;
     clientesFrecuentes: number;
+    ejecutivoCompleto?: number;
+    ejecutivoSinSopa?: number;
+    ejecutivoSimple?: number;
+    almuerzoDia?: number;
+    almuerzoDiaSimple?: number;
+    otrosAlmuerzos?: number;
+    segundosAlmuerzos?: number;
+    vegetarianos?: number;
+    especiales?: number;
+    almuerzosConExtras?: number;
+    extrasCantidad?: number;
+    valorExtras?: number;
   } | null>(null);
   const [consumosPorDia, setConsumosPorDia] = useState<{ name: string; value: number }[]>([]);
   const [consumosPorConvenio, setConsumosPorConvenio] = useState<{ name: string; value: number }[]>([]);
@@ -211,6 +236,42 @@ export default function Dashboard() {
       icon: Users,
       description: 'Clientes registrados',
     },
+    {
+      title: 'Ejecutivo Completo',
+      value: metricsData?.ejecutivoCompleto ?? 0,
+      icon: ListPlus,
+      description: 'Entrada, sopa, plato fuerte, postre y bebida',
+    },
+    {
+      title: 'Ejecutivo Sin Sopa',
+      value: metricsData?.ejecutivoSinSopa ?? 0,
+      icon: Leaf,
+      description: 'Entrada, plato fuerte, postre y bebida',
+    },
+    {
+      title: 'Ejecutivo Simple',
+      value: metricsData?.ejecutivoSimple ?? 0,
+      icon: ChefHat,
+      description: 'Plato fuerte, postre y bebida',
+    },
+    {
+      title: 'Almuerzo Dia',
+      value: metricsData?.almuerzoDia ?? 0,
+      icon: Soup,
+      description: 'Sopa, plato fuerte y bebida',
+    },
+    {
+      title: 'Dia Simple',
+      value: metricsData?.almuerzoDiaSimple ?? 0,
+      icon: Sparkles,
+      description: 'Plato fuerte y bebida',
+    },
+    {
+      title: 'Extras',
+      value: `$${(metricsData?.valorExtras ?? 0).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: PackagePlus,
+      description: `${metricsData?.extrasCantidad ?? 0} extras registrados`,
+    },
   ];
 
   if (loading) {
@@ -285,9 +346,9 @@ export default function Dashboard() {
       {/* Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {metrics.map((metric, index) => {
-          const colors = ['border-l-primary', 'border-l-terracota', 'border-l-oro', 'border-l-secondary'];
-          const bgColors = ['bg-primary/5', 'bg-terracota/5', 'bg-oro/5', 'bg-secondary/5'];
-          const iconColors = ['text-primary', 'text-terracota', 'text-oro', 'text-secondary'];
+          const colors = ['border-l-primary', 'border-l-terracota', 'border-l-oro', 'border-l-secondary', 'border-l-cafe'];
+          const bgColors = ['bg-primary/5', 'bg-terracota/5', 'bg-oro/5', 'bg-secondary/5', 'bg-cafe/5'];
+          const iconColors = ['text-primary', 'text-terracota', 'text-oro', 'text-secondary', 'text-cafe'];
           
           return (
             <Card 
@@ -321,9 +382,9 @@ export default function Dashboard() {
       </div>
 
       {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
         {/* Consumos por Día */}
-        <Card className="border-border">
+        <Card className="min-w-0 border-border">
           <CardHeader>
             <CardTitle className="text-foreground">Consumos por Día</CardTitle>
             <CardDescription>
@@ -335,7 +396,7 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[300px] min-h-[300px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={consumosPorDia}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -356,7 +417,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Consumos por Convenio */}
-        <Card className="border-border">
+        <Card className="min-w-0 border-border">
           <CardHeader>
             <CardTitle className="text-foreground">Consumos por Convenio</CardTitle>
             <CardDescription>
@@ -366,7 +427,7 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[300px] min-h-[300px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -378,9 +439,9 @@ export default function Dashboard() {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {consumosPorConvenio.map((_, index) => (
+                    {consumosPorConvenio.map((entry, index) => (
                       <Cell
-                        key={`cell-${index}`}
+                        key={`cell-${entry.name}`}
                         fill={CHART_COLORS[index % CHART_COLORS.length]}
                       />
                     ))}

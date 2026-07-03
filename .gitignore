@@ -20,3 +20,7 @@ backend/scratch/
 # Convenios generados y scripts de verificacion
 convenios/*.pdf
 check_*.js
+
+# Archivos de despliegue temporales
+backend.tar.gz
+backend/.env

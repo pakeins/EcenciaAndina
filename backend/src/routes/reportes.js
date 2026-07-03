@@ -3,6 +3,11 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const {
+  compactLunchSummary,
+  formatDetailDescription,
+  summarizeOrderDetails,
+} = require('../services/lunchTypes');
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
@@ -42,8 +47,8 @@ const getEcuadorWeekRange = (date = new Date()) => {
 const getEcuadorMonthRange = (date = new Date()) => {
   const dayRange = getEcuadorDayRange(date);
   const [yearStr, monthStr] = dayRange.dateStr.split('-');
-  const year = parseInt(yearStr);
-  const month = parseInt(monthStr);
+  const year = Number.parseInt(yearStr, 10);
+  const month = Number.parseInt(monthStr, 10);
   
   const startLocalStr = `${yearStr}-${monthStr}-01`;
   const startUtc = new Date(`${startLocalStr}T05:00:00.000Z`);
@@ -74,26 +79,143 @@ const getLocalDayName = (utcDateStr, timeZone = 'America/Guayaquil') => {
   return map[weekday] || 'Otros';
 };
 
+const ORDER_DETAIL_SELECT = `
+  id_orden, created_at, id_estado,
+  detalle_orden(
+    cantidad,
+    precio_aplicado,
+    id_tipo_almuerzo,
+    tipos_almuerzo(codigo, nombre),
+    productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+  )
+`;
+
+// Rango filtrado en UTC (Ecuador 00:00 local = 05:00 UTC).
+const resolveDashboardFilter = ({ fecha_inicio, fecha_fin }) => {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!fecha_inicio || !fecha_fin || !dateRegex.test(fecha_inicio) || !dateRegex.test(fecha_fin)) {
+    return { useFilter: false };
+  }
+  const nextDay = new Date(new Date(fecha_fin).getTime() + 24 * 60 * 60 * 1000);
+  const nextDayStr = nextDay.toISOString().split('T')[0];
+  return {
+    useFilter: true,
+    filterStart: `${fecha_inicio}T05:00:00.000Z`,
+    filterEnd: `${nextDayStr}T04:59:59.999Z`,
+  };
+};
+
+const KPI_KEYS = [
+  'almuerzosPrincipales',
+  'ejecutivoCompleto',
+  'ejecutivoSinSopa',
+  'ejecutivoSimple',
+  'almuerzoDia',
+  'almuerzoDiaSimple',
+  'otrosAlmuerzos',
+  'segundosAlmuerzos',
+  'vegetarianos',
+  'especiales',
+  'almuerzosConExtras',
+  'extrasCantidad',
+  'extrasTotal',
+  'totalConsumo',
+];
+
+const sumKpiSummaries = (orders) =>
+  (orders || []).reduce((acc, order) => {
+    const summary = summarizeOrderDetails(order.detalle_orden || []);
+    for (const key of KPI_KEYS) acc[key] += summary[key];
+    return acc;
+  }, Object.fromEntries(KPI_KEYS.map((key) => [key, 0])));
+
+const fetchMonthlyLunchCount = async (adminClient, monthRange) => {
+  const { data: ordersMonth, error } = await adminClient
+    .from('ordenes')
+    .select(ORDER_DETAIL_SELECT)
+    .eq('id_estado', 2)
+    .gte('created_at', monthRange.start)
+    .lte('created_at', monthRange.end);
+
+  if (error) throw error;
+  return (ordersMonth || []).reduce(
+    (total, o) => total + summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales,
+    0,
+  );
+};
+
+const buildConsumosPorDiaFiltrado = (ordersChart, fecha_inicio, fecha_fin) => {
+  const dateMap = {};
+  const DAY_MS = 86400000;
+  for (let time = new Date(fecha_inicio).getTime(); time <= new Date(fecha_fin).getTime(); time += DAY_MS) {
+    const dateStr = new Date(time).toISOString().split('T')[0];
+    const [, m, dayVal] = dateStr.split('-');
+    dateMap[`${dayVal}/${m}`] = 0;
+  }
+
+  ordersChart.forEach((o) => {
+    const localDateStr = getEcuadorDayRange(new Date(o.created_at)).dateStr;
+    const [, m, dayVal] = localDateStr.split('-');
+    const shortDate = `${dayVal}/${m}`;
+    if (dateMap[shortDate] !== undefined) {
+      dateMap[shortDate] += summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
+    }
+  });
+
+  return Object.keys(dateMap).map((name) => ({ name, value: dateMap[name] }));
+};
+
+const buildConsumosPorSemana = (ordersChart) => {
+  const weekMap = { 'Lun': 0, 'Mar': 0, 'Mié': 0, 'Jue': 0, 'Vie': 0, 'Sáb': 0, 'Dom': 0 };
+  ordersChart.forEach((o) => {
+    const dayName = getLocalDayName(o.created_at);
+    if (weekMap[dayName] !== undefined) {
+      weekMap[dayName] += summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
+    }
+  });
+  return Object.keys(weekMap).map((name) => ({ name, value: weekMap[name] }));
+};
+
+const buildConsumosPorConvenio = (ordersConvenio) => {
+  const convenioMap = {};
+  ordersConvenio.forEach((o) => {
+    const convenio = o.clientes?.clientes_convenios?.[0]?.convenios?.nombre_empresa || 'Clientes';
+    convenioMap[convenio] = (convenioMap[convenio] || 0) + summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
+  });
+  return Object.keys(convenioMap).map((name) => ({ name, value: convenioMap[name] }));
+};
+
+const buildActividadReciente = (recentOrders) =>
+  (recentOrders || []).map((o) => ({
+    id: o.id_orden,
+    fecha: o.created_at,
+    cliente: o.clientes ? `${o.clientes.nombre} ${o.clientes.apellido}` : 'Cliente Desconocido',
+    descripcion: o.detalle_orden?.map(formatDetailDescription).join(', ') || 'Sin detalles',
+    metodo_pago: o.metodo_pago || 'N/A',
+    estado: o.estados_orden?.nombre_estado || 'Desconocido',
+  }));
+
+const buildTopProducts = (ordersKpi) => {
+  const productCounts = {};
+  ordersKpi.forEach((o) => {
+    o.detalle_orden?.forEach((d) => {
+      const name = d.productos?.nombre_producto || 'Desconocido';
+      productCounts[name] = (productCounts[name] || 0) + d.cantidad;
+    });
+  });
+
+  return Object.keys(productCounts)
+    .map((name) => ({ name, value: productCounts[name] }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 4);
+};
+
 // GET /dashboard - Métricas y analíticas en tiempo real (admite filtros opcionales de fecha)
 router.get('/dashboard', async (req, res) => {
   try {
     const adminClient = getAdminClient();
     const { fecha_inicio, fecha_fin } = req.query;
-
-    let useFilter = false;
-    let filterStart, filterEnd;
-    if (fecha_inicio && fecha_fin) {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (dateRegex.test(fecha_inicio) && dateRegex.test(fecha_fin)) {
-        useFilter = true;
-        // Start of date range (Ecuador timezone 00:00:00 is 05:00:00 UTC)
-        filterStart = `${fecha_inicio}T05:00:00.000Z`;
-        // End of date range: we calculate 04:59:59.999 UTC of the day after fecha_fin
-        const nextDay = new Date(new Date(fecha_fin).getTime() + 24 * 60 * 60 * 1000);
-        const nextDayStr = nextDay.toISOString().split('T')[0];
-        filterEnd = `${nextDayStr}T04:59:59.999Z`;
-      }
-    }
+    const { useFilter, filterStart, filterEnd } = resolveDashboardFilter(req.query);
 
     const now = new Date();
     const dayRange = getEcuadorDayRange(now);
@@ -106,62 +228,27 @@ router.get('/dashboard', async (req, res) => {
     // 1. Almuerzos en el periodo (id_estado = 2, id_categoria = 1)
     const { data: ordersKpi, error: errKpi } = await adminClient
       .from('ordenes')
-      .select(`
-        id_orden, created_at, id_estado,
-        detalle_orden(cantidad, productos(id_categoria, nombre_producto))
-      `)
+      .select(ORDER_DETAIL_SELECT)
       .eq('id_estado', 2)
       .gte('created_at', kpiStart)
       .lte('created_at', kpiEnd);
 
     if (errKpi) throw errKpi;
 
-    let lunchesPeriod = 0;
-    ordersKpi.forEach(o => {
-      o.detalle_orden?.forEach(d => {
-        if (d.productos?.id_categoria === 1) {
-          lunchesPeriod += d.cantidad;
-        }
-      });
-    });
+    const kpiSummary = sumKpiSummaries(ordersKpi);
+    const lunchesPeriod = kpiSummary.almuerzosPrincipales;
 
     // 2. Almuerzos del Mes (o ingresos si hay filtro)
-    let secondaryKpiValue = 0;
+    let secondaryKpiValue;
     let secondaryKpiTitle = 'Almuerzos del Mes';
     let secondaryKpiDesc = 'Total acumulado mensual';
 
     if (useFilter) {
       secondaryKpiTitle = 'Ingresos por Almuerzos';
       secondaryKpiDesc = 'Ventas del periodo filtrado';
-      
-      ordersKpi.forEach(o => {
-        o.detalle_orden?.forEach(d => {
-          if (d.productos?.id_categoria === 1) {
-            secondaryKpiValue += d.cantidad * parseFloat(d.precio_aplicado || 0);
-          }
-        });
-      });
-      secondaryKpiValue = parseFloat(secondaryKpiValue.toFixed(2));
+      secondaryKpiValue = Number.parseFloat(kpiSummary.totalConsumo.toFixed(2));
     } else {
-      const { data: ordersMonth, error: errMonth } = await adminClient
-        .from('ordenes')
-        .select(`
-          id_orden, created_at, id_estado,
-          detalle_orden(cantidad, productos(id_categoria))
-        `)
-        .eq('id_estado', 2)
-        .gte('created_at', monthRange.start)
-        .lte('created_at', monthRange.end);
-
-      if (errMonth) throw errMonth;
-
-      ordersMonth.forEach(o => {
-        o.detalle_orden?.forEach(d => {
-          if (d.productos?.id_categoria === 1) {
-            secondaryKpiValue += d.cantidad;
-          }
-        });
-      });
+      secondaryKpiValue = await fetchMonthlyLunchCount(adminClient, monthRange);
     }
 
     // 3. Convenios Activos
@@ -186,64 +273,16 @@ router.get('/dashboard', async (req, res) => {
 
     const { data: ordersChart, error: errChart } = await adminClient
       .from('ordenes')
-      .select(`
-        id_orden, created_at, id_estado,
-        detalle_orden(cantidad, productos(id_categoria))
-      `)
+      .select(ORDER_DETAIL_SELECT)
       .eq('id_estado', 2)
       .gte('created_at', chartStart)
       .lte('created_at', chartEnd);
 
     if (errChart) throw errChart;
 
-    let consumosPorDia = [];
-    if (useFilter) {
-      const dateMap = {};
-      const startD = new Date(fecha_inicio);
-      const endD = new Date(fecha_fin);
-      
-      // Inicializar el mapa de fechas
-      for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        const [, m, dayVal] = dateStr.split('-');
-        dateMap[`${dayVal}/${m}`] = 0;
-      }
-
-      ordersChart.forEach(o => {
-        const localDateStr = getEcuadorDayRange(new Date(o.created_at)).dateStr;
-        const [, m, dayVal] = localDateStr.split('-');
-        const shortDate = `${dayVal}/${m}`;
-        o.detalle_orden?.forEach(d => {
-          if (d.productos?.id_categoria === 1) {
-            if (dateMap[shortDate] !== undefined) {
-              dateMap[shortDate] += d.cantidad;
-            }
-          }
-        });
-      });
-
-      consumosPorDia = Object.keys(dateMap).map(name => ({
-        name,
-        value: dateMap[name]
-      }));
-    } else {
-      const weekMap = { 'Lun': 0, 'Mar': 0, 'Mié': 0, 'Jue': 0, 'Vie': 0, 'Sáb': 0, 'Dom': 0 };
-      ordersChart.forEach(o => {
-        const dayName = getLocalDayName(o.created_at);
-        o.detalle_orden?.forEach(d => {
-          if (d.productos?.id_categoria === 1) {
-            if (weekMap[dayName] !== undefined) {
-              weekMap[dayName] += d.cantidad;
-            }
-          }
-        });
-      });
-
-      consumosPorDia = Object.keys(weekMap).map(name => ({
-        name,
-        value: weekMap[name]
-      }));
-    }
+    const consumosPorDia = useFilter
+      ? buildConsumosPorDiaFiltrado(ordersChart, fecha_inicio, fecha_fin)
+      : buildConsumosPorSemana(ordersChart);
 
     // 6. Consumos por Convenio (Mes por defecto, o periodo filtrado)
     const convenioStart = useFilter ? filterStart : monthRange.start;
@@ -259,7 +298,13 @@ router.get('/dashboard', async (req, res) => {
             convenios(nombre_empresa)
           )
         ),
-        detalle_orden(cantidad, productos(id_categoria))
+        detalle_orden(
+          cantidad,
+          precio_aplicado,
+          id_tipo_almuerzo,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+        )
       `)
       .eq('id_estado', 2)
       .gte('created_at', convenioStart)
@@ -267,20 +312,7 @@ router.get('/dashboard', async (req, res) => {
 
     if (errConvChart) throw errConvChart;
 
-    const convenioMap = {};
-    ordersConvenio.forEach(o => {
-      const convenio = o.clientes?.clientes_convenios?.[0]?.convenios?.nombre_empresa || 'Clientes';
-      o.detalle_orden?.forEach(d => {
-        if (d.productos?.id_categoria === 1) {
-          convenioMap[convenio] = (convenioMap[convenio] || 0) + d.cantidad;
-        }
-      });
-    });
-
-    const consumosPorConvenio = Object.keys(convenioMap).map(name => ({
-      name,
-      value: convenioMap[name]
-    }));
+    const consumosPorConvenio = buildConsumosPorConvenio(ordersConvenio);
 
     // 7. Actividad Reciente (Últimos 5 consumos registrados)
     const { data: recentOrders, error: errRecent } = await adminClient
@@ -289,38 +321,25 @@ router.get('/dashboard', async (req, res) => {
         id_orden, created_at, id_estado, metodo_pago,
         clientes(nombre, apellido),
         estados_orden(nombre_estado),
-        detalle_orden(cantidad, productos(nombre_producto))
+        detalle_orden(
+          cantidad,
+          precio_aplicado,
+          id_tipo_almuerzo,
+          observaciones_tipo,
+          opciones,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+        )
       `)
       .order('created_at', { ascending: false })
       .limit(5);
 
     if (errRecent) throw errRecent;
 
-    const actividadReciente = (recentOrders || []).map(o => {
-      const desc = o.detalle_orden?.map(d => `${d.cantidad}x ${d.productos?.nombre_producto}`).join(', ') || 'Sin detalles';
-      return {
-        id: o.id_orden,
-        fecha: o.created_at,
-        cliente: o.clientes ? `${o.clientes.nombre} ${o.clientes.apellido}` : 'Cliente Desconocido',
-        descripcion: desc,
-        metodo_pago: o.metodo_pago || 'N/A',
-        estado: o.estados_orden?.nombre_estado || 'Desconocido'
-      };
-    });
+    const actividadReciente = buildActividadReciente(recentOrders);
 
     // 8. Productos Más Vendidos (Top 4 en el periodo filtrado o mes por defecto)
-    const productCounts = {};
-    ordersKpi.forEach(o => {
-      o.detalle_orden?.forEach(d => {
-        const name = d.productos?.nombre_producto || 'Desconocido';
-        productCounts[name] = (productCounts[name] || 0) + d.cantidad;
-      });
-    });
-
-    const topProducts = Object.keys(productCounts)
-      .map(name => ({ name, value: productCounts[name] }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 4);
+    const topProducts = buildTopProducts(ordersKpi);
 
     res.json({
       metrics: {
@@ -330,6 +349,18 @@ router.get('/dashboard', async (req, res) => {
         almuerzosMes: secondaryKpiValue,
         almuerzosMesTitle: secondaryKpiTitle,
         almuerzosMesDesc: secondaryKpiDesc,
+        segundosAlmuerzos: kpiSummary.segundosAlmuerzos,
+        ejecutivoCompleto: kpiSummary.ejecutivoCompleto,
+        ejecutivoSinSopa: kpiSummary.ejecutivoSinSopa,
+        ejecutivoSimple: kpiSummary.ejecutivoSimple,
+        almuerzoDia: kpiSummary.almuerzoDia,
+        almuerzoDiaSimple: kpiSummary.almuerzoDiaSimple,
+        otrosAlmuerzos: kpiSummary.otrosAlmuerzos,
+        vegetarianos: kpiSummary.vegetarianos,
+        especiales: kpiSummary.especiales,
+        almuerzosConExtras: kpiSummary.almuerzosConExtras,
+        extrasCantidad: kpiSummary.extrasCantidad,
+        valorExtras: Number(kpiSummary.extrasTotal.toFixed(2)),
         conveniosActivos: conveniosActivos || 0,
         clientesFrecuentes: clientesFrecuentes || 0
       },
@@ -371,18 +402,24 @@ router.get('/ventas', async (req, res) => {
     let query = adminClient
       .from('ordenes')
       .select(`
-        id_orden, id_estado, metodo_pago, created_at,
-        detalle_orden ( cantidad, precio_aplicado )
-      `);
+        id_orden, id_estado, metodo_pago, created_at, consumed_at,
+        detalle_orden (
+          cantidad,
+          precio_aplicado,
+          id_tipo_almuerzo,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+        )
+      `)
+      .eq('id_estado', 2);
 
-    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
-    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
+    if (fecha_inicio) query = query.gte('consumed_at', fecha_inicio);
+    if (fecha_fin) query = query.lte('consumed_at', fecha_fin + 'T23:59:59.999Z');
 
     const { data: ordenes, error } = await query;
     if (error) throw error;
 
-    // Solo tomamos en cuenta consumidos (id_estado = 2) para ingresos reales
-    const consumidos = ordenes.filter(o => o.id_estado === 2);
+    const consumidos = ordenes || [];
 
     const resumen = {
       efectivo: { cantidad: 0, total: 0 },
@@ -401,23 +438,41 @@ router.get('/ventas', async (req, res) => {
       else if (metodo.includes('saldo') || metodo.includes('prepago')) key = 'saldo';
       else if (metodo.includes('transferencia')) key = 'transferencia';
 
-      let platos = 0;
-      let dinero = 0;
-
-      orden.detalle_orden.forEach(det => {
-        platos += det.cantidad;
-        dinero += det.cantidad * det.precio_aplicado;
-      });
-
-      resumen[key].cantidad += platos;
-      resumen[key].total += dinero;
+      const summary = summarizeOrderDetails(orden.detalle_orden || []);
+      resumen[key].cantidad += summary.almuerzosPrincipales;
+      resumen[key].ejecutivoCompleto = (resumen[key].ejecutivoCompleto || 0) + summary.ejecutivoCompleto;
+      resumen[key].ejecutivoSinSopa = (resumen[key].ejecutivoSinSopa || 0) + summary.ejecutivoSinSopa;
+      resumen[key].ejecutivoSimple = (resumen[key].ejecutivoSimple || 0) + summary.ejecutivoSimple;
+      resumen[key].almuerzoDia = (resumen[key].almuerzoDia || 0) + summary.almuerzoDia;
+      resumen[key].almuerzoDiaSimple = (resumen[key].almuerzoDiaSimple || 0) + summary.almuerzoDiaSimple;
+      resumen[key].otrosAlmuerzos = (resumen[key].otrosAlmuerzos || 0) + summary.otrosAlmuerzos;
+      resumen[key].segundosAlmuerzos = (resumen[key].segundosAlmuerzos || 0) + summary.segundosAlmuerzos;
+      resumen[key].vegetarianos = (resumen[key].vegetarianos || 0) + summary.vegetarianos;
+      resumen[key].especiales = (resumen[key].especiales || 0) + summary.especiales;
+      resumen[key].almuerzosConExtras = (resumen[key].almuerzosConExtras || 0) + summary.almuerzosConExtras;
+      resumen[key].extrasCantidad = (resumen[key].extrasCantidad || 0) + summary.extrasCantidad;
+      resumen[key].valorExtras = (resumen[key].valorExtras || 0) + summary.extrasTotal;
+      resumen[key].total += summary.totalConsumo;
     });
 
     const resultadoArray = Object.keys(resumen).map(k => ({
       metodo_pago: k.charAt(0).toUpperCase() + k.slice(1),
       cantidadAlmuerzos: resumen[k].cantidad,
+      almuerzosPrincipales: resumen[k].cantidad,
+      ejecutivoCompleto: resumen[k].ejecutivoCompleto || 0,
+      ejecutivoSinSopa: resumen[k].ejecutivoSinSopa || 0,
+      ejecutivoSimple: resumen[k].ejecutivoSimple || 0,
+      almuerzoDia: resumen[k].almuerzoDia || 0,
+      almuerzoDiaSimple: resumen[k].almuerzoDiaSimple || 0,
+      otrosAlmuerzos: resumen[k].otrosAlmuerzos || 0,
+      segundosAlmuerzos: resumen[k].segundosAlmuerzos || 0,
+      vegetarianos: resumen[k].vegetarianos || 0,
+      especiales: resumen[k].especiales || 0,
+      almuerzosConExtras: resumen[k].almuerzosConExtras || 0,
+      extrasCantidad: resumen[k].extrasCantidad || 0,
+      valorExtras: Number((resumen[k].valorExtras || 0).toFixed(2)),
       totalConsumo: resumen[k].total
-    })).filter(r => r.cantidadAlmuerzos > 0);
+    })).filter(r => r.cantidadAlmuerzos > 0 || r.segundosAlmuerzos > 0 || r.extrasCantidad > 0 || r.totalConsumo > 0);
 
     res.json(resultadoArray);
   } catch (error) {
@@ -434,10 +489,18 @@ router.get('/estados', async (req, res) => {
     let query = adminClient
       .from('ordenes')
       .select(`
-        id_orden, created_at, id_estado, metodo_pago,
+        id_orden, created_at, consumed_at, id_estado, metodo_pago,
         clientes ( nombre, apellido ),
         estados_orden ( nombre_estado ),
-        detalle_orden ( cantidad, precio_aplicado, productos(nombre_producto) )
+        detalle_orden (
+          cantidad,
+          precio_aplicado,
+          id_tipo_almuerzo,
+          observaciones_tipo,
+          opciones,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+        )
       `);
 
     if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
@@ -450,19 +513,17 @@ router.get('/estados', async (req, res) => {
     if (error) throw error;
 
     const reporteFormateado = ordenes.map(o => {
-      const cantidadTotal = o.detalle_orden.reduce((sum, d) => sum + d.cantidad, 0);
-      const montoTotal = o.detalle_orden.reduce((sum, d) => sum + (d.cantidad * d.precio_aplicado), 0);
-      const descripciones = o.detalle_orden.map(d => `${d.cantidad}x ${d.productos?.nombre_producto}`).join(', ');
+      const summary = summarizeOrderDetails(o.detalle_orden || []);
+      const descripciones = o.detalle_orden.map(formatDetailDescription).join(', ');
 
       return {
         id: o.id_orden,
-        fecha: o.created_at,
+        fecha: o.consumed_at || o.created_at,
         cliente: o.clientes ? `${o.clientes.nombre} ${o.clientes.apellido}` : 'Desconocido',
         estado: o.estados_orden?.nombre_estado || 'Desconocido',
         metodo_pago: o.metodo_pago || 'N/A',
         descripcion: descripciones,
-        cantidadAlmuerzos: cantidadTotal,
-        totalConsumo: montoTotal
+        ...compactLunchSummary(summary)
       };
     });
 
@@ -481,18 +542,18 @@ router.get('/productos', async (req, res) => {
     let query = adminClient
       .from('ordenes')
       .select(`
-        id_estado, created_at,
+        id_estado, created_at, consumed_at,
         detalle_orden ( cantidad, precio_aplicado, productos(nombre_producto, categorias_productos(nombre_categoria)) )
-      `);
+      `)
+      .eq('id_estado', 2);
 
-    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
-    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
+    if (fecha_inicio) query = query.gte('consumed_at', fecha_inicio);
+    if (fecha_fin) query = query.lte('consumed_at', fecha_fin + 'T23:59:59.999Z');
 
     const { data: ordenes, error } = await query;
     if (error) throw error;
 
-    // Solo contabilizar los consumidos
-    const consumidos = ordenes.filter(o => o.id_estado === 2);
+    const consumidos = ordenes || [];
 
     const productosMap = {};
 
@@ -544,9 +605,17 @@ router.get('/clientes', async (req, res) => {
     let query = adminClient
       .from('ordenes')
       .select(`
-        id_orden, created_at, id_estado, metodo_pago,
+        id_orden, created_at, consumed_at, id_estado, metodo_pago,
         estados_orden ( nombre_estado ),
-        detalle_orden ( cantidad, precio_aplicado, productos(nombre_producto) )
+        detalle_orden (
+          cantidad,
+          precio_aplicado,
+          id_tipo_almuerzo,
+          observaciones_tipo,
+          opciones,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+        )
       `)
       .eq('id_cliente', id_cliente);
 
@@ -559,18 +628,16 @@ router.get('/clientes', async (req, res) => {
     if (error) throw error;
 
     const reporteFormateado = ordenes.map(o => {
-      const cantidadTotal = o.detalle_orden.reduce((sum, d) => sum + d.cantidad, 0);
-      const montoTotal = o.detalle_orden.reduce((sum, d) => sum + (d.cantidad * d.precio_aplicado), 0);
-      const descripciones = o.detalle_orden.map(d => `${d.cantidad}x ${d.productos?.nombre_producto}`).join(', ');
+      const summary = summarizeOrderDetails(o.detalle_orden || []);
+      const descripciones = o.detalle_orden.map(formatDetailDescription).join(', ');
 
       return {
         id: o.id_orden,
-        fecha: o.created_at,
+        fecha: o.consumed_at || o.created_at,
         estado: o.estados_orden?.nombre_estado || 'Desconocido',
         metodo_pago: o.metodo_pago || 'N/A',
         descripcion: descripciones,
-        cantidadAlmuerzos: cantidadTotal,
-        totalConsumo: montoTotal,
+        ...compactLunchSummary(summary),
         convenio: convenioNombre
       };
     });
@@ -582,3 +649,13 @@ router.get('/clientes', async (req, res) => {
 });
 
 module.exports = router;
+module.exports._private = {
+  buildActividadReciente,
+  buildConsumosPorConvenio,
+  buildConsumosPorDiaFiltrado,
+  buildConsumosPorSemana,
+  buildTopProducts,
+  fetchMonthlyLunchCount,
+  resolveDashboardFilter,
+  sumKpiSummaries,
+};

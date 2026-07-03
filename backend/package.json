@@ -7,17 +7,26 @@
     "dev": "nodemon index.js",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "telegram:set-webhook": "node scripts/set-telegram-webhook.js",
+    "telegram:configure": "node scripts/configure-telegram-bot.js",
+    "seed:admin": "node scripts/seed-admin.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.22.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
     "multer": "^2.1.1",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^9.0.0",
     "nodemon": "^3.1.9",
     "prettier": "^3.0.0",
