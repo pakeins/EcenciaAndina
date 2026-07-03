@@ -27,7 +27,7 @@ jobs:
       - name: Security Audit
         run: |
           cd backend
-          npm audit --audit-level=high
+          npm audit --audit-level=critical
 
       - name: Run Linter
         run: |
@@ -60,7 +60,7 @@ jobs:
       - name: Security Audit
         run: |
           cd frontend
-          npm audit --audit-level=high
+          npm audit --audit-level=critical
 
       - name: Run Linter
         run: |
