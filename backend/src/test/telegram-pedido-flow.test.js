@@ -110,6 +110,13 @@ beforeAll(() => {
     answerTelegramCallback: async () => ({ ok: true }),
     telegramRequest: async () => ({ ok: true }),
   });
+  injectModule('../services/telegramApi.js', {
+    sendMessage: (...a) => sendTelegramMessage(...a),
+    answerCallback: async () => ({ ok: true }),
+    deleteMessage: async () => ({ ok: true }),
+    removeInlineKeyboard: async () => ({ ok: true }),
+    telegramRequest: async () => ({ ok: true }),
+  });
   injectModule('../services/telegramOrderTrace.js', {
     createOrderTrace: async () => 'trace-1',
     updateOrderTrace: async () => true,
@@ -117,6 +124,7 @@ beforeAll(() => {
 
   delete require.cache[require.resolve('../services/orderNotifications.js')];
   delete require.cache[require.resolve('../services/orderLifecycle.js')];
+  delete require.cache[require.resolve('../services/telegramConsent.js')];
   delete require.cache[require.resolve('../routes/telegram.js')];
   const telegramRouter = require('../routes/telegram.js');
   handleTelegramUpdate = telegramRouter.handleTelegramUpdate;
@@ -126,7 +134,9 @@ afterAll(() => {
   [
     '../config/supabase.js',
     '../services/telegramBot.js',
+    '../services/telegramApi.js',
     '../services/telegramOrderTrace.js',
+    '../services/telegramConsent.js',
     '../services/orderNotifications.js',
     '../services/orderLifecycle.js',
     '../routes/telegram.js',

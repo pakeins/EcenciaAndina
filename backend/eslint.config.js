@@ -3,7 +3,18 @@ const globals = require('globals');
 
 module.exports = [
   {
-    ignores: ['n8n/code/*.js'],
+    ignores: [
+      'node_modules/**',
+      'n8n/**',          // archivos internos y caché de n8n
+      'coverage/**',     // reportes de cobertura generados
+      'test_output.txt',
+      'seed-menu.js',
+      'check-db.js',
+      'create-table.js',
+      'test-smtp.js',
+      'keep-tunnel-alive.js',
+      'get-outlook-token.js',
+    ],
   },
   js.configs.recommended,
   {

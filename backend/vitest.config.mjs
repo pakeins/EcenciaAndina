@@ -9,6 +9,7 @@ export default defineConfig({
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
       TELEGRAM_BOT_USERNAME: 'eciencia_test_bot',
+      TELEGRAM_BOT_TOKEN: 'dummy-telegram-token-for-tests',
       TELEGRAM_PRIVACY_CONTACT: 'privacy@example.test',
       TELEGRAM_PRIVACY_POLICY_URL: 'https://example.test/privacidad',
       TELEGRAM_CONSENT_VERSION: 'EC-LOPDP-TEST',
