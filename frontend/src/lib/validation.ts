@@ -62,28 +62,14 @@ export const isValidRuc = (value: string) => {
 
 export const isValidEcDocument = (value: string) => isValidCedula(value) || isValidRuc(value);
 
-export const normalizePersonName = (value: string) => value.trim().replace(/\s+/g, ' ');
-
-export const normalizeEmail = (value: string) => value.trim().toLowerCase();
-
-export const isValidEmail = (value: string) => {
-  const email = normalizeEmail(value);
-  return email.length > 0
-    && email.length <= FIELD_LIMITS.email
-    && /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email);
-};
-
-export const isValidPersonName = (value: string) => {
-  const normalized = normalizePersonName(value);
-  return normalized.length > 0
-    && normalized.length <= FIELD_LIMITS.nombre
-    && /^\p{L}+(?:\s+\p{L}+)*$/u.test(normalized);
-};
-
 export const isValidPhone = (value: string) => {
   const phone = normalizePhone(value);
   return !phone || /^\d{8,15}$/.test(phone);
 };
+
+export const isValidEmail = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase()) &&
+  value.trim().length <= FIELD_LIMITS.email;
 
 export const hasMaxLength = (value: string, max: number) => value.trim().length <= max;
 
@@ -95,9 +81,4 @@ export const isNonNegativeNumber = (value: string | number) => {
 export const isPositiveInteger = (value: string | number) => {
   const number = Number(value);
   return Number.isInteger(number) && number > 0;
-};
-
-export const isPositiveMoney = (value: string | number) => {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 && number <= 100000;
 };

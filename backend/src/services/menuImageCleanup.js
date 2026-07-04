@@ -31,41 +31,13 @@ const managedFileDate = (file) => {
   const createdAt = new Date(file.created_at || '');
   if (!Number.isNaN(createdAt.getTime())) return createdAt;
 
-  const match = MANAGED_IMAGE_PATTERN.exec(String(file.name || ''));
+  const match = String(file.name || '').match(MANAGED_IMAGE_PATTERN);
   if (!match) return null;
 
   const timestamp = Number(match[1]);
   if (!Number.isFinite(timestamp)) return null;
   const timestampDate = new Date(timestamp);
   return Number.isNaN(timestampDate.getTime()) ? null : timestampDate;
-};
-
-// Imagenes que no se pueden borrar: menu activo o dentro de la retencion.
-const collectProtectedPaths = (menuRows, activeDate, cutoffDate) => {
-  const protectedPaths = new Set();
-  for (const row of menuRows || []) {
-    if (!row?.imagen_url) continue;
-    if (row.fecha === activeDate || row.fecha >= cutoffDate) {
-      const path = storagePathFromPublicUrl(row.imagen_url);
-      if (path) protectedPaths.add(path);
-    }
-  }
-  return protectedPaths;
-};
-
-const collectExpiredPaths = (files, cutoff, protectedPaths) => {
-  const pathsToDelete = [];
-  for (const file of files || []) {
-    if (file?.id === null) continue;
-    if (!MANAGED_IMAGE_PATTERN.test(String(file?.name || ''))) continue;
-
-    const path = `${MENU_IMAGES_FOLDER}/${file.name}`;
-    const createdAt = managedFileDate(file);
-    if (createdAt && createdAt < cutoff && !protectedPaths.has(path)) {
-      pathsToDelete.push(path);
-    }
-  }
-  return pathsToDelete;
 };
 
 const buildCleanupPlan = ({
@@ -78,8 +50,27 @@ const buildCleanupPlan = ({
   const safeRetentionDays = normalizeRetentionDays(retentionDays);
   const cutoff = new Date(now.getTime() - safeRetentionDays * MILLISECONDS_PER_DAY);
   const cutoffDate = cutoff.toISOString().slice(0, 10);
-  const protectedPaths = collectProtectedPaths(menuRows, activeDate, cutoffDate);
-  const pathsToDelete = collectExpiredPaths(files, cutoff, protectedPaths);
+  const protectedPaths = new Set();
+
+  for (const row of menuRows || []) {
+    if (!row?.imagen_url) continue;
+    if (row.fecha === activeDate || row.fecha >= cutoffDate) {
+      const path = storagePathFromPublicUrl(row.imagen_url);
+      if (path) protectedPaths.add(path);
+    }
+  }
+
+  const pathsToDelete = [];
+  for (const file of files || []) {
+    if (file?.id === null) continue;
+    if (!MANAGED_IMAGE_PATTERN.test(String(file?.name || ''))) continue;
+
+    const path = `${MENU_IMAGES_FOLDER}/${file.name}`;
+    const createdAt = managedFileDate(file);
+    if (createdAt && createdAt < cutoff && !protectedPaths.has(path)) {
+      pathsToDelete.push(path);
+    }
+  }
 
   const deletedPaths = new Set(pathsToDelete);
   const urlsToClear = [

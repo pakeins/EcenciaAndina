@@ -6,6 +6,13 @@ export type OrderState = 'reservado' | 'consumido' | 'cancelado';
 
 // Client types
 export type ClientType = 'convenio' | 'cliente';
+export type TelegramStatus =
+  | 'no_invitation'
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'revoked'
+  | 'deletion_pending';
 
 // Lunch types
 export type TipoAlmuerzo = 'normal' | 'vip' | 'ejecutivo';
@@ -25,12 +32,56 @@ export interface Client {
   nombre: string;
   apellido: string;
   telefono: string;
+  correo: string;
   activo: boolean;
   id_tipo_cliente?: number;
   tipo_nombre?: string;
   convenio?: {
     id: string;
     nombre: string;
+  } | null;
+  telegram?: {
+    status: TelegramStatus;
+    policy_current: boolean;
+    consent_version: string | null;
+    has_chat: boolean;
+    telegram_username: string | null;
+    invitation_expires_at: string | null;
+    last_menu_sent_at: string | null;
+    email_delivery: TelegramEmailDelivery | null;
+  };
+  telegram_onboarding?: TelegramOnboarding;
+}
+
+export interface TelegramOnboarding {
+  status: 'pending' | 'sent';
+  onboarding_url: string | null;
+  expires_at: string | null;
+  email_delivery: TelegramEmailDelivery | null;
+}
+
+export interface TelegramEmailDelivery {
+  status: 'not_attempted' | 'not_configured' | 'pending' | 'sent' | 'failed';
+  recipient: string | null;
+  provider_id: string | null;
+  attempted_at?: string | null;
+  sent_at?: string | null;
+}
+
+export interface TelegramPrivacyRequest {
+  id: string;
+  request_type: 'access' | 'deletion' | 'revocation' | 'other';
+  status: 'pending' | 'in_review' | 'resolved' | 'rejected';
+  retained_order_count: number;
+  details: Record<string, unknown>;
+  requested_at: string;
+  resolved_at: string | null;
+  resolution_notes: string | null;
+  clientes?: {
+    id_cliente: string;
+    nombre: string;
+    apellido: string;
+    cedula: string;
   } | null;
 }
 

@@ -11,8 +11,6 @@ const makeMenu = (day: number): DailyMenu => ({
   segundos: [`Segundo ${day}`],
   guarniciones: [`Guarnicion ${day}`],
   opciones: 3,
-  enviado: day === 3,
-  sent_at: day === 3 ? '2026-06-03T14:00:00.000Z' : null,
 });
 
 const defaultProps = {
@@ -32,7 +30,6 @@ describe('RegisteredMenuList', () => {
     expect(screen.getAllByRole('article')).toHaveLength(7);
     expect(screen.getAllByText('3 opciones')).toHaveLength(7);
     expect(screen.getByText('Activo')).toBeInTheDocument();
-    expect(screen.getByText('Enviado')).toBeInTheDocument();
     expect(screen.getByText('Sopa 1')).toBeInTheDocument();
     expect(screen.getByText('Segundo 7')).toBeInTheDocument();
     expect(screen.getByText('Guarnicion 4')).toBeInTheDocument();

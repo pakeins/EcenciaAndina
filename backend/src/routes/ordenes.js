@@ -3,15 +3,20 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { ORDER_STATE } = require('../constants/domain');
+const { zonedStartOfDay, getDateInTimeZone } = require('../services/reporting');
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
 
 // CREAR UNA NUEVA ORDEN
 router.post('/', async (req, res) => {
-  const { id_cliente, id_estado, id_origen, canal_origen, observaciones, detalles, metodo_pago } = req.body;
-
   try {
+    const { id_cliente, id_estado, id_origen, canal_origen, observaciones, detalles, metodo_pago } = parseBody(
+      schemas.ordenCreate,
+      req.body,
+    );
     const adminClient = getAdminClient();
 
     // Validar si el método de pago es Convenio Empresa
@@ -69,6 +74,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ mensaje: 'Orden registrada exitosamente', orden });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -126,13 +132,12 @@ router.get('/', async (req, res) => {
     const { fecha_inicio, fecha_fin } = req.query;
 
     // 1. Cancelar automáticamente pedidos reservados (estado 1) de días anteriores
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = zonedStartOfDay(getDateInTimeZone(new Date()));
     
     await adminClient
       .from('ordenes')
-      .update({ id_estado: 3 }) // 3 es Cancelado
-      .eq('id_estado', 1)
+      .update({ id_estado: ORDER_STATE.CANCELLED })
+      .eq('id_estado', ORDER_STATE.RESERVED)
       .lt('created_at', todayStart.toISOString());
     
     // 2. Construir la consulta principal
@@ -142,6 +147,7 @@ router.get('/', async (req, res) => {
         id_orden,
         id_estado,
         created_at,
+        consumed_at,
         updated_at,
         canal_origen,
         observaciones,
@@ -196,12 +202,71 @@ router.get('/', async (req, res) => {
   }
 });
 
+// CONSULTAR TRAZABILIDAD DE PEDIDOS AUTOMATICOS DE TELEGRAM
+router.get('/telegram/trazabilidad', roleMiddleware(['administrador']), async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const requestedLimit = Number(req.query.limit || 25);
+    const requestedPage = Number(req.query.page || 1);
+    const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 25;
+    const page = Number.isInteger(requestedPage) ? Math.max(requestedPage, 1) : 1;
+    const offset = (page - 1) * limit;
+    const outcome = String(req.query.outcome || '').trim();
+    const chatId = String(req.query.chat_id || '').trim();
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+
+    let query = adminClient
+      .from('telegram_order_traces')
+      .select(`
+        id,
+        chat_id,
+        update_id,
+        id_cliente,
+        id_orden,
+        subscription_id,
+        original_message,
+        interpreted_payload,
+        outcome,
+        error_message,
+        created_at,
+        updated_at,
+        clientes(nombre, apellido),
+        ordenes(id_orden, created_at)
+      `, { count: 'exact' });
+
+    if (['received', 'pending', 'success', 'failed', 'rejected'].includes(outcome)) {
+      query = query.eq('outcome', outcome);
+    }
+    if (chatId) query = query.eq('chat_id', chatId);
+    if (from) query = query.gte('created_at', from);
+    if (to) query = query.lte('created_at', to);
+
+    const { data, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+    res.json({
+      traces: data || [],
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ACTUALIZAR ORDEN COMPLETA
 router.put('/:id', async (req, res) => {
-  const { observaciones, detalles } = req.body;
   const id_orden = req.params.id;
 
   try {
+    const { observaciones, detalles } = parseBody(schemas.ordenUpdate, req.body);
     const adminClient = getAdminClient();
     
     // 1. Actualizar la cabecera
@@ -237,19 +302,20 @@ router.put('/:id', async (req, res) => {
 
     res.json({ mensaje: 'Orden actualizada exitosamente' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 // ACTUALIZAR ESTADO DE LA ORDEN
 router.put('/:id/estado', async (req, res) => {
-  const { id_estado, forceFallback } = req.body;
   const id_orden = req.params.id;
   try {
+    const { id_estado, forceFallback } = parseBody(schemas.estadoOrden, req.body);
     const adminClient = getAdminClient();
 
     // Si se marca como Consumido (2)
-    if (id_estado === 2) {
+    if (id_estado === ORDER_STATE.CONSUMED) {
       // Obtener detalles de la orden y cliente
       const { data: orden, error: errOrden } = await adminClient
         .from('ordenes')
@@ -392,9 +458,14 @@ router.put('/:id/estado', async (req, res) => {
       }
     }
 
+    const updatePayload = {
+      id_estado,
+      updated_by: req.user.id,
+    };
+
     const { data, error } = await adminClient
       .from('ordenes')
-      .update({ id_estado, updated_by: req.user.id })
+      .update(updatePayload)
       .eq('id_orden', id_orden)
       .select()
       .single();
@@ -402,6 +473,7 @@ router.put('/:id/estado', async (req, res) => {
     if (error) throw error;
     res.json({ mensaje: 'Estado actualizado', orden: data });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });

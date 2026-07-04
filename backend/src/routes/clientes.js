@@ -3,11 +3,116 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { createHttpError, getDateInTimeZone } = require('../services/reporting');
+const { CLIENT_TYPE } = require('../constants/domain');
+const {
+  createInvitation,
+  getConsentVersion,
+  privacyText,
+  recordConsentEvent,
+} = require('../services/telegramConsent');
+const { sendMessage } = require('../services/telegramApi');
+const {
+  sendTelegramInvitationEmail,
+  sendTelegramReactivationEmail,
+} = require('../services/telegramInvitationEmail');
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
+const adminOnly = roleMiddleware(['administrador']);
+const CLIENT_SELECT = `
+  *,
+  tipos_cliente(nombre_tipo),
+  clientes_convenios(
+    convenios(id_convenio, nombre_empresa)
+  ),
+  telegram_subscriptions(
+    id,
+    consent_status,
+    is_active,
+    consent_notice_version,
+    telegram_username,
+    chat_id,
+    last_menu_sent_at,
+    revoked_at,
+    deletion_requested_at
+  ),
+  telegram_invitations(
+    id,
+    expires_at,
+    consumed_at,
+    revoked_at,
+    created_at,
+    email_delivery_status,
+    email_recipient,
+    email_provider_id,
+    email_attempted_at,
+    email_sent_at
+  ),
+  telegram_privacy_requests(
+    id,
+    request_type,
+    status,
+    requested_at
+  )
+`;
+
+const handleRouteError = (res, error) => {
+  if (sendValidationError(res, error)) return;
+  const status = Number(error?.status || 500);
+  res.status(status >= 400 && status < 600 ? status : 500).json({
+    error: status >= 500 ? 'No se pudo completar la operacion del cliente.' : error.message,
+  });
+};
 
 // Función auxiliar para formatear cliente con su convenio
+const getRelationFirst = (value) => Array.isArray(value) ? value[0] : value;
+
+const telegramSummary = (client) => {
+  const subscription = getRelationFirst(client.telegram_subscriptions);
+  const now = Date.now();
+  const sortedInvitations = [...(client.telegram_invitations || [])]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const latestInvitation = sortedInvitations[0];
+  const activeInvitation = sortedInvitations
+    .filter((invitation) =>
+      !invitation.consumed_at &&
+      !invitation.revoked_at &&
+      new Date(invitation.expires_at).getTime() > now)[0];
+  const deletionPending = (client.telegram_privacy_requests || []).some(
+    (request) =>
+      request.request_type === 'deletion' &&
+      ['pending', 'in_review'].includes(request.status),
+  );
+
+  let status = 'no_invitation';
+  if (deletionPending) status = 'deletion_pending';
+  else if (subscription?.consent_status) status = subscription.consent_status;
+  else if (activeInvitation) status = 'pending';
+
+  return {
+    status,
+    policy_current:
+      subscription?.consent_status === 'accepted' &&
+      subscription.consent_notice_version === getConsentVersion(),
+    consent_version: subscription?.consent_notice_version || null,
+    has_chat: Boolean(subscription?.chat_id),
+    telegram_username: subscription?.telegram_username || null,
+    invitation_expires_at: activeInvitation?.expires_at || null,
+    last_menu_sent_at: subscription?.last_menu_sent_at || null,
+    email_delivery: latestInvitation
+      ? {
+        status: latestInvitation.email_delivery_status || 'not_attempted',
+        recipient: latestInvitation.email_recipient || client.correo || null,
+        provider_id: latestInvitation.email_provider_id || null,
+        attempted_at: latestInvitation.email_attempted_at || null,
+        sent_at: latestInvitation.email_sent_at || null,
+      }
+      : null,
+  };
+};
+
 const formatCliente = (cli) => {
   const convenioRel = cli.clientes_convenios?.[0]?.convenios;
   return {
@@ -16,14 +121,79 @@ const formatCliente = (cli) => {
     nombre: cli.nombre,
     apellido: cli.apellido,
     telefono: cli.telefono || '',
+    correo: cli.correo || '',
     activo: cli.esta_activo,
     id_tipo_cliente: cli.id_tipo_cliente,
     tipo_nombre: cli.tipos_cliente?.nombre_tipo || 'Sin tipo',
     convenio: convenioRel ? {
       id: convenioRel.id_convenio,
       nombre: convenioRel.nombre_empresa
-    } : null
+    } : null,
+    telegram: telegramSummary(cli),
   };
+};
+
+const setConsentState = async (adminClient, chatId, value) => {
+  const { error } = await adminClient
+    .from('telegram_bot_state')
+    .upsert(
+      {
+        key: `consent:${chatId}`,
+        value: { ...value, updatedAt: new Date().toISOString() },
+      },
+      { onConflict: 'key' },
+    );
+  if (error) throw error;
+};
+
+const directConsentKeyboard = () => ({
+  inline_keyboard: [
+    [{ text: 'Acepto', callback_data: 'consent:accept' }],
+    [{ text: 'No acepto', callback_data: 'consent:reject' }],
+  ],
+});
+
+const publicOnboarding = (onboarding) => ({
+  status: onboarding.status,
+  onboarding_url: onboarding.onboarding_url,
+  expires_at: onboarding.expires_at,
+  email_delivery: onboarding.email_delivery || null,
+});
+
+const validateConvenioLink = async (adminClient, idConvenio, idCliente = null) => {
+  const [convenioResult, currentLinkResult] = await Promise.all([
+    adminClient
+      .from('convenios')
+      .select('cupo_maximo, esta_activo, fecha_caducidad, clientes_convenios(count)')
+      .eq('id_convenio', idConvenio)
+      .maybeSingle(),
+    idCliente
+      ? adminClient
+        .from('clientes_convenios')
+        .select('id_convenio')
+        .eq('id_cliente', idCliente)
+        .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (convenioResult.error) throw convenioResult.error;
+  if (currentLinkResult.error) throw currentLinkResult.error;
+  if (!convenioResult.data) throw createHttpError(404, 'Convenio no encontrado.');
+
+  const convenio = convenioResult.data;
+  const isSameLink = currentLinkResult.data?.id_convenio === idConvenio;
+  const expiryDate = String(convenio.fecha_caducidad || '').slice(0, 10);
+  if (convenio.esta_activo === false || (expiryDate && expiryDate < getDateInTimeZone(new Date()))) {
+    throw createHttpError(400, 'No se puede vincular un cliente a un convenio inactivo o vencido.');
+  }
+
+  const memberCount = Number(convenio.clientes_convenios?.[0]?.count || 0);
+  const capacity = Number(convenio.cupo_maximo || 0);
+  if (!isSameLink && memberCount >= capacity) {
+    throw createHttpError(400, `El convenio alcanzo su cupo maximo de ${capacity} colaboradores.`);
+  }
+
+  return { isSameLink };
 };
 
 // OBTENER TODOS LOS CLIENTES
@@ -32,13 +202,7 @@ router.get('/', async (req, res) => {
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('clientes')
-      .select(`
-        *,
-        tipos_cliente(nombre_tipo),
-        clientes_convenios(
-          convenios(id_convenio, nombre_empresa)
-        )
-      `)
+      .select(CLIENT_SELECT)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -63,8 +227,63 @@ router.get('/tipos', async (req, res) => {
   }
 });
 
+router.get('/telegram/privacidad-solicitudes', adminOnly, async (req, res) => {
+  try {
+    const { data, error } = await getAdminClient()
+      .from('telegram_privacy_requests')
+      .select(`
+        id,
+        request_type,
+        status,
+        retained_order_count,
+        details,
+        requested_at,
+        resolved_at,
+        resolution_notes,
+        clientes(id_cliente,nombre,apellido,cedula)
+      `)
+      .order('requested_at', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    handleRouteError(res, error);
+  }
+});
+
+router.patch('/telegram/privacidad-solicitudes/:requestId', adminOnly, async (req, res) => {
+  try {
+    const { status, resolution_notes } = parseBody(schemas.telegramPrivacyResolution, req.body);
+    const terminal = ['resolved', 'rejected'].includes(status);
+    const adminClient = getAdminClient();
+    const { data, error } = await adminClient
+      .from('telegram_privacy_requests')
+      .update({
+        status,
+        resolution_notes: resolution_notes || null,
+        resolved_at: terminal ? new Date().toISOString() : null,
+        resolved_by: terminal ? (req.user.empleado_id || req.user.id) : null,
+      })
+      .eq('id', req.params.requestId)
+      .select('id,subscription_id,status,resolved_at,resolution_notes')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw createHttpError(404, 'Solicitud de privacidad no encontrada.');
+
+    if (terminal && data.subscription_id) {
+      const clearResult = await adminClient
+        .from('telegram_subscriptions')
+        .update({ deletion_requested_at: null })
+        .eq('id', data.subscription_id);
+      if (clearResult.error) throw clearResult.error;
+    }
+    res.json(data);
+  } catch (error) {
+    handleRouteError(res, error);
+  }
+});
+
 // QUITAR CLIENTE DE CUALQUIER CONVENIO
-router.delete('/:id/convenio', async (req, res) => {
+router.delete('/:id/convenio', adminOnly, async (req, res) => {
   try {
     const adminClient = getAdminClient();
     const { error } = await adminClient
@@ -73,113 +292,343 @@ router.delete('/:id/convenio', async (req, res) => {
       .eq('id_cliente', req.params.id);
 
     if (error) throw error;
+    const updateResult = await adminClient
+      .from('clientes')
+      .update({ id_tipo_cliente: CLIENT_TYPE.DIRECT, updated_by: req.user.id })
+      .eq('id_cliente', req.params.id);
+    if (updateResult.error) throw updateResult.error;
     res.json({ mensaje: 'Vínculo con convenio eliminado' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleRouteError(res, error);
   }
 });
 
 // CREAR NUEVO CLIENTE
 router.post('/', async (req, res) => {
-  const { cedula, nombre, apellido, telefono, id_tipo_cliente, id_convenio } = req.body;
   try {
+    const { cedula, nombre, apellido, telefono, correo, id_tipo_cliente, id_convenio } = parseBody(schemas.clienteCreate, req.body);
     const adminClient = getAdminClient();
 
-    if (telefono && telefono.trim() !== '') {
-      const { data: phoneCheck } = await adminClient
-        .from('clientes')
-        .select('id_cliente, esta_activo')
-        .eq('telefono', telefono.trim());
-
-      if (phoneCheck && phoneCheck.some(c => c.esta_activo)) {
-        return res.status(400).json({ error: 'Este teléfono ya está registrado y pertenece a un cliente activo.' });
-      }
+    if (id_tipo_cliente === CLIENT_TYPE.AGREEMENT && req.user.rol !== 'administrador') {
+      throw createHttpError(403, 'Solo un administrador puede vincular clientes a convenios.');
+    }
+    if (id_tipo_cliente === CLIENT_TYPE.AGREEMENT && !id_convenio) {
+      throw createHttpError(400, 'Debe seleccionar un convenio para este tipo de cliente.');
+    }
+    if (id_tipo_cliente === CLIENT_TYPE.DIRECT && id_convenio) {
+      throw createHttpError(400, 'Un cliente frecuente no puede tener convenio.');
+    }
+    if (id_tipo_cliente === CLIENT_TYPE.AGREEMENT) {
+      await validateConvenioLink(adminClient, id_convenio);
     }
 
-    const { data, error } = await adminClient
+    const [phoneCheck, emailCheck] = await Promise.all([
+      telefono
+        ? adminClient
+          .from('clientes')
+          .select('id_cliente')
+          .eq('telefono', telefono)
+          .eq('esta_activo', true)
+          .limit(1)
+        : Promise.resolve({ data: [], error: null }),
+      adminClient
+        .from('clientes')
+        .select('id_cliente')
+        .ilike('correo', correo)
+        .limit(1),
+    ]);
+    if (phoneCheck.error) throw phoneCheck.error;
+    if (emailCheck.error) throw emailCheck.error;
+    if (phoneCheck.data?.length) {
+      return res.status(400).json({ error: 'Este telefono ya pertenece a un cliente activo.' });
+    }
+    if (emailCheck.data?.length) {
+      return res.status(400).json({ error: 'Este correo ya pertenece a otro cliente.' });
+    }
+
+    const { data: created, error } = await adminClient
       .from('clientes')
-      .insert([{ cedula, nombre, apellido, telefono, id_tipo_cliente: id_tipo_cliente || 1, created_by: req.user.id }])
+      .insert([{
+        cedula,
+        nombre,
+        apellido,
+        telefono,
+        correo,
+        id_tipo_cliente: id_tipo_cliente || CLIENT_TYPE.DIRECT,
+        created_by: req.user.id,
+      }])
       .select('id_cliente')
       .single();
     if (error) throw error;
 
-    if (id_tipo_cliente == 2 && id_convenio) {
-      await adminClient.from('clientes_convenios').insert([{ id_cliente: data.id_cliente, id_convenio }]);
+    if (id_tipo_cliente === CLIENT_TYPE.AGREEMENT && id_convenio) {
+      const linkResult = await adminClient
+        .from('clientes_convenios')
+        .insert([{ id_cliente: created.id_cliente, id_convenio, created_by: req.user.id }]);
+      if (linkResult.error) {
+        await adminClient.from('clientes').delete().eq('id_cliente', created.id_cliente);
+        throw linkResult.error;
+      }
     }
 
-    const { data: finalData, error: finalError } = await adminClient
-      .from('clientes')
-      .select('*, tipos_cliente(nombre_tipo), clientes_convenios(convenios(id_convenio, nombre_empresa))')
-      .eq('id_cliente', data.id_cliente)
-      .single();
-    if (finalError) throw finalError;
+    let onboarding;
+    try {
+      onboarding = await createInvitation(
+        created.id_cliente,
+        req.user.empleado_id || req.user.id,
+      );
+    } catch (invitationError) {
+      await adminClient.from('clientes').delete().eq('id_cliente', created.id_cliente);
+      throw invitationError;
+    }
+    onboarding.email_delivery = await sendTelegramInvitationEmail({
+      client: { nombre, apellido, correo },
+      onboarding,
+    });
 
-    res.status(201).json(formatCliente(finalData));
+    const finalResult = await adminClient
+      .from('clientes')
+      .select(CLIENT_SELECT)
+      .eq('id_cliente', created.id_cliente)
+      .single();
+    if (finalResult.error) throw finalResult.error;
+    res.status(201).json({
+      ...formatCliente(finalResult.data),
+      telegram_onboarding: publicOnboarding(onboarding),
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleRouteError(res, error);
+  }
+});
+
+router.post('/:id/telegram/invitacion', adminOnly, async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const [clientResult, subscriptionResult] = await Promise.all([
+      adminClient
+        .from('clientes')
+        .select('id_cliente,nombre,apellido,telefono,correo,esta_activo')
+        .eq('id_cliente', req.params.id)
+        .maybeSingle(),
+      adminClient
+        .from('telegram_subscriptions')
+        .select('*')
+        .eq('id_cliente', req.params.id)
+        .maybeSingle(),
+    ]);
+    if (clientResult.error) throw clientResult.error;
+    if (subscriptionResult.error) throw subscriptionResult.error;
+    const client = clientResult.data;
+    const subscription = subscriptionResult.data;
+    if (!client) throw createHttpError(404, 'Cliente no encontrado.');
+    if (!client.esta_activo) throw createHttpError(400, 'El cliente debe estar activo para reinvitarlo.');
+
+    if (subscription?.chat_id) {
+      const { data: pending, error: updateError } = await adminClient
+        .from('telegram_subscriptions')
+        .update({
+          consent_status: 'pending',
+          is_active: false,
+          consent_notice_version: getConsentVersion(),
+          consent_notice_text: privacyText(),
+          consent_method: null,
+          accepted_at: null,
+          rejected_at: null,
+          revoked_at: null,
+          deletion_requested_at: null,
+        })
+        .eq('id', subscription.id)
+        .select()
+        .single();
+      if (updateError) throw updateError;
+
+      const sent = await sendMessage(
+        pending.chat_id,
+        privacyText(),
+        directConsentKeyboard(),
+      );
+      await setConsentState(adminClient, pending.chat_id, {
+        status: 'awaiting_decision',
+        idCliente: client.id_cliente,
+        subscriptionId: pending.id,
+        invitationId: null,
+        policyVersion: getConsentVersion(),
+        promptMessageIds: [sent?.message_id].filter(Boolean),
+        cleanupMessageIds: [],
+      });
+      await recordConsentEvent({
+        idCliente: client.id_cliente,
+        subscriptionId: pending.id,
+        eventType: 'admin_reinvited',
+        method: 'admin_direct',
+        chatId: pending.chat_id,
+        phone: pending.phone_normalized,
+        includeNotice: false,
+      });
+      const emailDelivery = await sendTelegramReactivationEmail({ client });
+      return res.json({
+        telegram_onboarding: {
+          status: 'sent',
+          onboarding_url: null,
+          expires_at: null,
+          email_delivery: emailDelivery,
+        },
+      });
+    }
+
+    if (subscription) {
+      const resetResult = await adminClient
+        .from('telegram_subscriptions')
+        .update({
+          consent_status: 'pending',
+          is_active: false,
+          accepted_at: null,
+          rejected_at: null,
+          revoked_at: null,
+          deletion_requested_at: null,
+        })
+        .eq('id', subscription.id);
+      if (resetResult.error) throw resetResult.error;
+    }
+
+    const onboarding = await createInvitation(
+      client.id_cliente,
+      req.user.empleado_id || req.user.id,
+    );
+    onboarding.email_delivery = await sendTelegramInvitationEmail({
+      client,
+      onboarding,
+    });
+    await recordConsentEvent({
+      idCliente: client.id_cliente,
+      subscriptionId: subscription?.id,
+      invitationId: onboarding.invitationId,
+      eventType: 'admin_reinvited',
+      method: 'admin_link',
+      includeNotice: false,
+    });
+    res.json({ telegram_onboarding: publicOnboarding(onboarding) });
+  } catch (error) {
+    handleRouteError(res, error);
   }
 });
 
 // ACTUALIZAR CLIENTE
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { activo, cedula, nombre, apellido, telefono, id_tipo_cliente, id_convenio } = req.body;
-
-  const actualizacion = { updated_by: req.user.id };
-  if (activo !== undefined) actualizacion.esta_activo = activo;
-  if (cedula) actualizacion.cedula = cedula;
-  if (nombre) actualizacion.nombre = nombre;
-  if (apellido) actualizacion.apellido = apellido;
-  if (telefono !== undefined) actualizacion.telefono = telefono;
-  if (id_tipo_cliente) actualizacion.id_tipo_cliente = id_tipo_cliente;
 
   try {
+    const { activo, cedula, nombre, apellido, telefono, correo, id_tipo_cliente, id_convenio } = parseBody(schemas.clienteUpdate, req.body);
+    const actualizacion = { updated_by: req.user.id };
+    if (activo !== undefined) actualizacion.esta_activo = activo;
+    if (cedula !== undefined) actualizacion.cedula = cedula;
+    if (nombre !== undefined) actualizacion.nombre = nombre;
+    if (apellido !== undefined) actualizacion.apellido = apellido;
+    if (telefono !== undefined) actualizacion.telefono = telefono;
+    if (correo !== undefined) actualizacion.correo = correo;
+    if (id_tipo_cliente !== undefined) actualizacion.id_tipo_cliente = id_tipo_cliente;
+
     const adminClient = getAdminClient();
+    const currentResult = await adminClient
+      .from('clientes')
+      .select('id_tipo_cliente, telefono, correo, esta_activo')
+      .eq('id_cliente', id)
+      .maybeSingle();
+    if (currentResult.error) throw currentResult.error;
+    if (!currentResult.data) return res.status(404).json({ error: 'Cliente no encontrado' });
 
-    if (telefono && telefono.trim() !== '') {
-      const { data: phoneCheck } = await adminClient
-        .from('clientes')
-        .select('id_cliente, esta_activo')
-        .eq('telefono', telefono.trim())
-        .neq('id_cliente', id);
+    const currentLinkResult = await adminClient
+      .from('clientes_convenios')
+      .select('id_convenio')
+      .eq('id_cliente', id)
+      .maybeSingle();
+    if (currentLinkResult.error) throw currentLinkResult.error;
 
-      if (phoneCheck && phoneCheck.some(c => c.esta_activo)) {
-        return res.status(400).json({ error: 'Este teléfono ya está registrado y pertenece a un cliente activo.' });
-      }
+    const currentAgreementId = currentLinkResult.data?.id_convenio || null;
+    const finalClientType = id_tipo_cliente ?? currentResult.data.id_tipo_cliente;
+    const finalAgreementId = id_convenio === undefined ? currentAgreementId : id_convenio;
+    if (
+      req.user.rol !== 'administrador' &&
+      (
+        finalClientType !== currentResult.data.id_tipo_cliente ||
+        finalAgreementId !== currentAgreementId
+      )
+    ) {
+      throw createHttpError(403, 'Solo un administrador puede cambiar el tipo o convenio del cliente.');
+    }
+    if (finalClientType === CLIENT_TYPE.AGREEMENT && !finalAgreementId) {
+      throw createHttpError(400, 'Debe seleccionar un convenio para este tipo de cliente.');
+    }
+    if (finalClientType === CLIENT_TYPE.DIRECT && finalAgreementId) {
+      throw createHttpError(400, 'Un cliente frecuente no puede tener convenio.');
+    }
+
+    const targetPhone = telefono ?? currentResult.data.telefono;
+    const targetEmail = correo ?? currentResult.data.correo;
+    const targetActive = activo ?? currentResult.data.esta_activo;
+    const linkValidation = finalClientType === CLIENT_TYPE.AGREEMENT && finalAgreementId
+      ? await validateConvenioLink(adminClient, finalAgreementId, id)
+      : { isSameLink: false };
+
+    const [phoneCheck, emailCheck] = await Promise.all([
+      targetActive && targetPhone
+        ? adminClient
+          .from('clientes')
+          .select('id_cliente')
+          .eq('telefono', targetPhone)
+          .eq('esta_activo', true)
+          .neq('id_cliente', id)
+          .limit(1)
+        : Promise.resolve({ data: [], error: null }),
+      targetEmail
+        ? adminClient
+          .from('clientes')
+          .select('id_cliente')
+          .ilike('correo', targetEmail)
+          .neq('id_cliente', id)
+          .limit(1)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (phoneCheck.error) throw phoneCheck.error;
+    if (emailCheck.error) throw emailCheck.error;
+    if (phoneCheck.data?.length) {
+      return res.status(400).json({ error: 'Este telefono ya pertenece a un cliente activo.' });
+    }
+    if (emailCheck.data?.length) {
+      return res.status(400).json({ error: 'Este correo ya pertenece a otro cliente.' });
     }
 
     const { data, error } = await adminClient
       .from('clientes')
       .update(actualizacion)
       .eq('id_cliente', id)
-      .select('id_cliente')
+      .select('id_cliente, id_tipo_cliente')
       .single();
 
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Cliente no encontrado' });
 
-    if (id_tipo_cliente == 2) {
-      if (id_convenio) {
-        await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
-        await adminClient.from('clientes_convenios').insert([{ id_cliente: id, id_convenio }]);
-      } else if (id_convenio === '') {
-        await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
-      }
-    } else if (id_tipo_cliente == 1) {
-      await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+    if (finalClientType === CLIENT_TYPE.DIRECT) {
+      const unlinkResult = await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+      if (unlinkResult.error) throw unlinkResult.error;
+    } else if (finalAgreementId && !linkValidation.isSameLink) {
+      const unlinkResult = await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+      if (unlinkResult.error) throw unlinkResult.error;
+      const linkResult = await adminClient
+        .from('clientes_convenios')
+        .insert([{ id_cliente: id, id_convenio: finalAgreementId, created_by: req.user.id }]);
+      if (linkResult.error) throw linkResult.error;
     }
 
-    const { data: finalData, error: finalError } = await adminClient
+    const finalResult = await adminClient
       .from('clientes')
-      .select('*, tipos_cliente(nombre_tipo), clientes_convenios(convenios(id_convenio, nombre_empresa))')
+      .select(CLIENT_SELECT)
       .eq('id_cliente', id)
       .single();
-
-    if (finalError) throw finalError;
-
-    res.json(formatCliente(finalData));
+    if (finalResult.error) throw finalResult.error;
+    res.json(formatCliente(finalResult.data));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleRouteError(res, error);
   }
 });
 
@@ -201,14 +650,10 @@ router.get('/:id/saldo', async (req, res) => {
 
 // RECARGAR SALDO AL MONEDERO VIRTUAL
 router.post('/:id/recargar', async (req, res) => {
-  const { id_producto, cantidad_comprada, monto_total, numero_factura } = req.body;
   const id_cliente = req.params.id;
 
-  if (!numero_factura || !numero_factura.trim()) {
-    return res.status(400).json({ error: 'El número de factura es requerido para registrar la recarga' });
-  }
-
   try {
+    const { id_producto, cantidad_comprada, monto_total, numero_factura } = parseBody(schemas.recarga, req.body);
     const adminClient = getAdminClient();
 
     // 1. Insertar el registro de recarga
@@ -219,7 +664,7 @@ router.post('/:id/recargar', async (req, res) => {
         id_producto, 
         cantidad_comprada, 
         monto_total,
-        numero_factura: numero_factura.trim(),
+        numero_factura,
         created_by: req.user.id 
       }]);
 
@@ -264,6 +709,7 @@ router.post('/:id/recargar', async (req, res) => {
 
     res.status(201).json({ mensaje: 'Recarga registrada exitosamente y saldo actualizado' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -289,6 +735,7 @@ router.get('/:id/historial', async (req, res) => {
       .select(`
         id_orden,
         created_at,
+        consumed_at,
         created_by,
         detalle_orden(
           cantidad,
@@ -299,7 +746,7 @@ router.get('/:id/historial', async (req, res) => {
       .eq('id_cliente', id_cliente)
       .eq('id_estado', 2)
       .eq('metodo_pago', 'Saldo Prepago')
-      .order('created_at', { ascending: false });
+      .order('consumed_at', { ascending: false });
 
     if (errOrdenes) throw errOrdenes;
 
@@ -329,7 +776,7 @@ router.get('/:id/historial', async (req, res) => {
       for (const det of (orden.detalle_orden || [])) {
         eventosConsumo.push({
           tipo: 'consumo',
-          fecha: orden.created_at,
+          fecha: orden.consumed_at || orden.created_at,
           producto: det.productos?.nombre_producto || 'Sin producto',
           cantidad: det.cantidad,
           precio_aplicado: det.precio_aplicado,
@@ -346,6 +793,28 @@ router.get('/:id/historial', async (req, res) => {
     res.json(historial);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ELIMINAR CLIENTE
+router.delete('/:id', async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { id } = req.params;
+
+    const { error } = await adminClient.from('clientes').delete().eq('id_cliente', id);
+
+    if (error) {
+      if (error.code === '23503') {
+        return res.status(400).json({ error: 'No se puede eliminar el cliente porque tiene órdenes, recargas o registros asociados.' });
+      }
+      throw error;
+    }
+
+    res.json({ success: true, message: 'Cliente eliminado correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor al eliminar cliente' });
   }
 });
 

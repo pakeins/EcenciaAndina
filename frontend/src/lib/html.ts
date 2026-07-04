@@ -6,7 +6,7 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
   "'": '&#39;',
 };
 
-export const escapeHtml = (value: string | number | boolean | null | undefined) =>
+export const escapeHtml = (value: unknown) =>
   String(value ?? '').replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char]);
 
 export const toFiniteNumber = (value: unknown, fallback = 0) => {
@@ -22,16 +22,4 @@ export const openSafeBlankWindow = () => {
   return blankWindow;
 };
 
-// Abre el documento en una ventana nueva via Blob URL (document.write esta
-// deprecado); el blob se libera cuando el documento termina de cargar.
-export const openPrintWindow = (html: string) => {
-  const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
-  const printWindow = window.open(blobUrl, '_blank');
-  if (!printWindow) {
-    URL.revokeObjectURL(blobUrl);
-    return null;
-  }
-  printWindow.opener = null;
-  printWindow.addEventListener('load', () => URL.revokeObjectURL(blobUrl));
-  return printWindow;
-};
+export const openPrintWindow = openSafeBlankWindow;

@@ -17,21 +17,21 @@ beforeAll(() => {
 });
 
 describe('trazabilidad de pedidos automaticos', () => {
-  it('conserva el contenido original y el tipo de mensaje recibido', () => {
-    expect(
-      buildOriginalMessage({
-        text: 'sopa 1, segundo 2, guarnicion 1',
-        isCallback: false,
-        contactPhone: '',
-        contactVerified: false,
-        messageId: 45,
-      }),
-    ).toMatchObject({
-      type: 'text',
+  it('no conserva el contenido libre del mensaje', () => {
+    const original = buildOriginalMessage({
       text: 'sopa 1, segundo 2, guarnicion 1',
+      isCallback: false,
+      contactPhone: '',
+      contactVerified: false,
+      messageId: 45,
+    });
+
+    expect(original).toMatchObject({
+      type: 'text',
       messageId: 45,
       hasContact: false,
     });
+    expect(original).not.toHaveProperty('text');
   });
 
   it('registra la recepcion con cliente y suscripcion relacionados', async () => {
@@ -69,7 +69,7 @@ describe('trazabilidad de pedidos automaticos', () => {
         id_cliente: 'client-1',
         subscription_id: 'subscription-1',
         outcome: 'received',
-        original_message: expect.objectContaining({ text: 'sopa 1' }),
+        original_message: expect.not.objectContaining({ text: expect.anything() }),
       }),
     );
   });

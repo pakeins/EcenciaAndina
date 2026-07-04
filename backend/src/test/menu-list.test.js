@@ -31,9 +31,6 @@ describe('listado de menus', () => {
         row('2026-06-10', 'Sopa de pollo', 'Sopas'),
       ],
       '2026-06-10',
-      new Map([
-        ['2026-06-10', { last_sent_at: '2026-06-10T14:00:00.000Z', send_count: 2 }],
-      ]),
     );
 
     expect(menus).toHaveLength(2);
@@ -44,15 +41,11 @@ describe('listado de menus', () => {
       segundos: ['Seco de pollo'],
       guarniciones: ['Arroz'],
       opciones: 3,
-      enviado: true,
-      sent_at: '2026-06-10T14:00:00.000Z',
-      send_count: 2,
     });
     expect(menus[1]).toMatchObject({
       fecha: '2026-06-09',
       estado: 'inactivo',
       opciones: 1,
-      enviado: false,
     });
   });
 

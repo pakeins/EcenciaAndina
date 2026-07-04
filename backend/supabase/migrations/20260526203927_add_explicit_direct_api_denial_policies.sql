@@ -33,4 +33,10 @@ begin
   end loop;
 end $$;
 
-alter function n8n.increment_workflow_version() set search_path = '';
+do $$
+begin
+  if to_regprocedure('n8n.increment_workflow_version()') is not null then
+    execute 'alter function n8n.increment_workflow_version() set search_path = ''''';
+  end if;
+end;
+$$;

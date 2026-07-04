@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Banknote, Receipt } from 'lucide-react';
+import { FIELD_LIMITS, isPositiveInteger } from '@/lib/validation';
+import { CLIENT_TYPE } from '@/constants/domain';
 
 interface RechargeDialogProps {
   open: boolean;
@@ -62,12 +64,16 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
       toast.error('Seleccione un producto para recargar');
       return;
     }
-    if (cantidad <= 0) {
-      toast.error('Ingrese una cantidad válida mayor a 0');
+    if (!isPositiveInteger(cantidad) || cantidad > 1000) {
+      toast.error('Ingrese una cantidad valida entre 1 y 1000');
       return;
     }
     if (!numeroFactura.trim()) {
-      toast.error('El número de factura es requerido para trazabilidad');
+      toast.error('El numero de factura es requerido para trazabilidad');
+      return;
+    }
+    if (numeroFactura.trim().length > FIELD_LIMITS.factura) {
+      toast.error(`La factura no puede superar ${FIELD_LIMITS.factura} caracteres`);
       return;
     }
 
@@ -98,7 +104,9 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
   };
 
   // Solo mostrar clientes frecuentes (sin convenio)
-  const frequentClients = clients.filter(c => !c.convenio && c.id_tipo_cliente === 2);
+  const frequentClients = clients.filter(
+    (client) => !client.convenio && client.id_tipo_cliente === CLIENT_TYPE.DIRECT,
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -126,7 +134,7 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
               value={numeroFactura}
               onChange={e => setNumeroFactura(e.target.value)}
               className="bg-background font-mono tracking-wide"
-              maxLength={50}
+              maxLength={FIELD_LIMITS.factura}
             />
             <p className="text-[10px] text-muted-foreground">
               Ingrese el número de factura entregado en caja para trazabilidad.
@@ -166,6 +174,8 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
             <Input
               type="number"
               min="1"
+              max="1000"
+              step="1"
               value={cantidad}
               onChange={e => setCantidad(parseInt(e.target.value) || 0)}
               className="bg-background"

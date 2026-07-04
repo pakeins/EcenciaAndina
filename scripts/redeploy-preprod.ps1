@@ -1,14 +1,17 @@
 param(
   [string]$ProjectId = "eciencia-andina-preprod",
-  [string]$ProjectNumber = "388587559842",
   [string]$Region = "us-central1",
   [string]$Repository = "eciencia",
   [string]$Tag = "preprod",
   [string]$BackendService = "eciencia-backend",
-  [string]$FrontendService = "eciencia-frontend"
+  [string]$FrontendService = "eciencia-frontend",
+  [switch]$ValidateOnly
 )
 
 $ErrorActionPreference = "Stop"
+if (Test-Path variable:PSNativeCommandUseErrorActionPreference) {
+  $PSNativeCommandUseErrorActionPreference = $true
+}
 
 $Root = Split-Path -Parent $PSScriptRoot
 $BackendEnvFile = Join-Path $Root "backend\.env.cloudrun.preprod.yaml"
@@ -22,6 +25,14 @@ function Invoke-Step {
   Write-Host ""
   Write-Host "==> $Title" -ForegroundColor Cyan
   & $Script
+}
+
+function Assert-NativeSuccess {
+  param([string]$Operation)
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Operation fallo con codigo $LASTEXITCODE."
+  }
 }
 
 function Read-SimpleYaml {
@@ -83,13 +94,6 @@ function Remove-SimpleYamlKey {
   Set-Content -LiteralPath $Path -Value $filtered -Encoding ascii
 }
 
-function Get-ProjectRefFromSupabaseUrl {
-  param([string]$SupabaseUrl)
-
-  $uri = [System.Uri]$SupabaseUrl
-  return $uri.Host.Split(".")[0]
-}
-
 function Assert-HttpsPublicUrl {
   param(
     [string]$Name,
@@ -125,6 +129,11 @@ $required = @(
   "SUPABASE_SERVICE_ROLE_KEY",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_WEBHOOK_SECRET",
+  "TELEGRAM_BOT_USERNAME",
+  "TELEGRAM_PRIVACY_CONTACT",
+  "TELEGRAM_PRIVACY_POLICY_URL",
+  "TELEGRAM_CONSENT_VERSION",
+  "TELEGRAM_INVITE_TOKEN_SECRET",
   "N8N_MENU_WEBHOOK_URL",
   "N8N_MENU_WEBHOOK_SECRET"
 )
@@ -134,38 +143,39 @@ foreach ($name in $required) {
   }
 }
 
+if (
+  $envValues.ContainsKey("RESEND_API_KEY") -and
+  -not [string]::IsNullOrWhiteSpace($envValues["RESEND_API_KEY"]) -and
+  (
+    -not $envValues.ContainsKey("INVITATION_FROM_EMAIL") -or
+    [string]::IsNullOrWhiteSpace($envValues["INVITATION_FROM_EMAIL"])
+  )
+) {
+  throw "INVITATION_FROM_EMAIL es obligatorio cuando RESEND_API_KEY esta configurado."
+}
+
 Assert-HttpsPublicUrl -Name "SUPABASE_URL" -Value $envValues["SUPABASE_URL"]
 Assert-HttpsPublicUrl -Name "N8N_MENU_WEBHOOK_URL" -Value $envValues["N8N_MENU_WEBHOOK_URL"]
 
-$publishableKey = $envValues["SUPABASE_ANON_KEY"]
-if ([string]::IsNullOrWhiteSpace($publishableKey)) {
-  $publishableKey = $envValues["SUPABASE_KEY"]
-}
-if ([string]::IsNullOrWhiteSpace($publishableKey)) {
-  throw "Falta SUPABASE_ANON_KEY o SUPABASE_KEY en $BackendEnvFile para construir el frontend."
-}
-
-$supabaseUrl = $envValues["SUPABASE_URL"]
-$supabaseProjectRef = Get-ProjectRefFromSupabaseUrl -SupabaseUrl $supabaseUrl
-$buildServiceAccount = "$ProjectNumber-compute@developer.gserviceaccount.com"
+Set-SimpleYamlValue -Path $BackendEnvFile -Key "AGREEMENT_DOCUMENTS_BUCKET" -Value "eciencia-agreement-documents"
 
 Invoke-Step "Configurar proyecto gcloud" {
   gcloud config set project $ProjectId
+  Assert-NativeSuccess -Operation "Configurar el proyecto de Google Cloud"
 }
 
-Invoke-Step "Activar APIs necesarias" {
-  gcloud services enable `
-    run.googleapis.com `
-    cloudbuild.googleapis.com `
-    artifactregistry.googleapis.com `
-    --project $ProjectId
-}
+Invoke-Step "Verificar APIs y acceso necesarios" {
+  gcloud run services list `
+    --platform managed `
+    --region $Region `
+    --project $ProjectId `
+    --limit 1 `
+    --format "value(metadata.name)" | Out-Null
+  Assert-NativeSuccess -Operation "Verificar Cloud Run"
 
-Invoke-Step "Asegurar permisos de Cloud Build" {
-  gcloud projects add-iam-policy-binding $ProjectId `
-    --member "serviceAccount:$buildServiceAccount" `
-    --role "roles/cloudbuild.builds.builder" `
-    --quiet | Out-Null
+  gcloud builds get-default-service-account `
+    --project $ProjectId | Out-Null
+  Assert-NativeSuccess -Operation "Verificar Cloud Build"
 }
 
 Invoke-Step "Crear Artifact Registry si no existe" {
@@ -175,6 +185,9 @@ Invoke-Step "Crear Artifact Registry si no existe" {
       --project $ProjectId `
       --location $Region `
       --format "value(name)" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+      $repoExists = $false
+    }
   } catch {
     $repoExists = $false
   }
@@ -185,14 +198,20 @@ Invoke-Step "Crear Artifact Registry si no existe" {
       --repository-format docker `
       --location $Region `
       --description "Eciencia Andina containers"
+    Assert-NativeSuccess -Operation "Crear Artifact Registry"
   } else {
     Write-Host "Artifact Registry ya existe: $Repository"
   }
 }
 
 Invoke-Step "Verificar que backend/frontend no suben archivos .env" {
-  $backendEnvMatches = gcloud meta list-files-for-upload backend | Select-String -Pattern "\.env"
-  $frontendEnvMatches = gcloud meta list-files-for-upload frontend | Select-String -Pattern "\.env"
+  $backendFiles = gcloud meta list-files-for-upload backend
+  Assert-NativeSuccess -Operation "Inspeccionar el contexto del backend"
+  $backendEnvMatches = $backendFiles | Select-String -Pattern "\.env"
+
+  $frontendFiles = gcloud meta list-files-for-upload frontend
+  Assert-NativeSuccess -Operation "Inspeccionar el contexto del frontend"
+  $frontendEnvMatches = $frontendFiles | Select-String -Pattern "\.env"
 
   if ($backendEnvMatches -or $frontendEnvMatches) {
     Write-Host "Archivos .env detectados en el contexto de subida:" -ForegroundColor Red
@@ -205,10 +224,18 @@ Invoke-Step "Verificar que backend/frontend no suben archivos .env" {
 $backendImage = "$Region-docker.pkg.dev/$ProjectId/$Repository/backend:$Tag"
 $frontendImage = "$Region-docker.pkg.dev/$ProjectId/$Repository/frontend:$Tag"
 
+if ($ValidateOnly) {
+  Write-Host ""
+  Write-Host "Preflight de Google Cloud completado sin desplegar." -ForegroundColor Green
+  return
+}
+
 Invoke-Step "Construir imagen backend" {
   gcloud builds submit backend `
     --project $ProjectId `
-    --tag $backendImage
+    --config backend/cloudbuild.yaml `
+    --substitutions "_PROJECT_ID=$ProjectId,_REGION=$Region,_REPO=$Repository,_TAG=$Tag"
+  Assert-NativeSuccess -Operation "Construir la imagen del backend"
 }
 
 Invoke-Step "Desplegar backend" {
@@ -222,12 +249,15 @@ Invoke-Step "Desplegar backend" {
     --memory 512Mi `
     --port 3001 `
     --env-vars-file $BackendEnvFile
+  Assert-NativeSuccess -Operation "Desplegar el backend"
 }
 
-$backendUrl = gcloud run services describe $BackendService `
+$backendUrl = (gcloud run services describe $BackendService `
   --project $ProjectId `
   --region $Region `
-  --format "value(status.url)"
+  --format "value(status.url)").Trim()
+Assert-NativeSuccess -Operation "Resolver la URL del backend"
+Assert-HttpsPublicUrl -Name "URL del backend" -Value $backendUrl
 
 Set-SimpleYamlValue -Path $BackendEnvFile -Key "PUBLIC_BACKEND_URL" -Value $backendUrl
 Set-SimpleYamlValue -Path $BackendEnvFile -Key "TELEGRAM_WEBHOOK_URL" -Value "$backendUrl/api/telegram/webhook"
@@ -237,6 +267,7 @@ Invoke-Step "Actualizar backend con su URL publica" {
     --project $ProjectId `
     --region $Region `
     --env-vars-file $BackendEnvFile
+  Assert-NativeSuccess -Operation "Actualizar la URL publica del backend"
 }
 
 Invoke-Step "Registrar webhook Telegram en backend Cloud Run" {
@@ -270,7 +301,8 @@ Invoke-Step "Construir imagen frontend" {
   gcloud builds submit frontend `
     --project $ProjectId `
     --config frontend/cloudbuild.yaml `
-    --substitutions "_PROJECT_ID=$ProjectId,_REGION=$Region,_REPO=$Repository,_TAG=$Tag"
+    --substitutions "_PROJECT_ID=$ProjectId,_REGION=$Region,_REPO=$Repository,_TAG=$Tag,_VITE_API_BASE_URL=$backendUrl/api"
+  Assert-NativeSuccess -Operation "Construir la imagen del frontend"
 }
 
 Invoke-Step "Desplegar frontend" {
@@ -282,23 +314,28 @@ Invoke-Step "Desplegar frontend" {
     --min-instances 0 `
     --max-instances 1 `
     --memory 256Mi `
-    --port 8080 `
-    --set-env-vars "API_BASE_URL=$backendUrl/api,SUPABASE_URL=$supabaseUrl,SUPABASE_PUBLISHABLE_KEY=$publishableKey,SUPABASE_PROJECT_ID=$supabaseProjectRef"
+    --port 8080
+  Assert-NativeSuccess -Operation "Desplegar el frontend"
 }
 
-$frontendUrl = gcloud run services describe $FrontendService `
+$frontendUrl = (gcloud run services describe $FrontendService `
   --project $ProjectId `
   --region $Region `
-  --format "value(status.url)"
+  --format "value(status.url)").Trim()
+Assert-NativeSuccess -Operation "Resolver la URL del frontend"
+Assert-HttpsPublicUrl -Name "URL del frontend" -Value $frontendUrl
 
 Set-SimpleYamlValue -Path $BackendEnvFile -Key "CORS_ORIGINS" -Value $frontendUrl
 Set-SimpleYamlValue -Path $BackendEnvFile -Key "PUBLIC_FRONTEND_URL" -Value $frontendUrl
+Set-SimpleYamlValue -Path $BackendEnvFile -Key "PASSWORD_RECOVERY_REDIRECT_URL" -Value "$frontendUrl/login"
+Set-SimpleYamlValue -Path $BackendEnvFile -Key "TELEGRAM_PRIVACY_POLICY_URL" -Value "$frontendUrl/privacidad"
 
-Invoke-Step "Actualizar CORS del backend" {
+Invoke-Step "Actualizar CORS y recuperacion del backend" {
   gcloud run services update $BackendService `
     --project $ProjectId `
     --region $Region `
     --env-vars-file $BackendEnvFile
+  Assert-NativeSuccess -Operation "Actualizar CORS y recuperacion del backend"
 }
 
 Invoke-Step "Probar servicios" {

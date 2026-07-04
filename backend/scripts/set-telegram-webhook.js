@@ -1,12 +1,5 @@
-try {
-  const dotenv = require('dotenv');
-  dotenv.config({ path: '.env.local' });
-  dotenv.config();
-} catch (error) {
-  if (error.code !== 'MODULE_NOT_FOUND') {
-    throw error;
-  }
-}
+require('dotenv').config({ path: '.env.local' });
+require('dotenv').config();
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL || `${process.env.PUBLIC_BACKEND_URL || ''}/api/telegram/webhook`;

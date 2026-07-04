@@ -20,14 +20,9 @@ const trimToUndefined = (value) => {
   return text || undefined;
 };
 
-const normalizePersonName = (value) => {
-  const text = trimToUndefined(value);
-  return text ? text.replace(/\s+/g, ' ') : undefined;
-};
-
 const normalizeEmail = (value) => {
-  const text = trimToUndefined(value);
-  return text ? text.toLowerCase() : undefined;
+  const email = trimToUndefined(value);
+  return email ? email.toLowerCase() : undefined;
 };
 
 const toNumber = (value) => {
@@ -112,33 +107,25 @@ const optionalText = (max, field) =>
     z.string().max(max, `${field} no puede superar ${max} caracteres.`).optional(),
   );
 
-const personNameSchema = (field) =>
-  z.preprocess(
-    normalizePersonName,
-    z
-      .string({ required_error: `${field} es obligatorio.` })
-      .min(1, `${field} es obligatorio.`)
-      .max(MAX_LENGTHS.nombre, `${field} no puede superar ${MAX_LENGTHS.nombre} caracteres.`)
-      .regex(/^\p{L}+(?:\s+\p{L}+)*$/u, `${field} solo puede contener letras y espacios.`),
-  );
-
 const phoneSchema = z
   .preprocess(normalizePhone, z.string().regex(/^\d{8,15}$/, 'El telefono debe tener entre 8 y 15 digitos.').optional())
   .optional();
 
-const emailError = (requiredMessage) => (issue) =>
-  issue.input === undefined && requiredMessage ? requiredMessage : 'El correo no es valido.';
-
-const emailSchema = z.preprocess(
+const requiredEmailSchema = z.preprocess(
   normalizeEmail,
   z
-    .email({ error: emailError('El correo es obligatorio.') })
+    .string({ required_error: 'El correo es obligatorio.' })
+    .email('El correo no es valido.')
     .max(MAX_LENGTHS.email, 'El correo es demasiado largo.'),
 );
 
 const optionalEmailSchema = z.preprocess(
   normalizeEmail,
-  z.email({ error: emailError() }).max(MAX_LENGTHS.email, 'El correo es demasiado largo.').optional(),
+  z
+    .string()
+    .email('El correo no es valido.')
+    .max(MAX_LENGTHS.email, 'El correo es demasiado largo.')
+    .optional(),
 );
 
 const rucSchema = z.preprocess(
@@ -165,18 +152,11 @@ const positiveInt = (field, max = 1000000) =>
       .max(max, `${field} supera el maximo permitido.`),
   );
 
-const optionalPositiveIntNullable = (field, max = 1000000) =>
-  z.preprocess((value) => {
-    if (value === '' || value === undefined) return undefined;
-    if (value === null) return null;
-    return Number(value);
-  }, z
-    .number({ invalid_type_error: `${field} debe ser numerico.` })
-    .int(`${field} debe ser entero.`)
-    .positive(`${field} debe ser mayor a 0.`)
-    .max(max, `${field} supera el maximo permitido.`)
-    .nullable()
-    .optional());
+const uuid = (field) =>
+  z.preprocess(
+    trimToUndefined,
+    z.string({ required_error: `${field} es obligatorio.` }).uuid(`${field} no es valido.`),
+  );
 
 const nonNegativeInt = (field, max = 1000000) =>
   z.preprocess(
@@ -188,31 +168,13 @@ const nonNegativeInt = (field, max = 1000000) =>
       .max(max, `${field} supera el maximo permitido.`),
   );
 
-// z.number() en Zod 4 ya rechaza Infinity/NaN, por lo que .finite() quedo
-// deprecado; invalid_type_error cubre el mensaje para valores no numericos.
 const nonNegativeMoney = (field, max = 100000) =>
   z.preprocess(
     toNumber,
     z
       .number({ required_error: `${field} es obligatorio.`, invalid_type_error: `${field} debe ser numerico.` })
+      .finite(`${field} debe ser numerico.`)
       .min(0, `${field} no puede ser negativo.`)
-      .max(max, `${field} supera el maximo permitido.`),
-  );
-
-const uuid = (field) =>
-  z.preprocess(
-    trimToUndefined,
-    z.uuid({
-      error: (issue) => (issue.input === undefined ? `${field} es obligatorio.` : `${field} no es valido.`),
-    }),
-  );
-
-const positiveMoney = (field, max = 100000) =>
-  z.preprocess(
-    toNumber,
-    z
-      .number({ required_error: `${field} es obligatorio.`, invalid_type_error: `${field} debe ser numerico.` })
-      .positive(`${field} debe ser mayor a 0.`)
       .max(max, `${field} supera el maximo permitido.`),
   );
 
@@ -226,9 +188,14 @@ const isoDate = z
   .preprocess(trimToUndefined, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato YYYY-MM-DD.').optional())
   .optional();
 
+const optionalNullableUuid = z.preprocess((value) => {
+  if (value === '') return null;
+  return value;
+}, z.union([z.string().uuid('El convenio no es valido.'), z.null()]).optional());
+
 const empleadoBase = {
-  nombre: personNameSchema('Nombre'),
-  apellido: personNameSchema('Apellido'),
+  nombre: requiredText(MAX_LENGTHS.nombre, 'Nombre'),
+  apellido: requiredText(MAX_LENGTHS.nombre, 'Apellido'),
   nombre_usuario: requiredText(MAX_LENGTHS.username, 'Nombre de usuario').refine(
     (value) => /^[a-zA-Z0-9._-]+$/.test(value),
     'El nombre de usuario solo puede usar letras, numeros, punto, guion y guion bajo.',
@@ -239,8 +206,6 @@ const orderDetailSchema = z.object({
   id_producto: positiveInt('Producto'),
   cantidad: positiveInt('Cantidad', 20),
   precio_aplicado: nonNegativeMoney('Precio aplicado'),
-  id_tipo_almuerzo: positiveInt('Tipo de almuerzo').optional(),
-  observaciones_tipo: optionalText(MAX_LENGTHS.observaciones, 'Observaciones del tipo'),
   opciones: z.record(z.unknown()).optional().default({}),
 });
 
@@ -255,27 +220,34 @@ const schemas = {
     password: requiredText(72, 'Contrasena'),
   }),
   refresh: z.object({
-    refresh_token: optionalText(2048, 'Refresh token'),
+    refresh_token: requiredText(2048, 'Refresh token'),
+  }),
+  forgotPassword: z.object({
+    correo: z.string().email('El correo no es valido.').max(MAX_LENGTHS.email, 'El correo es demasiado largo.'),
   }),
   clienteCreate: z.object({
     cedula: documentSchema,
-    nombre: personNameSchema('Nombre'),
-    apellido: personNameSchema('Apellido'),
-    email: emailSchema,
+    nombre: requiredText(MAX_LENGTHS.nombre, 'Nombre'),
+    apellido: requiredText(MAX_LENGTHS.nombre, 'Apellido'),
     telefono: phoneSchema,
+    correo: requiredEmailSchema,
     id_tipo_cliente: positiveInt('Tipo de cliente').optional().default(1),
+    id_convenio: optionalNullableUuid,
   }),
   clienteUpdate: z.object({
     activo: booleanSchema.optional(),
     cedula: documentSchema.optional(),
-    nombre: personNameSchema('Nombre').optional(),
-    apellido: personNameSchema('Apellido').optional(),
-    email: optionalEmailSchema,
+    nombre: requiredText(MAX_LENGTHS.nombre, 'Nombre').optional(),
+    apellido: requiredText(MAX_LENGTHS.nombre, 'Apellido').optional(),
     telefono: phoneSchema,
+    correo: optionalEmailSchema,
     id_tipo_cliente: positiveInt('Tipo de cliente').optional(),
+    id_convenio: optionalNullableUuid,
   }),
   recarga: z.object({
-    monto_total: positiveMoney('Monto de recarga'),
+    id_producto: positiveInt('Producto'),
+    cantidad_comprada: positiveInt('Cantidad comprada', 1000),
+    monto_total: nonNegativeMoney('Monto total'),
     numero_factura: requiredText(MAX_LENGTHS.factura, 'Numero de factura'),
   }),
   convenioCreate: z.object({
@@ -285,12 +257,11 @@ const schemas = {
     telefono: phoneSchema,
     email: z.preprocess(
       trimToUndefined,
-      z.email({ error: emailError() }).max(MAX_LENGTHS.email, 'El correo es demasiado largo.').optional(),
+      z.string().email('El correo no es valido.').max(MAX_LENGTHS.email, 'El correo es demasiado largo.').optional(),
     ),
     fecha_inicio: isoDate,
     fecha_caducidad: isoDate,
     cupo_maximo: nonNegativeInt('Cupo maximo', 10000).optional().default(0),
-    id_tipo_almuerzo: positiveInt('Tipo de almuerzo contratado').optional().default(9),
   }),
   convenioUpdate: z.object({
     activo: booleanSchema.optional(),
@@ -300,12 +271,11 @@ const schemas = {
     telefono: phoneSchema,
     email: z.preprocess(
       trimToUndefined,
-      z.email({ error: emailError() }).max(MAX_LENGTHS.email, 'El correo es demasiado largo.').optional(),
+      z.string().email('El correo no es valido.').max(MAX_LENGTHS.email, 'El correo es demasiado largo.').optional(),
     ),
     fecha_inicio: isoDate,
     fecha_caducidad: isoDate,
     cupo_maximo: nonNegativeInt('Cupo maximo', 10000).optional(),
-    id_tipo_almuerzo: positiveInt('Tipo de almuerzo contratado').optional(),
   }),
   convenioAddClient: z.object({
     id_cliente: uuid('Cliente'),
@@ -315,7 +285,6 @@ const schemas = {
     nombre: requiredText(80, 'Nombre del producto'),
     precio: nonNegativeMoney('Precio'),
     descripcion: optionalText(MAX_LENGTHS.descripcion, 'Descripcion'),
-    id_tipo_almuerzo_default: optionalPositiveIntNullable('Tipo de almuerzo por defecto'),
   }),
   productoUpdate: z.object({
     id_categoria: positiveInt('Categoria').optional(),
@@ -323,7 +292,6 @@ const schemas = {
     precio: nonNegativeMoney('Precio').optional(),
     activo: booleanSchema.optional(),
     descripcion: optionalText(MAX_LENGTHS.descripcion, 'Descripcion'),
-    id_tipo_almuerzo_default: optionalPositiveIntNullable('Tipo de almuerzo por defecto'),
   }),
   ordenCreate: z.object({
     id_cliente: uuid('Cliente'),
@@ -341,11 +309,10 @@ const schemas = {
   estadoOrden: z.object({
     id_estado: positiveInt('Estado'),
     forceFallback: booleanSchema.optional().default(false),
-    motivo: optionalText(MAX_LENGTHS.observaciones, 'Motivo'),
   }),
   empleadoCreate: z.object({
     ...empleadoBase,
-    correo: z.email({ error: emailError('El correo es obligatorio.') }).max(MAX_LENGTHS.email, 'El correo es demasiado largo.'),
+    correo: z.string().email('El correo no es valido.').max(MAX_LENGTHS.email, 'El correo es demasiado largo.'),
     password: z.string().min(8, 'La contrasena debe tener al menos 8 caracteres.').max(72, 'La contrasena no puede superar 72 caracteres.'),
     id_rol: positiveInt('Rol'),
   }),
@@ -377,20 +344,16 @@ const schemas = {
     imagen_url: optionalText(2048, 'URL de imagen'),
   }),
   menuDashboard: z.object({
-    entradas: menuOptionsSchema.optional().default([]),
-    sopas: menuOptionsSchema.optional().default([]),
+    sopas: menuOptionsSchema,
     segundos: menuOptionsSchema,
-    postres: menuOptionsSchema.optional().default([]),
-    bebidas: menuOptionsSchema.optional().default([]),
-    guarniciones: menuOptionsSchema.optional().default([]),
-    variantes: z.record(z.object({
-      sopas: menuOptionsSchema.optional().default([]),
-      segundos: menuOptionsSchema.optional().default([]),
-      guarniciones: menuOptionsSchema.optional().default([]),
-    })).optional().default({}),
+    guarniciones: menuOptionsSchema,
     image: optionalText(8 * 1024 * 1024, 'Imagen'),
     confirmarEdicion: booleanSchema.optional(),
     clientIds: z.array(z.union([z.string(), z.number()])).optional(),
+  }),
+  telegramPrivacyResolution: z.object({
+    status: z.enum(['in_review', 'resolved', 'rejected']),
+    resolution_notes: optionalText(1000, 'Notas de resolucion'),
   }),
 };
 
@@ -429,8 +392,6 @@ module.exports = {
   sendValidationError,
   onlyDigits,
   normalizePhone,
-  normalizeEmail,
-  normalizePersonName,
   isValidCedula,
   isValidRuc,
 };

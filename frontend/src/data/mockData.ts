@@ -36,10 +36,10 @@ export const mockConvenios: Convenio[] = [
   {
     id: '1',
     ruc: '1790012345001',
-    nombre_empresa: 'TechCorp S.A.',
+    nombre_empresa: 'Corporacion Favorita',
     representante: 'María González',
     telefono: '+593 987654321',
-    email: 'convenios@techcorp.com',
+    email: 'convenio1@empresas.example',
     fecha_inicio: '2026-01-01',
     fecha_caducidad: '2026-12-31',
     activo: true,
@@ -49,10 +49,10 @@ export const mockConvenios: Convenio[] = [
   {
     id: '2',
     ruc: '1790067890001',
-    nombre_empresa: 'Banco Nacional del Ecuador',
+    nombre_empresa: 'Banco Pichincha',
     representante: 'Roberto Sánchez',
     telefono: '+593 912345678',
-    email: 'rrhh@banconacional.ec',
+    email: 'convenio2@empresas.example',
     fecha_inicio: '2026-01-01',
     fecha_caducidad: '2026-06-30',
     activo: true,
@@ -62,10 +62,10 @@ export const mockConvenios: Convenio[] = [
   {
     id: '3',
     ruc: '1790099999001',
-    nombre_empresa: 'Seguros Unidos CIA. LTDA.',
+    nombre_empresa: 'Pronaca',
     representante: 'Carmen Herrera',
     telefono: '+593 998877665',
-    email: 'admin@segurosunidos.com',
+    email: 'convenio3@empresas.example',
     fecha_inicio: '2025-06-01',
     fecha_caducidad: '2025-12-31',
     activo: false,
@@ -81,6 +81,7 @@ export const mockClients: Client[] = [
     nombre: 'Carlos',
     apellido: 'Pérez',
     telefono: '+593987654321',
+    correo: 'carlos.perez@clientes.example',
     activo: true,
   },
   {
@@ -89,6 +90,7 @@ export const mockClients: Client[] = [
     nombre: 'Ana',
     apellido: 'Martínez',
     telefono: '+593987654322',
+    correo: 'ana.martinez@clientes.example',
     activo: true,
   },
   {
@@ -97,6 +99,7 @@ export const mockClients: Client[] = [
     nombre: 'Diana',
     apellido: 'López',
     telefono: '+593912345678',
+    correo: 'diana.lopez@clientes.example',
     activo: true,
   },
   {
@@ -105,6 +108,7 @@ export const mockClients: Client[] = [
     nombre: 'Juan',
     apellido: 'Rodríguez',
     telefono: '+593998765432',
+    correo: 'juan.rodriguez@clientes.example',
     activo: true,
   },
   {
@@ -113,6 +117,7 @@ export const mockClients: Client[] = [
     nombre: 'Laura',
     apellido: 'Gómez',
     telefono: '+593976543210',
+    correo: 'laura.gomez@clientes.example',
     activo: true,
   },
   {
@@ -121,6 +126,7 @@ export const mockClients: Client[] = [
     nombre: 'Pedro',
     apellido: 'Morales',
     telefono: '+593965432109',
+    correo: 'pedro.morales@clientes.example',
     activo: false,
   },
 ];
@@ -155,7 +161,7 @@ export const mockOrders: Order[] = [
     clienteNombre: 'Carlos Pérez',
     appMensajeria: '+593987654321',
     tipoCliente: 'convenio',
-    convenioNombre: 'TechCorp S.A.',
+    convenioNombre: 'Corporacion Favorita',
     almuerzo: 'Ejecutivo — Lomo Saltado + Crema de Zapallo',
     tipoAlmuerzo: 'ejecutivo',
     platoFuerte: 'Lomo Saltado',
@@ -173,7 +179,7 @@ export const mockOrders: Order[] = [
     clienteNombre: 'Ana Martínez',
     appMensajeria: '+593987654322',
     tipoCliente: 'convenio',
-    convenioNombre: 'TechCorp S.A.',
+    convenioNombre: 'Corporacion Favorita',
     almuerzo: 'VIP — Pollo a la Plancha + Sopa Criolla',
     tipoAlmuerzo: 'vip',
     platoFuerte: 'Pollo a la Plancha',
@@ -208,7 +214,7 @@ export const mockOrders: Order[] = [
     clienteNombre: 'Diana López',
     appMensajeria: '+593912345678',
     tipoCliente: 'convenio',
-    convenioNombre: 'Banco Nacional del Ecuador',
+    convenioNombre: 'Banco Pichincha',
     almuerzo: 'Ejecutivo — Lomo Saltado + Sopa Criolla',
     tipoAlmuerzo: 'ejecutivo',
     platoFuerte: 'Lomo Saltado',
@@ -260,8 +266,8 @@ export const mockConsumosPorDia: ChartData[] = [
 ];
 
 export const mockConsumosPorConvenio: ChartData[] = [
-  { name: 'TechCorp S.A.', value: 320 },
-  { name: 'Banco Nacional', value: 245 },
+  { name: 'Corporacion Favorita', value: 320 },
+  { name: 'Banco Pichincha', value: 245 },
   { name: 'Clientes', value: 180 },
   { name: 'Otros', value: 111 },
 ];

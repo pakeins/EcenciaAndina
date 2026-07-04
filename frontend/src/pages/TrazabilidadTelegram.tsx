@@ -71,7 +71,7 @@ export default function TrazabilidadTelegram() {
           Trazabilidad Telegram
         </h1>
         <p className="mt-1 text-lg text-muted-foreground">
-          Audita el mensaje recibido, su interpretacion y el resultado del pedido automatico.
+          Audita acciones por botones y resultados sin conservar mensajes libres.
         </p>
       </div>
 

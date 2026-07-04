@@ -1,40 +1,26 @@
 interface MenuImageInput {
-  entradas?: string[];
-  sopas?: string[];
+  sopas: string[];
   segundos: string[];
-  postres?: string[];
-  bebidas?: string[];
-  guarniciones?: string[];
+  guarniciones: string[];
   date?: Date;
 }
 
 const WIDTH = 1080;
-const HEIGHT = 1650;
+const HEIGHT = 1350;
 const PADDING = 72;
 
 const COLORS = {
-  ink: '#2F4D49',
-  muted: '#61603C',
-  paper: '#D1CDC4',
+  ink: '#2f261f',
+  muted: '#6e6258',
+  paper: '#fffaf2',
   panel: '#ffffff',
-  coffee: '#7A402E',
-  copper: '#BF5D30',
-  gold: '#C2803A',
-  green: '#61603C',
-  deepGreen: '#2F4D49',
+  coffee: '#4b2f22',
+  copper: '#bf5d30',
+  gold: '#c2803a',
+  green: '#4f6f52',
 };
 
 const clean = (items: string[]) => items.map((item) => item.trim()).filter(Boolean);
-
-// Imagen sin precios para todos; el precio se muestra solo en los botones
-// del cliente frecuente.
-const PACKAGE_LINES = [
-  'Ejecutivo Completo - entrada, sopa, plato fuerte, postre y bebida',
-  'Ejecutivo Sin Sopa - entrada, plato fuerte, postre y bebida',
-  'Ejecutivo Simple - plato fuerte, postre y bebida',
-  'Almuerzo del Dia - sopa, plato fuerte y bebida',
-  'Almuerzo del Dia Simple - plato fuerte y bebida',
-];
 
 const formatDate = (date: Date) =>
   new Intl.DateTimeFormat('es-EC', {
@@ -64,15 +50,6 @@ const roundRect = (
   ctx.closePath();
 };
 
-// Acorta la linea hasta que quepa junto con la elipsis.
-const truncateToWidth = (ctx: CanvasRenderingContext2D, line: string, maxWidth: number) => {
-  let truncated = line;
-  while (ctx.measureText(truncated + '...').width > maxWidth && truncated.length > 4) {
-    truncated = truncated.slice(0, -1);
-  }
-  return truncated;
-};
-
 const wrapText = (
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -96,7 +73,9 @@ const wrapText = (
 
   if (current && lines.length < maxLines) lines.push(current);
   if (words.length && lines.length === maxLines) {
-    lines[maxLines - 1] = truncateToWidth(ctx, lines[maxLines - 1], maxWidth);
+    while (ctx.measureText(lines[maxLines - 1] + '...').width > maxWidth && lines[maxLines - 1].length > 4) {
+      lines[maxLines - 1] = lines[maxLines - 1].slice(0, -1);
+    }
     if (lines.join(' ').length < text.length) lines[maxLines - 1] += '...';
   }
   return lines;
@@ -112,7 +91,7 @@ const drawSection = (
   accent: string,
 ) => {
   const sectionItems = clean(items);
-  const rowHeight = title === 'Paquetes' ? 58 : 76;
+  const rowHeight = 76;
   const headerHeight = 72;
   const height = headerHeight + Math.max(sectionItems.length, 1) * rowHeight + 32;
 
@@ -155,35 +134,19 @@ const drawSection = (
   return height;
 };
 
-export const buildTelegramMenuImage = ({
-  entradas = [],
-  sopas = [],
-  segundos,
-  postres = [],
-  bebidas = [],
-  date = new Date(),
-}: MenuImageInput) => {
+export const buildTelegramMenuImage = ({ sopas, segundos, guarniciones, date = new Date() }: MenuImageInput) => {
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
 
-  if (typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom')) {
-    return '';
-  }
-
-  let ctx: CanvasRenderingContext2D | null = null;
-  try {
-    ctx = canvas.getContext('2d');
-  } catch {
-    return '';
-  }
+  const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
   ctx.fillStyle = COLORS.paper;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   const gradient = ctx.createLinearGradient(0, 0, WIDTH, 0);
-  gradient.addColorStop(0, COLORS.deepGreen);
+  gradient.addColorStop(0, COLORS.green);
   gradient.addColorStop(0.5, COLORS.coffee);
   gradient.addColorStop(1, COLORS.copper);
   ctx.fillStyle = gradient;
@@ -198,25 +161,15 @@ export const buildTelegramMenuImage = ({
   ctx.fillText(formatDate(date), PADDING, 212);
 
   const contentWidth = WIDTH - PADDING * 2;
-  const sections: Array<{ title: string; items: string[]; accent: string }> = [
-    { title: 'Entradas', items: entradas, accent: COLORS.green },
-    { title: 'Sopas', items: sopas, accent: COLORS.green },
-    { title: 'Platos fuertes', items: segundos, accent: COLORS.copper },
-    { title: 'Postres', items: postres, accent: COLORS.gold },
-    { title: 'Bebidas', items: bebidas, accent: COLORS.deepGreen },
-  ];
   let y = 302;
-  for (const section of sections) {
-    // Solo el plato fuerte se muestra siempre; los demas solo si hay opciones.
-    if (!clean(section.items).length && section.title !== 'Platos fuertes') continue;
-    y += drawSection(ctx, section.title, section.items, PADDING, y, contentWidth, section.accent) + 36;
-  }
-  drawSection(ctx, 'Paquetes', PACKAGE_LINES, PADDING, y, contentWidth, COLORS.gold);
+  y += drawSection(ctx, 'Sopas', sopas, PADDING, y, contentWidth, COLORS.green) + 36;
+  y += drawSection(ctx, 'Segundos', segundos, PADDING, y, contentWidth, COLORS.copper) + 36;
+  drawSection(ctx, 'Guarniciones', guarniciones, PADDING, y, contentWidth, COLORS.gold);
 
   ctx.fillStyle = COLORS.muted;
   ctx.font = '500 24px Arial, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Reserva tu almuerzo usando los botones del bot', WIDTH / 2, HEIGHT - 54);
+  ctx.fillText('Reserva tu almuerzo respondiendo con los botones del bot', WIDTH / 2, HEIGHT - 54);
   ctx.textAlign = 'left';
 
   return canvas.toDataURL('image/jpeg', 0.9);

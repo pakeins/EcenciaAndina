@@ -8,13 +8,13 @@ const { getAdminClient } = require('./src/config/supabase'); // Configuración d
 const authRoutes = require('./src/routes/auth'); // Importamos las nuevas rutas de login
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { validateTelegramEnvironment } = require('./src/services/telegramConsent');
 
 const app = express();
 
 // Cloud Run pone exactamente un proxy delante; sin esto el rate limit
 // veria la IP del balanceador para todos los clientes.
 app.set('trust proxy', 1);
-
 const checkDatabaseConnection = async (createClient = getAdminClient) => {
   const { error } = await createClient().from('empleados').select('id').limit(1);
   if (error) throw error;
@@ -88,7 +88,7 @@ const apiLimiter = rateLimit({
 
 // 1. Ruta base de prueba
 app.get('/', (req, res) => {
-  res.send('Backend funcionando 🚀 (Migrado a Supabase)');
+  res.send('Backend funcionando Ã°Å¸Å¡â‚¬ (Migrado a Supabase)');
 });
 
 // 2. Ruta para verificar la base de datos (Supabase)
@@ -120,6 +120,7 @@ app.use(
 app.use('/api', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/telegram', telegramLimiter, require('./src/routes/telegram'));
 app.use('/api/productos', require('./src/routes/productos'));
@@ -154,6 +155,9 @@ app.use((error, req, res, next) => {
 });
 
 if (require.main === module) {
+  if (process.env.NODE_ENV === 'production') {
+    validateTelegramEnvironment();
+  }
   // --- INICIO DEL SERVIDOR ---
   const PORT = process.env.PORT || 3001;
   const server = app.listen(PORT, () => {
@@ -167,6 +171,10 @@ if (require.main === module) {
       console.log('Servidor cerrado correctamente.');
       process.exit(0);
     });
+    setTimeout(() => {
+      console.log('Forzando cierre por conexiones pendientes...');
+      process.exit(0);
+    }, 1000);
   });
 
   process.on('SIGTERM', () => {
@@ -174,6 +182,7 @@ if (require.main === module) {
     server.close(() => {
       process.exit(0);
     });
+    setTimeout(() => process.exit(0), 1000);
   });
 }
 
