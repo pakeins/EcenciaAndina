@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      API_RATE_LIMIT: "10000"
+      AUTH_RATE_LIMIT: "10000"
+      CORS_ORIGINS: "http://127.0.0.1:8080,http://localhost:8080"
+      N8N_MENU_WEBHOOK_SECRET: "zap-menu-secret"
+      N8N_MENU_WEBHOOK_URL: "https://example.com/webhook/eciencia-enviar-menu-manual"
+      NODE_ENV: "production"
+      SUPABASE_SERVICE_ROLE_KEY: "zap-service-role-key"
+      SUPABASE_URL: "https://example.supabase.co"
+      TELEGRAM_BOT_TOKEN: "zap-telegram-token"
+      TELEGRAM_WEBHOOK_SECRET: "zap-telegram-secret"
+      TELEGRAM_WEBHOOK_RATE_LIMIT: "10000"
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    environment:
+      API_BASE_URL: "http://127.0.0.1:3001/api"
+      SUPABASE_PROJECT_ID: "example"
+      SUPABASE_PUBLISHABLE_KEY: "zap-publishable-key"
+      SUPABASE_URL: "https://example.supabase.co"
+    ports:
+      - "8080:8080"
