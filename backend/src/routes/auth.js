@@ -3,6 +3,49 @@ const router = express.Router();
 const { supabase, getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 
+// ─── Helpers testables (inyección de dependencias) ────────────────────────────
+
+const PASSWORD_RESET_RESPONSE = { mensaje: 'Si el correo está registrado, recibirá un enlace pronto.' };
+
+/**
+ * Busca un empleado por nombre_usuario de forma insensible a mayúsculas.
+ * Retorna null si no se encuentra o si hay ambigüedad (más de un match).
+ * @param {object} adminClient  - cliente Supabase admin inyectable
+ * @param {string} username
+ * @returns {Promise<object|null>}
+ */
+const findEmployeeByUsername = async (adminClient, username) => {
+  const normalized = username.toLowerCase();
+  const { data, error } = await adminClient
+    .from('empleados')
+    .select('nombre_usuario, correo')
+    .limit(500);
+  if (error || !data) return null;
+  const matches = data.filter((e) => e.nombre_usuario.toLowerCase() === normalized);
+  if (matches.length !== 1) return null;
+  return matches[0];
+};
+
+/**
+ * Solicita un reset de contraseña de forma segura (respuesta genérica).
+ * @param {{ email: string, adminClient: object, authClient: object, redirectTo: string }} opts
+ * @returns {Promise<object>} PASSWORD_RESET_RESPONSE siempre (seguridad)
+ */
+const requestPasswordReset = async ({ email, adminClient, authClient, redirectTo }) => {
+  const { data: empleado, error: dbError } = await adminClient
+    .from('empleados')
+    .select('correo, esta_activo')
+    .ilike('correo', email)
+    .maybeSingle();
+
+  if (dbError || !empleado || !empleado.esta_activo) {
+    return PASSWORD_RESET_RESPONSE;
+  }
+
+  await authClient.auth.resetPasswordForEmail(email, { redirectTo });
+  return PASSWORD_RESET_RESPONSE;
+};
+
 // Ruta para el LOGIN
 router.post('/login', async (req, res) => {
   const { identificador, password } = req.body;
@@ -149,30 +192,15 @@ router.post('/forgot-password', async (req, res) => {
   
   try {
     const adminClient = getAdminClient();
-    
-    const { data: empleado, error: dbError } = await adminClient
-      .from('empleados')
-      .select('correo, esta_activo')
-      .eq('correo', correo)
-      .single();
-      
-    if (dbError || !empleado) {
-      // Se devuelve success igual para no revelar qué correos existen en el sistema (seguridad)
-      return res.json({ mensaje: 'Si el correo está registrado, recibirá un enlace pronto.' });
-    }
-    
-    if (!empleado.esta_activo) {
-      return res.status(403).json({ error: 'La cuenta asociada está inactiva.' });
-    }
-
-    const { error: authError } = await supabase.auth.resetPasswordForEmail(correo);
-    if (authError) throw authError;
-
-    res.json({ mensaje: 'Si el correo está registrado, recibirá un enlace pronto.' });
+    const redirectTo = `${process.env.FRONTEND_URL || ''}/login`;
+    const result = await requestPasswordReset({ email: correo, adminClient, authClient: supabase, redirectTo });
+    res.json(result);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al procesar la solicitud' });
   }
 });
+
+router._private = { findEmployeeByUsername, requestPasswordReset, PASSWORD_RESET_RESPONSE };
 
 module.exports = router;

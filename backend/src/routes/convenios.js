@@ -409,4 +409,50 @@ router.get('/:id/reporte', async (req, res) => {
   }
 });
 
+// ─── Helpers testables para documentos de convenio ────────────────────────────
+
+const DOCUMENT_SIGNATURES = [
+  { mime: 'application/pdf', bytes: [0x25, 0x50, 0x44, 0x46] }, // %PDF
+  { mime: 'image/jpeg', bytes: [0xff, 0xd8, 0xff] },
+  { mime: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+];
+
+const MIME_TO_EXT = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+};
+
+/**
+ * Detecta el MIME type de un buffer comprobando la firma binaria (magic bytes).
+ * @param {Buffer} buffer
+ * @returns {string|null} MIME type o null si no es un tipo permitido
+ */
+const detectDocumentMimeType = (buffer) => {
+  for (const { mime, bytes } of DOCUMENT_SIGNATURES) {
+    if (bytes.every((byte, i) => buffer[i] === byte)) return mime;
+  }
+  return null;
+};
+
+/**
+ * Genera una ruta de objeto única para almacenar un documento de convenio.
+ * Formato: {agreementId}/{uuid}.{ext}
+ * @param {string} agreementId
+ * @param {string} mimeType
+ * @returns {string}
+ */
+const createAgreementObjectPath = (agreementId, mimeType) => {
+  const ext = MIME_TO_EXT[mimeType] || 'bin';
+  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+  return `${agreementId}/${uuid}.${ext}`;
+};
+
+router._private = { detectDocumentMimeType, createAgreementObjectPath };
+
 module.exports = router;
+
