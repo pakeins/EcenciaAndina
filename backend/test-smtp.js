@@ -13,10 +13,10 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-transporter.verify((error, success) => {
+transporter.verify((error, _success) => {
   if (error) {
-    console.error("SMTP AUTH FAILED:", error);
+    console.error('SMTP AUTH FAILED:', error);
   } else {
-    console.log("SMTP AUTH SUCCESS!");
+    console.log('SMTP AUTH SUCCESS!');
   }
 });
