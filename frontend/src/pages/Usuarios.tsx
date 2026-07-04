@@ -333,7 +333,7 @@ export default function Usuarios() {
                     id="nombre"
                     value={createFormData.nombre}
                     onChange={(e) =>
-                      setCreateFormData({ ...createFormData, nombre: e.target.value })
+                      setCreateFormData({ ...createFormData, nombre: e.target.value.replace(/[\d]/g, '') })
                     }
                     required
                     placeholder="Ej. Juan"
@@ -345,7 +345,7 @@ export default function Usuarios() {
                     id="apellido"
                     value={createFormData.apellido}
                     onChange={(e) =>
-                      setCreateFormData({ ...createFormData, apellido: e.target.value })
+                      setCreateFormData({ ...createFormData, apellido: e.target.value.replace(/[\d]/g, '') })
                     }
                     required
                     placeholder="Ej. Pérez"
@@ -523,7 +523,7 @@ export default function Usuarios() {
                   <Input
                     id="edit-nombre"
                     value={editFormData.nombre}
-                    onChange={(e) => setEditFormData({ ...editFormData, nombre: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, nombre: e.target.value.replace(/[\d]/g, '') })}
                     required
                   />
                 </div>
@@ -532,7 +532,7 @@ export default function Usuarios() {
                   <Input
                     id="edit-apellido"
                     value={editFormData.apellido}
-                    onChange={(e) => setEditFormData({ ...editFormData, apellido: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, apellido: e.target.value.replace(/[\d]/g, '') })}
                     required
                   />
                 </div>

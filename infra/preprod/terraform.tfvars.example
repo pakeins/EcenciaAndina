@@ -1,0 +1,21 @@
+project_id     = "eciencia-andina-preprod"
+region         = "us-central1"
+gar_repository = "eciencia"
+
+backend_image  = "us-central1-docker.pkg.dev/eciencia-andina-preprod/eciencia/backend:REPLACE_ME"
+frontend_image = "us-central1-docker.pkg.dev/eciencia-andina-preprod/eciencia/frontend:REPLACE_ME"
+n8n_image      = "docker.io/n8nio/n8n:2.26.5"
+
+supabase_url        = "https://REPLACE_ME.supabase.co"
+supabase_project_id = "REPLACE_ME"
+
+# First apply leaves these empty. Reapply with outputs.
+public_backend_url  = ""
+public_frontend_url = ""
+public_n8n_url      = ""
+
+telegram_bot_username = "NOMBRE_DEL_BOT_SIN_ARROBA"
+outlook_from_email    = "ecenciaconvenios@outlook.com"
+outlook_token_tenant  = "consumers"
+
+enable_daily_menu_scheduler = false

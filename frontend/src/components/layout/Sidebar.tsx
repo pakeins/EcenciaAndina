@@ -14,7 +14,7 @@ import {
   ChefHat,
   KeyRound,
   Package,
-  Activity,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -54,12 +54,6 @@ const navItems: NavItem[] = [
     roles: ['administrador'],
   },
   {
-    label: 'Trazabilidad',
-    path: '/trazabilidad-telegram',
-    icon: <Activity className="h-5 w-5" />,
-    roles: ['administrador'],
-  },
-  {
     label: 'Convenios',
     path: '/convenios',
     icon: <Building2 className="h-5 w-5" />,
@@ -81,6 +75,12 @@ const navItems: NavItem[] = [
     label: 'Productos',
     path: '/productos',
     icon: <Package className="h-5 w-5" />,
+    roles: ['administrador', 'caja'],
+  },
+  {
+    label: 'Trazabilidad',
+    path: '/trazabilidad',
+    icon: <Send className="h-5 w-5" />,
     roles: ['administrador', 'caja'],
   },
 ];
@@ -126,7 +126,6 @@ export function Sidebar() {
                   item.label === 'Pedidos' ? 'text-terracota' :
                   item.label === 'Menú Diario' ? 'text-oro' :
                   item.label === 'Reportes' ? 'text-secondary' :
-                  item.label === 'Trazabilidad' ? 'text-terracota' :
                   item.label === 'Convenios' ? 'text-primary' :
                   item.label === 'Clientes' ? 'text-terracota' :
                   item.label === 'Empleados' ? 'text-oro' :

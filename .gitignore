@@ -5,17 +5,10 @@ frontend/node_modules/
 
 # Configuracion y Secretos
 .env
-.env.*
-.env.local
 .env.jira
-*.env
-*.env.*
-*.env.local
 
 # Base de datos local
 mysql_data/
-backend/supabase/.temp/
-backend/supabase/.branches/
 
 # Compilacion y temporales
 dist/
@@ -23,10 +16,11 @@ build/
 .DS_Store
 *.log
 backend/scratch/
-verification/
 
-# Documentos y archivos de trabajo fuera del codigo fuente
-*.pdf
-convenios/
-jira_boards.json
-JIRA_UPDATES.md
+# Convenios generados y scripts de verificacion
+convenios/*.pdf
+check_*.js
+
+# Archivos de despliegue temporales
+backend.tar.gz
+backend/.env

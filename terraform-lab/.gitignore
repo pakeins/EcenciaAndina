@@ -1,0 +1,14 @@
+# Ignorar archivos locales y temporales de Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Ignorar variables locales con credenciales o configuraciones locales
+*.tfvars
+*.tfvars.json
+
+# Ignorar la clave privada SSH que generaremos para conectarnos a la VM
+*.pem
+id_rsa
+id_rsa.pub

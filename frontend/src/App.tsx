@@ -18,7 +18,6 @@ import Productos from './pages/Productos';
 import NotFound from './pages/NotFound';
 import Perfil from './pages/Perfil';
 import TrazabilidadTelegram from './pages/TrazabilidadTelegram';
-import Privacidad from './pages/Privacidad';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 const queryClient = new QueryClient();
@@ -33,7 +32,6 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to={`/login${window.location.hash}`} replace />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/privacidad" element={<Privacidad />} />
             
             {/* Rutas protegidas generales (Cualquier rol) */}
             <Route element={<ProtectedRoute />}>
@@ -51,7 +49,7 @@ const App = () => (
                   <Route path="/reportes" element={<Reportes />} />
                   <Route path="/usuarios" element={<Usuarios />} />
                   <Route path="/menu" element={<Menu />} />
-                  <Route path="/trazabilidad-telegram" element={<TrazabilidadTelegram />} />
+                  <Route path="/trazabilidad" element={<TrazabilidadTelegram />} />
                 </Route>
               </Route>
             </Route>

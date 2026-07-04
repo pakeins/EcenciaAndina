@@ -796,4 +796,26 @@ router.get('/:id/historial', async (req, res) => {
   }
 });
 
+// ELIMINAR CLIENTE
+router.delete('/:id', async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { id } = req.params;
+
+    const { error } = await adminClient.from('clientes').delete().eq('id_cliente', id);
+
+    if (error) {
+      if (error.code === '23503') {
+        return res.status(400).json({ error: 'No se puede eliminar el cliente porque tiene órdenes, recargas o registros asociados.' });
+      }
+      throw error;
+    }
+
+    res.json({ success: true, message: 'Cliente eliminado correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor al eliminar cliente' });
+  }
+});
+
 module.exports = router;

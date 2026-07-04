@@ -3,340 +3,659 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
-const { CLIENT_TYPE } = require('../constants/domain');
 const {
-  aggregateDashboard,
-  applyDateRange,
-  getConsumedStateId,
-  getDefaultDashboardRanges,
-  getLunchCategoryIds,
-  getReportTimeZone,
-  parseDateRange,
-} = require('../services/reporting');
+  compactLunchSummary,
+  formatDetailDescription,
+  summarizeOrderDetails,
+} = require('../services/lunchTypes');
 
 router.use(authMiddleware);
-router.use(roleMiddleware(['administrador']));
+router.use(roleMiddleware(['administrador', 'caja']));
 
-const asArray = (value) => (Array.isArray(value) ? value : []);
-const asRelation = (value) => (Array.isArray(value) ? value[0] : value);
-const asNumber = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-};
-
-const getProduct = (detail) => asRelation(detail?.productos);
-
-const handleRouteError = (res, error) => {
-  const status = Number(error?.status || 500);
-  res.status(status >= 400 && status < 600 ? status : 500).json({
-    error: status >= 500 ? 'No se pudo generar la informacion solicitada.' : error.message,
+// Helper functions for Ecuador Timezone (America/Guayaquil - UTC-5)
+const getEcuadorDayRange = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Guayaquil',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
   });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find(p => p.type === 'year').value;
+  const month = parts.find(p => p.type === 'month').value;
+  const day = parts.find(p => p.type === 'day').value;
+
+  const localDateStr = `${year}-${month}-${day}`;
+  const startUtc = new Date(`${localDateStr}T05:00:00.000Z`);
+  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+  return { start: startUtc.toISOString(), end: endUtc.toISOString(), dateStr: localDateStr };
 };
 
+const getEcuadorWeekRange = (date = new Date()) => {
+  const dayRange = getEcuadorDayRange(date);
+  const localDate = new Date(dayRange.start);
+  const utcDay = localDate.getUTCDay();
+  const diffToMonday = utcDay === 0 ? -6 : 1 - utcDay;
+  
+  const mondayUtc = new Date(localDate.getTime() + diffToMonday * 24 * 60 * 60 * 1000);
+  const sundayUtc = new Date(mondayUtc.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+  
+  return { start: mondayUtc.toISOString(), end: sundayUtc.toISOString() };
+};
+
+const getEcuadorMonthRange = (date = new Date()) => {
+  const dayRange = getEcuadorDayRange(date);
+  const [yearStr, monthStr] = dayRange.dateStr.split('-');
+  const year = Number.parseInt(yearStr, 10);
+  const month = Number.parseInt(monthStr, 10);
+  
+  const startLocalStr = `${yearStr}-${monthStr}-01`;
+  const startUtc = new Date(`${startLocalStr}T05:00:00.000Z`);
+  
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonthStr = nextMonth.toString().padStart(2, '0');
+  const nextYearStr = nextYear.toString();
+  
+  const nextMonthStartUtc = new Date(`${nextYearStr}-${nextMonthStr}-01T05:00:00.000Z`);
+  const endUtc = new Date(nextMonthStartUtc.getTime() - 1);
+  
+  return { start: startUtc.toISOString(), end: endUtc.toISOString() };
+};
+
+const getLocalDayName = (utcDateStr, timeZone = 'America/Guayaquil') => {
+  const date = new Date(utcDateStr);
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short', timeZone });
+  const map = {
+    'Mon': 'Lun',
+    'Tue': 'Mar',
+    'Wed': 'Mié',
+    'Thu': 'Jue',
+    'Fri': 'Vie',
+    'Sat': 'Sáb',
+    'Sun': 'Dom'
+  };
+  return map[weekday] || 'Otros';
+};
+
+const ORDER_DETAIL_SELECT = `
+  id_orden, created_at, id_estado,
+  detalle_orden(
+    cantidad,
+    precio_aplicado,
+    id_tipo_almuerzo,
+    tipos_almuerzo(codigo, nombre),
+    productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+  )
+`;
+
+// Rango filtrado en UTC (Ecuador 00:00 local = 05:00 UTC).
+const resolveDashboardFilter = ({ fecha_inicio, fecha_fin }) => {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!fecha_inicio || !fecha_fin || !dateRegex.test(fecha_inicio) || !dateRegex.test(fecha_fin)) {
+    return { useFilter: false };
+  }
+  const nextDay = new Date(new Date(fecha_fin).getTime() + 24 * 60 * 60 * 1000);
+  const nextDayStr = nextDay.toISOString().split('T')[0];
+  return {
+    useFilter: true,
+    filterStart: `${fecha_inicio}T05:00:00.000Z`,
+    filterEnd: `${nextDayStr}T04:59:59.999Z`,
+  };
+};
+
+const KPI_KEYS = [
+  'almuerzosPrincipales',
+  'ejecutivoCompleto',
+  'ejecutivoSinSopa',
+  'ejecutivoSimple',
+  'almuerzoDia',
+  'almuerzoDiaSimple',
+  'otrosAlmuerzos',
+  'segundosAlmuerzos',
+  'vegetarianos',
+  'especiales',
+  'almuerzosConExtras',
+  'extrasCantidad',
+  'extrasTotal',
+  'totalConsumo',
+];
+
+const sumKpiSummaries = (orders) =>
+  (orders || []).reduce((acc, order) => {
+    const summary = summarizeOrderDetails(order.detalle_orden || []);
+    for (const key of KPI_KEYS) acc[key] += summary[key];
+    return acc;
+  }, Object.fromEntries(KPI_KEYS.map((key) => [key, 0])));
+
+const fetchMonthlyLunchCount = async (adminClient, monthRange) => {
+  const { data: ordersMonth, error } = await adminClient
+    .from('ordenes')
+    .select(ORDER_DETAIL_SELECT)
+    .eq('id_estado', 2)
+    .gte('created_at', monthRange.start)
+    .lte('created_at', monthRange.end);
+
+  if (error) throw error;
+  return (ordersMonth || []).reduce(
+    (total, o) => total + summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales,
+    0,
+  );
+};
+
+const buildConsumosPorDiaFiltrado = (ordersChart, fecha_inicio, fecha_fin) => {
+  const dateMap = {};
+  const DAY_MS = 86400000;
+  for (let time = new Date(fecha_inicio).getTime(); time <= new Date(fecha_fin).getTime(); time += DAY_MS) {
+    const dateStr = new Date(time).toISOString().split('T')[0];
+    const [, m, dayVal] = dateStr.split('-');
+    dateMap[`${dayVal}/${m}`] = 0;
+  }
+
+  ordersChart.forEach((o) => {
+    const localDateStr = getEcuadorDayRange(new Date(o.created_at)).dateStr;
+    const [, m, dayVal] = localDateStr.split('-');
+    const shortDate = `${dayVal}/${m}`;
+    if (dateMap[shortDate] !== undefined) {
+      dateMap[shortDate] += summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
+    }
+  });
+
+  return Object.keys(dateMap).map((name) => ({ name, value: dateMap[name] }));
+};
+
+const buildConsumosPorSemana = (ordersChart) => {
+  const weekMap = { 'Lun': 0, 'Mar': 0, 'Mié': 0, 'Jue': 0, 'Vie': 0, 'Sáb': 0, 'Dom': 0 };
+  ordersChart.forEach((o) => {
+    const dayName = getLocalDayName(o.created_at);
+    if (weekMap[dayName] !== undefined) {
+      weekMap[dayName] += summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
+    }
+  });
+  return Object.keys(weekMap).map((name) => ({ name, value: weekMap[name] }));
+};
+
+const buildConsumosPorConvenio = (ordersConvenio) => {
+  const convenioMap = {};
+  ordersConvenio.forEach((o) => {
+    const convenio = o.clientes?.clientes_convenios?.[0]?.convenios?.nombre_empresa || 'Clientes';
+    convenioMap[convenio] = (convenioMap[convenio] || 0) + summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
+  });
+  return Object.keys(convenioMap).map((name) => ({ name, value: convenioMap[name] }));
+};
+
+const buildActividadReciente = (recentOrders) =>
+  (recentOrders || []).map((o) => ({
+    id: o.id_orden,
+    fecha: o.created_at,
+    cliente: o.clientes ? `${o.clientes.nombre} ${o.clientes.apellido}` : 'Cliente Desconocido',
+    descripcion: o.detalle_orden?.map(formatDetailDescription).join(', ') || 'Sin detalles',
+    metodo_pago: o.metodo_pago || 'N/A',
+    estado: o.estados_orden?.nombre_estado || 'Desconocido',
+  }));
+
+const buildTopProducts = (ordersKpi) => {
+  const productCounts = {};
+  ordersKpi.forEach((o) => {
+    o.detalle_orden?.forEach((d) => {
+      const name = d.productos?.nombre_producto || 'Desconocido';
+      productCounts[name] = (productCounts[name] || 0) + d.cantidad;
+    });
+  });
+
+  return Object.keys(productCounts)
+    .map((name) => ({ name, value: productCounts[name] }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 4);
+};
+
+// GET /dashboard - Métricas y analíticas en tiempo real (admite filtros opcionales de fecha)
 router.get('/dashboard', async (req, res) => {
   try {
     const adminClient = getAdminClient();
-    const timeZone = getReportTimeZone();
-    const customRange = parseDateRange(req.query, { timeZone });
-    const defaultRanges = getDefaultDashboardRanges(new Date(), timeZone);
-    const analysisRanges = customRange
-      ? [customRange]
-      : [defaultRanges.day, defaultRanges.week, defaultRanges.month];
-    const analysisStart = analysisRanges.reduce(
-      (earliest, range) => (range.start < earliest ? range.start : earliest),
-      analysisRanges[0].start,
-    );
-    const analysisEndExclusive = analysisRanges.reduce(
-      (latest, range) => (range.endExclusive > latest ? range.endExclusive : latest),
-      analysisRanges[0].endExclusive,
-    );
+    const { fecha_inicio, fecha_fin } = req.query;
+    const { useFilter, filterStart, filterEnd } = resolveDashboardFilter(req.query);
 
-    let ordersQuery = adminClient
+    const now = new Date();
+    const dayRange = getEcuadorDayRange(now);
+    const weekRange = getEcuadorWeekRange(now);
+    const monthRange = getEcuadorMonthRange(now);
+
+    const kpiStart = useFilter ? filterStart : dayRange.start;
+    const kpiEnd = useFilter ? filterEnd : dayRange.end;
+
+    // 1. Almuerzos en el periodo (id_estado = 2, id_categoria = 1)
+    const { data: ordersKpi, error: errKpi } = await adminClient
+      .from('ordenes')
+      .select(ORDER_DETAIL_SELECT)
+      .eq('id_estado', 2)
+      .gte('created_at', kpiStart)
+      .lte('created_at', kpiEnd);
+
+    if (errKpi) throw errKpi;
+
+    const kpiSummary = sumKpiSummaries(ordersKpi);
+    const lunchesPeriod = kpiSummary.almuerzosPrincipales;
+
+    // 2. Almuerzos del Mes (o ingresos si hay filtro)
+    let secondaryKpiValue;
+    let secondaryKpiTitle = 'Almuerzos del Mes';
+    let secondaryKpiDesc = 'Total acumulado mensual';
+
+    if (useFilter) {
+      secondaryKpiTitle = 'Ingresos por Almuerzos';
+      secondaryKpiDesc = 'Ventas del periodo filtrado';
+      secondaryKpiValue = Number.parseFloat(kpiSummary.totalConsumo.toFixed(2));
+    } else {
+      secondaryKpiValue = await fetchMonthlyLunchCount(adminClient, monthRange);
+    }
+
+    // 3. Convenios Activos
+    const { count: conveniosActivos, error: errConv } = await adminClient
+      .from('convenios')
+      .select('*', { count: 'exact', head: true })
+      .eq('esta_activo', true);
+
+    if (errConv) throw errConv;
+
+    // 4. Clientes Frecuentes Activos
+    const { count: clientesFrecuentes, error: errCli } = await adminClient
+      .from('clientes')
+      .select('*', { count: 'exact', head: true })
+      .eq('esta_activo', true);
+
+    if (errCli) throw errCli;
+
+    // 5. Consumos por Día (Rango semanal por defecto, o cada día del periodo filtrado)
+    const chartStart = useFilter ? filterStart : weekRange.start;
+    const chartEnd = useFilter ? filterEnd : weekRange.end;
+
+    const { data: ordersChart, error: errChart } = await adminClient
+      .from('ordenes')
+      .select(ORDER_DETAIL_SELECT)
+      .eq('id_estado', 2)
+      .gte('created_at', chartStart)
+      .lte('created_at', chartEnd);
+
+    if (errChart) throw errChart;
+
+    const consumosPorDia = useFilter
+      ? buildConsumosPorDiaFiltrado(ordersChart, fecha_inicio, fecha_fin)
+      : buildConsumosPorSemana(ordersChart);
+
+    // 6. Consumos por Convenio (Mes por defecto, o periodo filtrado)
+    const convenioStart = useFilter ? filterStart : monthRange.start;
+    const convenioEnd = useFilter ? filterEnd : monthRange.end;
+
+    const { data: ordersConvenio, error: errConvChart } = await adminClient
       .from('ordenes')
       .select(`
-        id_orden,
-        created_at,
-        consumed_at,
-        id_estado,
-        metodo_pago,
+        id_orden, created_at, id_estado,
         clientes(
-          nombre,
-          apellido,
-          clientes_convenios(convenios(nombre_empresa))
+          id_cliente,
+          clientes_convenios(
+            convenios(nombre_empresa)
+          )
         ),
+        detalle_orden(
+          cantidad,
+          precio_aplicado,
+          id_tipo_almuerzo,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+        )
+      `)
+      .eq('id_estado', 2)
+      .gte('created_at', convenioStart)
+      .lte('created_at', convenioEnd);
+
+    if (errConvChart) throw errConvChart;
+
+    const consumosPorConvenio = buildConsumosPorConvenio(ordersConvenio);
+
+    // 7. Actividad Reciente (Últimos 5 consumos registrados)
+    const { data: recentOrders, error: errRecent } = await adminClient
+      .from('ordenes')
+      .select(`
+        id_orden, created_at, id_estado, metodo_pago,
+        clientes(nombre, apellido),
         estados_orden(nombre_estado),
         detalle_orden(
           cantidad,
           precio_aplicado,
-          productos(id_categoria, nombre_producto)
+          id_tipo_almuerzo,
+          observaciones_tipo,
+          opciones,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
         )
       `)
-      .eq('id_estado', getConsumedStateId())
-      .order('consumed_at', { ascending: false });
-    ordersQuery = ordersQuery.gte('consumed_at', analysisStart).lt('consumed_at', analysisEndExclusive);
+      .order('created_at', { ascending: false })
+      .limit(5);
 
-    let reservationsQuery = adminClient
-      .from('ordenes')
-      .select('id_orden,created_at')
-      .order('created_at', { ascending: false });
-    reservationsQuery = applyDateRange(
-      reservationsQuery,
-      customRange || defaultRanges.week,
-    );
+    if (errRecent) throw errRecent;
 
-    const [ordersResult, reservationsResult, conveniosResult, clientsResult] = await Promise.all([
-      ordersQuery,
-      reservationsQuery,
-      adminClient
-        .from('convenios')
-        .select('*', { count: 'exact', head: true })
-        .eq('esta_activo', true)
-        .gte('fecha_caducidad', defaultRanges.day.startDate),
-      adminClient
-        .from('clientes')
-        .select('*', { count: 'exact', head: true })
-        .eq('esta_activo', true)
-        .eq('id_tipo_cliente', CLIENT_TYPE.DIRECT),
-    ]);
+    const actividadReciente = buildActividadReciente(recentOrders);
 
-    for (const result of [ordersResult, reservationsResult, conveniosResult, clientsResult]) {
-      if (result.error) throw result.error;
-    }
+    // 8. Productos Más Vendidos (Top 4 en el periodo filtrado o mes por defecto)
+    const topProducts = buildTopProducts(ordersKpi);
 
-    res.json(
-      aggregateDashboard({
-        orders: ordersResult.data || [],
-        reservationOrders: reservationsResult.data || [],
-        customRange,
-        defaultRanges,
-        activeConvenios: conveniosResult.count || 0,
-        activeClients: clientsResult.count || 0,
-        timeZone,
-        lunchCategoryIds: getLunchCategoryIds(),
-        consumedStateId: getConsumedStateId(),
-      }),
-    );
+    res.json({
+      metrics: {
+        almuerzosHoy: lunchesPeriod,
+        almuerzosHoyTitle: useFilter ? 'Almuerzos Periodo' : 'Almuerzos Hoy',
+        almuerzosHoyDesc: useFilter ? 'Consumidos en periodo filtrado' : 'Consumidos el día de hoy',
+        almuerzosMes: secondaryKpiValue,
+        almuerzosMesTitle: secondaryKpiTitle,
+        almuerzosMesDesc: secondaryKpiDesc,
+        segundosAlmuerzos: kpiSummary.segundosAlmuerzos,
+        ejecutivoCompleto: kpiSummary.ejecutivoCompleto,
+        ejecutivoSinSopa: kpiSummary.ejecutivoSinSopa,
+        ejecutivoSimple: kpiSummary.ejecutivoSimple,
+        almuerzoDia: kpiSummary.almuerzoDia,
+        almuerzoDiaSimple: kpiSummary.almuerzoDiaSimple,
+        otrosAlmuerzos: kpiSummary.otrosAlmuerzos,
+        vegetarianos: kpiSummary.vegetarianos,
+        especiales: kpiSummary.especiales,
+        almuerzosConExtras: kpiSummary.almuerzosConExtras,
+        extrasCantidad: kpiSummary.extrasCantidad,
+        valorExtras: Number(kpiSummary.extrasTotal.toFixed(2)),
+        conveniosActivos: conveniosActivos || 0,
+        clientesFrecuentes: clientesFrecuentes || 0
+      },
+      consumosPorDia,
+      consumosPorConvenio,
+      actividadReciente,
+      topProducts
+    });
+
   } catch (error) {
-    handleRouteError(res, error);
+    res.status(500).json({ error: error.message });
   }
 });
 
+
+const validateDates = (req, res, next) => {
+  const { fecha_inicio, fecha_fin } = req.query;
+  if (!fecha_inicio || !fecha_fin) {
+    return res.status(400).json({ error: 'Las fechas de inicio y fin son obligatorias.' });
+  }
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(fecha_inicio) || !dateRegex.test(fecha_fin)) {
+    return res.status(400).json({ error: 'El formato de las fechas debe ser YYYY-MM-DD.' });
+  }
+  if (new Date(fecha_fin) < new Date(fecha_inicio)) {
+    return res.status(400).json({ error: 'La fecha de fin no puede ser anterior a la de inicio.' });
+  }
+  next();
+};
+
+router.use(validateDates);
+
+// 1. REPORTE GENERAL DE VENTAS (INGRESOS)
 router.get('/ventas', async (req, res) => {
   try {
-    const range = parseDateRange(req.query, { required: true });
     const adminClient = getAdminClient();
-    let query = adminClient
-      .from('ordenes')
-      .select('id_orden, metodo_pago, detalle_orden(cantidad, precio_aplicado)')
-      .eq('id_estado', getConsumedStateId());
-    query = applyDateRange(query, range, 'consumed_at');
+    const { fecha_inicio, fecha_fin } = req.query;
 
-    const { data, error } = await query;
-    if (error) throw error;
-
-    const summary = new Map();
-    for (const order of data || []) {
-      const rawMethod = String(order.metodo_pago || 'Otros').trim();
-      const normalized = rawMethod.toLowerCase();
-      let method = 'Otros';
-      if (normalized.includes('efectivo')) method = 'Efectivo';
-      else if (normalized.includes('convenio')) method = 'Convenio';
-      else if (normalized.includes('saldo') || normalized.includes('prepago')) method = 'Saldo';
-      else if (normalized.includes('transferencia')) method = 'Transferencia';
-
-      const current = summary.get(method) || { metodo_pago: method, cantidadAlmuerzos: 0, totalConsumo: 0 };
-      for (const detail of asArray(order.detalle_orden)) {
-        const quantity = asNumber(detail.cantidad);
-        current.cantidadAlmuerzos += quantity;
-        current.totalConsumo += quantity * asNumber(detail.precio_aplicado);
-      }
-      summary.set(method, current);
-    }
-
-    res.json(
-      [...summary.values()].map((row) => ({
-        ...row,
-        totalConsumo: Number(row.totalConsumo.toFixed(2)),
-      })),
-    );
-  } catch (error) {
-    handleRouteError(res, error);
-  }
-});
-
-router.get('/estados', async (req, res) => {
-  try {
-    const range = parseDateRange(req.query, { required: true });
-    const adminClient = getAdminClient();
-    let query = adminClient.from('ordenes').select(`
-      id_orden,
-      created_at,
-      id_estado,
-      metodo_pago,
-      clientes(nombre, apellido),
-      estados_orden(nombre_estado),
-      detalle_orden(cantidad, precio_aplicado, productos(nombre_producto))
-    `);
-    query = applyDateRange(query, range);
-    if (req.query.id_estado && req.query.id_estado !== 'all') {
-      query = query.eq('id_estado', req.query.id_estado);
-    }
-    query = query.order('created_at', { ascending: false });
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    res.json(
-      (data || []).map((order) => {
-        const client = asRelation(order.clientes);
-        const state = asRelation(order.estados_orden);
-        const details = asArray(order.detalle_orden);
-        return {
-          id: order.id_orden,
-          fecha: order.created_at,
-          cliente: client ? `${client.nombre || ''} ${client.apellido || ''}`.trim() : 'Desconocido',
-          estado: state?.nombre_estado || 'Desconocido',
-          metodo_pago: order.metodo_pago || 'N/A',
-          descripcion: details
-            .map((detail) => `${asNumber(detail.cantidad)}x ${getProduct(detail)?.nombre_producto || 'Sin producto'}`)
-            .join(', '),
-          cantidadAlmuerzos: details.reduce((sum, detail) => sum + asNumber(detail.cantidad), 0),
-          totalConsumo: Number(
-            details
-              .reduce(
-                (sum, detail) =>
-                  sum + asNumber(detail.cantidad) * asNumber(detail.precio_aplicado),
-                0,
-              )
-              .toFixed(2),
-          ),
-        };
-      }),
-    );
-  } catch (error) {
-    handleRouteError(res, error);
-  }
-});
-
-router.get('/productos', async (req, res) => {
-  try {
-    const range = parseDateRange(req.query, { required: true });
-    const adminClient = getAdminClient();
     let query = adminClient
       .from('ordenes')
       .select(`
-        id_orden,
-        consumed_at,
-        detalle_orden(
+        id_orden, id_estado, metodo_pago, created_at, consumed_at,
+        detalle_orden (
           cantidad,
           precio_aplicado,
-          productos(nombre_producto, categorias_productos(nombre_categoria))
+          id_tipo_almuerzo,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
         )
       `)
-      .eq('id_estado', getConsumedStateId());
-    query = applyDateRange(query, range, 'consumed_at');
+      .eq('id_estado', 2);
 
-    const { data, error } = await query;
+    if (fecha_inicio) query = query.gte('consumed_at', fecha_inicio);
+    if (fecha_fin) query = query.lte('consumed_at', fecha_fin + 'T23:59:59.999Z');
+
+    const { data: ordenes, error } = await query;
     if (error) throw error;
 
-    const products = new Map();
-    for (const order of data || []) {
-      for (const detail of asArray(order.detalle_orden)) {
-        const product = getProduct(detail);
-        const category = asRelation(product?.categorias_productos);
-        const name = product?.nombre_producto || 'Sin producto';
-        const current = products.get(name) || {
-          nombre: name,
-          categoria: category?.nombre_categoria || 'Otra',
-          cantidadVendida: 0,
-          ingresosGenerados: 0,
-        };
-        const quantity = asNumber(detail.cantidad);
-        current.cantidadVendida += quantity;
-        current.ingresosGenerados += quantity * asNumber(detail.precio_aplicado);
-        products.set(name, current);
-      }
-    }
+    const consumidos = ordenes || [];
 
-    res.json(
-      [...products.values()]
-        .map((row) => ({
-          ...row,
-          ingresosGenerados: Number(row.ingresosGenerados.toFixed(2)),
-        }))
-        .sort((left, right) => right.cantidadVendida - left.cantidadVendida),
-    );
+    const resumen = {
+      efectivo: { cantidad: 0, total: 0 },
+      convenio: { cantidad: 0, total: 0 },
+      saldo: { cantidad: 0, total: 0 },
+      transferencia: { cantidad: 0, total: 0 },
+      otros: { cantidad: 0, total: 0 }
+    };
+
+    consumidos.forEach(orden => {
+      const metodo = orden.metodo_pago ? orden.metodo_pago.toLowerCase() : 'otros';
+      
+      let key = 'otros';
+      if (metodo.includes('efectivo')) key = 'efectivo';
+      else if (metodo.includes('convenio')) key = 'convenio';
+      else if (metodo.includes('saldo') || metodo.includes('prepago')) key = 'saldo';
+      else if (metodo.includes('transferencia')) key = 'transferencia';
+
+      const summary = summarizeOrderDetails(orden.detalle_orden || []);
+      resumen[key].cantidad += summary.almuerzosPrincipales;
+      resumen[key].ejecutivoCompleto = (resumen[key].ejecutivoCompleto || 0) + summary.ejecutivoCompleto;
+      resumen[key].ejecutivoSinSopa = (resumen[key].ejecutivoSinSopa || 0) + summary.ejecutivoSinSopa;
+      resumen[key].ejecutivoSimple = (resumen[key].ejecutivoSimple || 0) + summary.ejecutivoSimple;
+      resumen[key].almuerzoDia = (resumen[key].almuerzoDia || 0) + summary.almuerzoDia;
+      resumen[key].almuerzoDiaSimple = (resumen[key].almuerzoDiaSimple || 0) + summary.almuerzoDiaSimple;
+      resumen[key].otrosAlmuerzos = (resumen[key].otrosAlmuerzos || 0) + summary.otrosAlmuerzos;
+      resumen[key].segundosAlmuerzos = (resumen[key].segundosAlmuerzos || 0) + summary.segundosAlmuerzos;
+      resumen[key].vegetarianos = (resumen[key].vegetarianos || 0) + summary.vegetarianos;
+      resumen[key].especiales = (resumen[key].especiales || 0) + summary.especiales;
+      resumen[key].almuerzosConExtras = (resumen[key].almuerzosConExtras || 0) + summary.almuerzosConExtras;
+      resumen[key].extrasCantidad = (resumen[key].extrasCantidad || 0) + summary.extrasCantidad;
+      resumen[key].valorExtras = (resumen[key].valorExtras || 0) + summary.extrasTotal;
+      resumen[key].total += summary.totalConsumo;
+    });
+
+    const resultadoArray = Object.keys(resumen).map(k => ({
+      metodo_pago: k.charAt(0).toUpperCase() + k.slice(1),
+      cantidadAlmuerzos: resumen[k].cantidad,
+      almuerzosPrincipales: resumen[k].cantidad,
+      ejecutivoCompleto: resumen[k].ejecutivoCompleto || 0,
+      ejecutivoSinSopa: resumen[k].ejecutivoSinSopa || 0,
+      ejecutivoSimple: resumen[k].ejecutivoSimple || 0,
+      almuerzoDia: resumen[k].almuerzoDia || 0,
+      almuerzoDiaSimple: resumen[k].almuerzoDiaSimple || 0,
+      otrosAlmuerzos: resumen[k].otrosAlmuerzos || 0,
+      segundosAlmuerzos: resumen[k].segundosAlmuerzos || 0,
+      vegetarianos: resumen[k].vegetarianos || 0,
+      especiales: resumen[k].especiales || 0,
+      almuerzosConExtras: resumen[k].almuerzosConExtras || 0,
+      extrasCantidad: resumen[k].extrasCantidad || 0,
+      valorExtras: Number((resumen[k].valorExtras || 0).toFixed(2)),
+      totalConsumo: resumen[k].total
+    })).filter(r => r.cantidadAlmuerzos > 0 || r.segundosAlmuerzos > 0 || r.extrasCantidad > 0 || r.totalConsumo > 0);
+
+    res.json(resultadoArray);
   } catch (error) {
-    handleRouteError(res, error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/clientes', async (req, res) => {
+// 2. REPORTE DE PEDIDOS POR ESTADO
+router.get('/estados', async (req, res) => {
   try {
-    const range = parseDateRange(req.query, { required: true });
-    const clientId = String(req.query.id_cliente || '').trim();
-    if (!clientId || clientId === 'all') {
-      return res.status(400).json({ error: 'Debe seleccionar un cliente especifico.' });
-    }
-
     const adminClient = getAdminClient();
-    const clientResult = await adminClient
-      .from('clientes')
-      .select('clientes_convenios(convenios(nombre_empresa))')
-      .eq('id_cliente', clientId)
-      .maybeSingle();
-    if (clientResult.error) throw clientResult.error;
-    if (!clientResult.data) return res.status(404).json({ error: 'Cliente no encontrado.' });
-
-    const link = asArray(clientResult.data.clientes_convenios)[0];
-    const convenio = asRelation(link?.convenios);
-    const convenioName = convenio?.nombre_empresa || 'N/A';
+    const { fecha_inicio, fecha_fin, id_estado } = req.query;
 
     let query = adminClient
       .from('ordenes')
       .select(`
-        id_orden,
-        created_at,
-        metodo_pago,
-        estados_orden(nombre_estado),
-        detalle_orden(cantidad, precio_aplicado, productos(nombre_producto))
-      `)
-      .eq('id_cliente', clientId)
-      .order('created_at', { ascending: false });
-    query = applyDateRange(query, range);
+        id_orden, created_at, consumed_at, id_estado, metodo_pago,
+        clientes ( nombre, apellido ),
+        estados_orden ( nombre_estado ),
+        detalle_orden (
+          cantidad,
+          precio_aplicado,
+          id_tipo_almuerzo,
+          observaciones_tipo,
+          opciones,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+        )
+      `);
 
-    const { data, error } = await query;
+    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
+    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
+    if (id_estado && id_estado !== 'all') query = query.eq('id_estado', id_estado);
+
+    query = query.order('created_at', { ascending: false });
+
+    const { data: ordenes, error } = await query;
     if (error) throw error;
 
-    res.json(
-      (data || []).map((order) => {
-        const state = asRelation(order.estados_orden);
-        const details = asArray(order.detalle_orden);
-        return {
-          id: order.id_orden,
-          fecha: order.created_at,
-          convenio: convenioName,
-          estado: state?.nombre_estado || 'Desconocido',
-          metodo_pago: order.metodo_pago || 'N/A',
-          descripcion: details
-            .map((detail) => `${asNumber(detail.cantidad)}x ${getProduct(detail)?.nombre_producto || 'Sin producto'}`)
-            .join(', '),
-          cantidadAlmuerzos: details.reduce((sum, detail) => sum + asNumber(detail.cantidad), 0),
-          totalConsumo: Number(
-            details
-              .reduce(
-                (sum, detail) =>
-                  sum + asNumber(detail.cantidad) * asNumber(detail.precio_aplicado),
-                0,
-              )
-              .toFixed(2),
-          ),
-        };
-      }),
-    );
+    const reporteFormateado = ordenes.map(o => {
+      const summary = summarizeOrderDetails(o.detalle_orden || []);
+      const descripciones = o.detalle_orden.map(formatDetailDescription).join(', ');
+
+      return {
+        id: o.id_orden,
+        fecha: o.consumed_at || o.created_at,
+        cliente: o.clientes ? `${o.clientes.nombre} ${o.clientes.apellido}` : 'Desconocido',
+        estado: o.estados_orden?.nombre_estado || 'Desconocido',
+        metodo_pago: o.metodo_pago || 'N/A',
+        descripcion: descripciones,
+        ...compactLunchSummary(summary)
+      };
+    });
+
+    res.json(reporteFormateado);
   } catch (error) {
-    handleRouteError(res, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. REPORTE DE POPULARIDAD DE PRODUCTOS
+router.get('/productos', async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { fecha_inicio, fecha_fin } = req.query;
+
+    let query = adminClient
+      .from('ordenes')
+      .select(`
+        id_estado, created_at, consumed_at,
+        detalle_orden ( cantidad, precio_aplicado, productos(nombre_producto, categorias_productos(nombre_categoria)) )
+      `)
+      .eq('id_estado', 2);
+
+    if (fecha_inicio) query = query.gte('consumed_at', fecha_inicio);
+    if (fecha_fin) query = query.lte('consumed_at', fecha_fin + 'T23:59:59.999Z');
+
+    const { data: ordenes, error } = await query;
+    if (error) throw error;
+
+    const consumidos = ordenes || [];
+
+    const productosMap = {};
+
+    consumidos.forEach(orden => {
+      orden.detalle_orden.forEach(det => {
+        const nombre = det.productos?.nombre_producto || 'Desconocido';
+        const categoria = det.productos?.categorias_productos?.nombre_categoria || 'Otra';
+        if (!productosMap[nombre]) {
+          productosMap[nombre] = { nombre, categoria, cantidadVendida: 0, ingresosGenerados: 0 };
+        }
+        productosMap[nombre].cantidadVendida += det.cantidad;
+        productosMap[nombre].ingresosGenerados += (det.cantidad * det.precio_aplicado);
+      });
+    });
+
+    const resultadoArray = Object.values(productosMap).sort((a, b) => b.cantidadVendida - a.cantidadVendida);
+
+    res.json(resultadoArray);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. REPORTE POR CLIENTE
+router.get('/clientes', async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { fecha_inicio, fecha_fin, id_cliente } = req.query;
+
+    if (!id_cliente || id_cliente === 'all') {
+      return res.status(400).json({ error: 'Debe seleccionar un cliente específico.' });
+    }
+
+    // Consultar el convenio del cliente
+    const { data: cliente, error: clientError } = await adminClient
+      .from('clientes')
+      .select(`
+        id_cliente,
+        clientes_convenios(
+          convenios(nombre_empresa)
+        )
+      `)
+      .eq('id_cliente', id_cliente)
+      .maybeSingle();
+
+    if (clientError) throw clientError;
+    const convenioNombre = cliente?.clientes_convenios?.[0]?.convenios?.nombre_empresa || 'N/A';
+
+    let query = adminClient
+      .from('ordenes')
+      .select(`
+        id_orden, created_at, consumed_at, id_estado, metodo_pago,
+        estados_orden ( nombre_estado ),
+        detalle_orden (
+          cantidad,
+          precio_aplicado,
+          id_tipo_almuerzo,
+          observaciones_tipo,
+          opciones,
+          tipos_almuerzo(codigo, nombre),
+          productos(id_categoria, nombre_producto, categorias_productos(nombre_categoria))
+        )
+      `)
+      .eq('id_cliente', id_cliente);
+
+    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
+    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
+
+    query = query.order('created_at', { ascending: false });
+
+    const { data: ordenes, error } = await query;
+    if (error) throw error;
+
+    const reporteFormateado = ordenes.map(o => {
+      const summary = summarizeOrderDetails(o.detalle_orden || []);
+      const descripciones = o.detalle_orden.map(formatDetailDescription).join(', ');
+
+      return {
+        id: o.id_orden,
+        fecha: o.consumed_at || o.created_at,
+        estado: o.estados_orden?.nombre_estado || 'Desconocido',
+        metodo_pago: o.metodo_pago || 'N/A',
+        descripcion: descripciones,
+        ...compactLunchSummary(summary),
+        convenio: convenioNombre
+      };
+    });
+
+    res.json(reporteFormateado);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
 module.exports = router;
+module.exports._private = {
+  buildActividadReciente,
+  buildConsumosPorConvenio,
+  buildConsumosPorDiaFiltrado,
+  buildConsumosPorSemana,
+  buildTopProducts,
+  fetchMonthlyLunchCount,
+  resolveDashboardFilter,
+  sumKpiSummaries,
+};

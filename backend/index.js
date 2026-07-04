@@ -1,9 +1,10 @@
 const express = require('express');
-const path = require('path');
+const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 require('dotenv').config();
 const cors = require('cors');
-const { getAdminClient } = require('./src/config/supabase'); // ConfiguraciÃƒÂ³n de Supabase
+const cookieParser = require('cookie-parser');
+const { getAdminClient } = require('./src/config/supabase'); // Configuración de Supabase
 const authRoutes = require('./src/routes/auth'); // Importamos las nuevas rutas de login
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -11,31 +12,55 @@ const { validateTelegramEnvironment } = require('./src/services/telegramConsent'
 
 const app = express();
 
+// Cloud Run pone exactamente un proxy delante; sin esto el rate limit
+// veria la IP del balanceador para todos los clientes.
+app.set('trust proxy', 1);
 const checkDatabaseConnection = async (createClient = getAdminClient) => {
   const { error } = await createClient().from('empleados').select('id').limit(1);
   if (error) throw error;
 };
 
 // --- MIDDLEWARES ---
-app.set('trust proxy', 1);
-app.use(helmet());
-const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000')
+const defaultOrigins = ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+const configuredOrigins = (
+  process.env.CORS_ORIGINS ||
+  process.env.CORS_ORIGIN ||
+  process.env.ALLOWED_ORIGINS ||
+  process.env.FRONTEND_URL ||
+  ''
+)
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const allowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : defaultOrigins;
+
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
+// helmet no cubre Permissions-Policy; se limita el acceso a APIs sensibles.
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+const isLocalDevOrigin = (origin) =>
+  process.env.NODE_ENV !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || isLocalDevOrigin(origin)) {
         callback(null, true);
         return;
       }
       callback(new Error('Origen no permitido por CORS'));
     },
+    credentials: true,
   })
 );
-app.use(express.json({ limit: '15mb' }));
+app.use(cookieParser());
+// Solo el menu recibe JSON grande (imagen base64); el resto queda acotado.
+app.use('/api/menu', express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '1mb' }));
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -58,7 +83,7 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Servir archivos estÃƒÂ¡ticos de convenios
+// Servir archivos estáticos de convenios
 // --- RUTAS ---
 
 // 1. Ruta base de prueba
@@ -82,8 +107,16 @@ app.get('/api/check-db', async (req, res) => {
   }
 });
 
-// 3. ConexiÃƒÂ³n de las Rutas de la API
-// Esto significa que todas las rutas empezarÃƒÂ¡n con /api/...
+// 3. Conexión de las Rutas de la API
+// Esto significa que todas las rutas empezarán con /api/...
+app.use(
+  '/assets',
+  express.static(path.join(__dirname, 'src', 'assets'), {
+    index: false,
+    maxAge: '30d',
+  }),
+);
+
 app.use('/api', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
@@ -138,6 +171,10 @@ if (require.main === module) {
       console.log('Servidor cerrado correctamente.');
       process.exit(0);
     });
+    setTimeout(() => {
+      console.log('Forzando cierre por conexiones pendientes...');
+      process.exit(0);
+    }, 1000);
   });
 
   process.on('SIGTERM', () => {
@@ -145,6 +182,7 @@ if (require.main === module) {
     server.close(() => {
       process.exit(0);
     });
+    setTimeout(() => process.exit(0), 1000);
   });
 }
 

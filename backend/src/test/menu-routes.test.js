@@ -1,0 +1,275 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createRequire } from 'node:module';
+import express from 'express';
+import request from 'supertest';
+
+const require = createRequire(import.meta.url);
+
+let store;
+let writes;
+
+// Cliente Supabase falso: lee de `store[table]` y registra escrituras en `writes`.
+const makeClient = () => {
+  class Q {
+    constructor(table) {
+      this.t = table;
+      this.f = [];
+      this.op = 'select';
+      this.payload = null;
+      this.lim = null;
+    }
+    select() { return this; }
+    insert(p) { this.op = 'insert'; this.payload = p; return this; }
+    update(p) { this.op = 'update'; this.payload = p; return this; }
+    upsert(p) { this.op = 'upsert'; this.payload = p; return this; }
+    delete() { this.op = 'delete'; return this; }
+    eq(c, v) { this.f.push(['eq', c, v]); return this; }
+    ilike(c, v) { this.f.push(['ilike', c, v]); return this; }
+    in(c, v) { this.f.push(['in', c, v]); return this; }
+    order() { return this; }
+    limit(n) { this.lim = n; return this; }
+    _rows() {
+      let rows = (store[this.t] || []).slice();
+      for (const [op, c, v] of this.f) {
+        if (op === 'eq') rows = rows.filter((r) => String(r[c]) === String(v));
+        else if (op === 'ilike') rows = rows.filter((r) => String(r[c] || '').toLowerCase() === String(v || '').toLowerCase());
+        else if (op === 'in') rows = rows.filter((r) => v.map(String).includes(String(r[c])));
+      }
+      if (this.lim != null) rows = rows.slice(0, this.lim);
+      return rows;
+    }
+    _record() { writes.push({ table: this.t, op: this.op, payload: this.payload, filters: this.f }); }
+    maybeSingle() { return Promise.resolve({ data: this._rows()[0] || null, error: null }); }
+    single() {
+      if (this.op === 'insert') {
+        this._record();
+        const base = Array.isArray(this.payload) ? this.payload[0] : this.payload;
+        return Promise.resolve({ data: { id_alimento: writes.length, ...base }, error: null });
+      }
+      return Promise.resolve({ data: this._rows()[0] || null, error: null });
+    }
+    then(resolve, reject) {
+      if (this.op === 'select') return Promise.resolve({ data: this._rows(), error: null }).then(resolve, reject);
+      this._record();
+      return Promise.resolve({ error: null }).then(resolve, reject);
+    }
+  }
+  return { from: (t) => new Q(t) };
+};
+
+let fakeClient;
+const injectModule = (relPath, exportsObj) => {
+  const filename = require.resolve(relPath);
+  require.cache[filename] = { id: filename, filename, loaded: true, exports: exportsObj, children: [], paths: [] };
+};
+
+let app;
+const TODAY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Bogota',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date());
+
+beforeAll(() => {
+  process.env.SUPABASE_URL = 'https://example.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+  process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
+
+  injectModule('../config/supabase.js', { getAdminClient: () => fakeClient });
+  injectModule('../middlewares/authMiddleware.js', (req, _res, next) => {
+    req.user = { id: 'u1', email: 'admin@example.com', rol: 'administrador' };
+    next();
+  });
+  injectModule('../middlewares/roleMiddleware.js', () => (_req, _res, next) => next());
+  injectModule('../services/menuImageCleanup.js', { cleanupOldMenuImages: async () => ({ removed: 0 }) });
+
+  delete require.cache[require.resolve('../routes/menu.js')];
+  const menuRouter = require('../routes/menu.js');
+  app = express();
+  app.use(express.json());
+  app.use('/api/menu', menuRouter);
+});
+
+afterAll(() => {
+  delete process.env.N8N_MENU_WEBHOOK_SECRET;
+  [
+    '../config/supabase.js',
+    '../middlewares/authMiddleware.js',
+    '../middlewares/roleMiddleware.js',
+    '../services/menuImageCleanup.js',
+    '../routes/menu.js',
+  ].forEach((relPath) => {
+    try { delete require.cache[require.resolve(relPath)]; } catch { /* noop */ }
+  });
+});
+
+beforeEach(() => {
+  store = {};
+  writes = [];
+  fakeClient = makeClient();
+});
+
+const menuRow = (fecha, nombre, categoria, imagen = null) => ({
+  fecha,
+  imagen_url: imagen,
+  alimentos: { nombre_alimento: nombre, categorias_menu: { nombre_categoria: categoria } },
+});
+
+const validBody = { sopas: ['Locro'], segundos: ['Seco de pollo'], guarniciones: ['Arroz'] };
+
+describe('routes/menu — sistema y dashboard', () => {
+  it('POST /system/expirar-activo expira el menu activo con el secreto correcto', async () => {
+    store.menu_settings = [{ id: 1, active_date: '2026-06-20', image_retention_days: 14 }];
+
+    const res = await request(app)
+      .post('/api/menu/system/expirar-activo')
+      .set('X-Eciencia-Webhook-Secret', 'secret-test')
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ previousActiveDate: '2026-06-20' });
+    // registro de la baja del estado activo
+    expect(writes.some((w) => w.table === 'menu_settings' && w.op === 'update')).toBe(true);
+    expect(writes.some((w) => w.table === 'telegram_bot_state' && w.op === 'delete')).toBe(true);
+  });
+
+  it('GET / agrupa los menus por fecha con estado y datos de envio', async () => {
+    store.menu_diario = [
+      menuRow('2026-06-10', 'Locro', 'Sopas', 'http://img/x.png'),
+      menuRow('2026-06-10', 'Seco de pollo', 'Segundos'),
+      menuRow('2026-06-10', 'Arroz', 'Guarniciones'),
+    ];
+    store.menu_settings = [{ id: 1, active_date: '2026-06-10' }];
+    store.menu_envios = [{ fecha: '2026-06-10', last_sent_at: '2026-06-10T14:00:00.000Z', send_count: 2 }];
+
+    const res = await request(app).get('/api/menu/');
+
+    expect(res.status).toBe(200);
+    expect(res.body.menus).toHaveLength(1);
+    expect(res.body.menus[0]).toMatchObject({
+      fecha: '2026-06-10',
+      estado: 'activo',
+      sopas: ['Locro'],
+      segundos: ['Seco de pollo'],
+      guarniciones: ['Arroz'],
+      enviado: true,
+      send_count: 2,
+    });
+  });
+
+  it('PUT /:fecha rechaza una fecha con formato invalido', async () => {
+    const res = await request(app).put('/api/menu/no-es-fecha').send(validBody);
+    expect(res.status).toBe(400);
+  });
+
+  it('PUT /:fecha rechaza un menu incompleto', async () => {
+    const res = await request(app)
+      .put('/api/menu/2026-06-26')
+      .send({ sopas: [], segundos: [], guarniciones: [] });
+    expect(res.status).toBe(400);
+  });
+
+  it('PUT /:fecha bloquea la edicion si el menu ya fue enviado', async () => {
+    store.menu_envios = [{ fecha: '2026-06-25', last_sent_at: '2026-06-25T12:00:00.000Z' }];
+
+    const res = await request(app).put('/api/menu/2026-06-25').send(validBody);
+
+    expect(res.status).toBe(409);
+    expect(res.body.sentAt).toBe('2026-06-25T12:00:00.000Z');
+  });
+
+  it('PUT /:fecha pide confirmacion si el menu esta activo', async () => {
+    store.menu_envios = [];
+    store.menu_settings = [{ id: 1, active_date: '2026-06-25' }];
+
+    const res = await request(app).put('/api/menu/2026-06-25').send(validBody);
+
+    expect(res.status).toBe(409);
+    expect(res.body.requireConfirmation).toBe(true);
+  });
+
+  it('POST /enviar rechaza un menu incompleto', async () => {
+    const res = await request(app).post('/api/menu/enviar').send({ sopas: [], segundos: [], guarniciones: [] });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /enviar bloquea el reenvio cuando el menu enviado hoy cambio', async () => {
+    store.menu_envios = [
+      {
+        fecha: TODAY,
+        menu_payload: { sopas: ['Otra'], segundos: ['Distinto'], guarniciones: ['Cambio'] },
+        last_sent_at: `${TODAY}T11:00:00.000Z`,
+      },
+    ];
+
+    const res = await request(app).post('/api/menu/enviar').send(validBody);
+
+    expect(res.status).toBe(409);
+    expect(res.body.sentAt).toBe(`${TODAY}T11:00:00.000Z`);
+  });
+
+  it('GET /config informa si la edicion post-envio esta habilitada', async () => {
+    const off = await request(app).get('/api/menu/config');
+    expect(off.status).toBe(200);
+    expect(off.body).toEqual({ editAfterSend: false });
+
+    process.env.ECIENCIA_MENU_EDIT_AFTER_SEND = 'true';
+    try {
+      const on = await request(app).get('/api/menu/config');
+      expect(on.body).toEqual({ editAfterSend: true });
+    } finally {
+      delete process.env.ECIENCIA_MENU_EDIT_AFTER_SEND;
+    }
+  });
+
+  it('PUT /:fecha permite editar un menu enviado con ECIENCIA_MENU_EDIT_AFTER_SEND=true', async () => {
+    process.env.ECIENCIA_MENU_EDIT_AFTER_SEND = 'true';
+    try {
+      store.menu_envios = [{ fecha: '2026-06-25', last_sent_at: '2026-06-25T12:00:00.000Z' }];
+      store.categorias_menu = [
+        { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
+        { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
+        { id_categoria_menu: 3, nombre_categoria: 'Guarniciones' },
+      ];
+
+      const res = await request(app).put('/api/menu/2026-06-25').send(validBody);
+
+      expect(res.status).toBe(200);
+    } finally {
+      delete process.env.ECIENCIA_MENU_EDIT_AFTER_SEND;
+    }
+  });
+
+  it('POST /enviar reenvia con cambios cuando el modo pruebas esta activo', async () => {
+    process.env.ECIENCIA_MENU_EDIT_AFTER_SEND = 'true';
+    process.env.N8N_MENU_WEBHOOK_URL = 'https://n8n.example.test/webhook/menu';
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({ ok: true, status: 200, text: async () => 'ok' });
+    try {
+      store.menu_envios = [
+        {
+          fecha: TODAY,
+          menu_payload: { sopas: ['Otra'], segundos: ['Distinto'], guarniciones: ['Cambio'] },
+          last_sent_at: `${TODAY}T11:00:00.000Z`,
+          image_url: 'https://img.example.test/menu.png',
+          send_count: 1,
+        },
+      ];
+      store.categorias_menu = [
+        { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
+        { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
+        { id_categoria_menu: 3, nombre_categoria: 'Guarniciones' },
+      ];
+
+      const res = await request(app).post('/api/menu/enviar').send(validBody);
+
+      expect(res.status).toBe(202);
+      expect(res.body.reenvio).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.ECIENCIA_MENU_EDIT_AFTER_SEND;
+      delete process.env.N8N_MENU_WEBHOOK_URL;
+    }
+  });
+});

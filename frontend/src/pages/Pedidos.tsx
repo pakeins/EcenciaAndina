@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,10 +43,9 @@ import {
 export default function Pedidos() {
   const { user } = useAuth();
   const isAdmin = user?.rol === 'administrador';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [orders, setOrders] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
+
   const [filterEstado, setFilterEstado] = useState<string>('all');
   const [filterTipo, setFilterTipo] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -56,31 +56,25 @@ export default function Pedidos() {
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; message: string; orderId: string; statusId: number; statusName: string } | null>(null);
   const [errorDialog, setErrorDialog] = useState<string | null>(null);
 
-  const fetchOrders = async (showLoading = true) => {
-    if (showLoading) setIsLoading(true);
-    try {
+  // --- REACT QUERY CACHE ---
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['pedidos'],
+    queryFn: async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const startOfDay = today.toISOString();
       today.setHours(23, 59, 59, 999);
       const endOfDay = today.toISOString();
       const response = await apiFetch(`/ordenes?fecha_inicio=${startOfDay}&fecha_fin=${endOfDay}`);
-      if (response.ok) {
-        const data = await response.json();
-        setOrders(data);
-      } else {
-        toast.error('Error al cargar pedidos');
-      }
-    } catch (err) {
-      toast.error('Error de conexión');
-    } finally {
-      if (showLoading) setIsLoading(false);
-    }
-  };
+      if (!response.ok) throw new Error('Error al cargar pedidos');
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 2, // La info se considera fresca por 2 minutos
+  });
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
+  const fetchOrders = () => {
+    queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+  };
 
   const filteredOrders = orders.filter((order) => {
     // Validar en el cliente que el created_at coincida con la fecha actual local
@@ -133,7 +127,7 @@ export default function Pedidos() {
       });
       if (response.ok) {
         toast.success(`Pedido marcado como ${statusName}`);
-        fetchOrders(false);
+        fetchOrders();
       } else {
         const data = await response.json().catch(() => ({}));
         

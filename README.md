@@ -1,216 +1,153 @@
-﻿# Ecencia Andina APP
+# Ecencia Andina App - Sistema de Gestión y Analítica de Consumos
 
-Sistema operativo para Ecencia Andina: administracion de clientes, convenios, productos, pedidos, menu diario y reservas por Telegram.
+Este proyecto es la plataforma integral para la gestión de clientes, convenios (empresas), consumos, pedidos de almuerzos y reportería/dashboard analítico en tiempo real de **Ecencia Andina**.
 
-## Modulos principales
+El sistema está dividido en dos partes principales:
+1. **`backend`**: Servidor Node.js con Express, que interactúa directamente con Supabase mediante el cliente de administración (`supabase-js`).
+2. **`frontend`**: Aplicación de cliente desarrollada en React + TypeScript + Vite, utilizando Tailwind CSS, Shadcn/UI y Recharts para visualizaciones y analíticas avanzadas.
 
-- Frontend React/Vite con Tailwind y shadcn-ui.
-- Backend Express conectado a Supabase.
-- Supabase Postgres, Storage y migraciones SQL.
-- Workflow n8n limitado a difundir el menu diario por Telegram.
-- Bot de Telegram con consentimiento, vinculacion por telefono y estado de suscripcion.
+---
 
-## Estructura
+## 🛠️ Requisitos Previos
 
-```txt
-backend/                 API Express, rutas, tests y migraciones Supabase
-backend/n8n/             codigo/export del workflow n8n y ejemplo de entorno
-frontend/                aplicacion web Vite React
-docs/                    notas de credenciales, despliegue y produccion
-PLAN_PRODUCCION_ECIENCIA.md
+Asegúrate de tener instalado:
+* **Node.js** (versión 18 o superior recomendada)
+* **npm** o **bun**
+
+---
+
+## 📁 Estructura del Proyecto
+
+```text
+ECenciaAPP/
+├── backend/            # Servidor Node.js + Express
+│   ├── src/
+│   │   ├── config/     # Conexión a Supabase
+│   │   ├── middlewares/# Validación y Control de Roles
+│   │   ├── routes/     # Endpoints (auth, reportes, clientes, convenios, etc.)
+│   │   └── test/       # Pruebas unitarias con Vitest
+│   ├── index.js        # Punto de entrada principal
+│   └── package.json
+│
+├── frontend/           # Cliente React + TypeScript + Vite
+│   ├── src/
+│   │   ├── components/ # Componentes reutilizables (UI, layout, etc.)
+│   │   ├── pages/      # Vistas principales (Dashboard, Reportes, Pedidos, etc.)
+│   │   ├── lib/        # API fetch y utilidades
+│   │   └── test/       # Pruebas unitarias de frontend
+│   ├── package.json
+│   └── vite.config.ts
+│
+└── README.md           # Guía general de inicio (este archivo)
 ```
 
-Los PDFs, backups locales, `.env` y logs no deben subirse al repositorio. Los archivos
-firmados de convenios se guardan en un bucket privado de Supabase.
+---
 
-## Requisitos
+## 🔑 Configuración de Variables de Entorno (`.env`)
 
-- Node.js 22.13 o superior.
-- npm.
-- Docker Desktop si se va a ejecutar n8n local.
-- Acceso a un proyecto Supabase.
-- Token de bot Telegram.
-- En despliegue, dominio HTTPS para frontend/backend y origen configurado en `CORS_ORIGINS`.
+Tanto el frontend como el backend requieren configuraciones específicas de Supabase para poder operar correctamente.
 
-## Variables de entorno
+### 1. Configuración del Backend (`/backend/.env`)
 
-Copia los archivos de ejemplo y completa los valores reales:
+Crea un archivo `.env` dentro de la carpeta `backend/` basado en `backend/.env.example`:
 
-```powershell
-Copy-Item backend/.env.example backend/.env.local
-Copy-Item frontend/.env.example frontend/.env
-Copy-Item backend/n8n/eciencia-n8n.env.example backend/n8n/eciencia-n8n.env
+```env
+PORT=3001
+SUPABASE_URL=https://<tu-proyecto>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<tu-service-role-key-secreta>
 ```
 
-Consulta [docs/CREDENCIALES_Y_DESPLIEGUE.md](docs/CREDENCIALES_Y_DESPLIEGUE.md) para saber que tokens debe compartir el administrador.
-Para preproduccion en Google Cloud con bajo consumo, consulta [docs/GOOGLE_CLOUD_PREPROD.md](docs/GOOGLE_CLOUD_PREPROD.md).
+> ⚠️ **IMPORTANTE**: El backend utiliza la clave `SUPABASE_SERVICE_ROLE_KEY` (Service Role) porque realiza operaciones administrativas (bypass de RLS) como consultar estadísticas globales, recargar saldos de clientes frecuentes, y sincronizar logs. **Nunca expongas esta clave en el frontend.**
 
-Para Hostinger/preproduccion, ajusta `backend/.env.local`:
+### 2. Configuración del Frontend (`/frontend/.env`)
 
-```txt
-CORS_ORIGINS=https://tu-dominio.com,https://www.tu-dominio.com
-N8N_MENU_WEBHOOK_URL=https://tu-n8n/webhook/eciencia-enviar-menu-manual
+Crea un archivo `.env` dentro de la carpeta `frontend/`:
+
+```env
+VITE_SUPABASE_PROJECT_ID="<tu-project-id>"
+VITE_SUPABASE_PUBLISHABLE_KEY="<tu-publishable-anon-key>"
+VITE_SUPABASE_URL="https://<tu-proyecto>.supabase.co"
 ```
 
-## Backend
+> 💡 **Nota**: Estas variables son leídas por Vite y están expuestas públicamente. Se usan para inicializar el cliente de autenticación de Supabase en el lado del cliente.
 
-```powershell
-cd backend
-npm install
-npm test
-npm run lint
-npm start
-```
+---
 
-Por defecto queda en:
+## 🚀 Inicio Rápido en Desarrollo
 
-```txt
-http://localhost:3001
-```
+### Paso 1: Levantar el Backend
 
-## Frontend
+1. Navega al directorio del backend:
+   ```bash
+   cd backend
+   ```
+2. Instala las dependencias:
+   ```bash
+   npm install
+   ```
+3. Configura el archivo `.env` como se detalló anteriormente.
+4. Inicia el servidor en modo desarrollo:
+   ```bash
+   npm run dev
+   ```
+   El servidor backend correrá por defecto en `http://localhost:3001`.
 
-```powershell
+### Paso 2: Levantar el Frontend
+
+1. Abre una nueva terminal y navega al directorio del frontend:
+   ```bash
+   cd frontend
+   ```
+2. Instala las dependencias:
+   ```bash
+   npm install
+   ```
+3. Configura el archivo `.env`.
+4. Inicia el servidor de desarrollo de Vite:
+   ```bash
+   npm run dev
+   ```
+   La aplicación estará disponible en `http://localhost:5173`.
+
+---
+
+## 🧪 Pruebas Unitarias y Calidad de Código
+
+Para asegurar que todo funcione correctamente antes de realizar commits o integraciones, ejecuta las siguientes validaciones:
+
+### Ejecutar Pruebas (Vitest)
+
+* **En el Backend**:
+  ```bash
+  cd backend
+  npm run test
+  ```
+* **En el Frontend**:
+  ```bash
+  cd frontend
+  npm run test
+  ```
+
+### Ejecutar Linter (ESLint)
+
+Garantiza que no haya variables sueltas, tipos `any` incorrectos o malas prácticas:
+
+* **En el Backend**:
+  ```bash
+  cd backend
+  npm run lint
+  ```
+* **En el Frontend**:
+  ```bash
+  cd frontend
+  npm run lint
+  ```
+
+### Construcción para Producción (Build)
+
+Verifica que el tipado de TypeScript del frontend sea consistente y compile correctamente:
+
+```bash
 cd frontend
-npm install
-npm test
-npm run lint
-npm run dev
-```
-
-Por defecto queda en:
-
-```txt
-http://localhost:3000
-```
-
-## Supabase
-
-Las migraciones del proyecto estan en:
-
-```txt
-backend/supabase/migrations
-```
-
-Tablas relevantes para Telegram:
-
-- `telegram_subscriptions`: consentimiento, telefono normalizado, `chat_id`, estado y ultima fecha de envio.
-- `telegram_invitations`: invitaciones de un solo uso con el token almacenado solo como HMAC-SHA256.
-- `telegram_consent_events`: evidencia inmutable de aceptacion, rechazo, revocacion y reinvitacion.
-- `telegram_privacy_requests`: solicitudes que requieren revision administrativa.
-- `telegram_bot_state`: estado temporal de sesiones n8n.
-- `telegram_order_traces`: trazabilidad tecnica sin almacenar mensajes libres.
-- `menu_settings`: menu activo y dias de retencion para imagenes antiguas.
-
-Endpoints utiles:
-
-- `GET /api/menu`: lista menus registrados con fecha, estado y opciones.
-- `PUT /api/menu/:fecha`: edita un menu registrado.
-- `POST /api/menu/:fecha/activar`: activa un menu como menu del dia.
-- `POST /api/menu/limpiar-imagenes`: limpia imagenes antiguas del bucket `eciencia-menu-assets`.
-- `GET /api/ordenes/telegram/trazabilidad`: consulta trazabilidad de pedidos automaticos.
-
-La consulta de trazabilidad es exclusiva para administradores, usa paginacion y permite
-filtrar por resultado o `chat_id`. En el frontend se encuentra en `/trazabilidad-telegram`.
-
-## n8n y Telegram
-
-El workflow exportable esta en:
-
-```txt
-backend/n8n/workflows/eciencia_telegram_menu_reservas.workflow.json
-```
-
-Variables requeridas:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_WEBHOOK_SECRET`
-- `TELEGRAM_BOT_USERNAME`
-- `TELEGRAM_PRIVACY_CONTACT`
-- `TELEGRAM_PRIVACY_POLICY_URL`
-- `TELEGRAM_CONSENT_VERSION`
-- `TELEGRAM_INVITE_TOKEN_SECRET`
-- `RESEND_API_KEY` (opcional mientras no exista dominio verificado)
-- `INVITATION_FROM_EMAIL` (obligatorio al configurar Resend)
-- `INVITATION_REPLY_TO` (opcional)
-- `N8N_MENU_WEBHOOK_SECRET`
-- `N8N_ECIENCIA_BACKEND_URL`
-- `N8N_ECIENCIA_TIMEZONE`
-- `N8N_ECIENCIA_MENU_IMAGE_URL`
-- `N8N_ECIENCIA_PRODUCTO_ALMUERZO_NOMBRE`
-- `N8N_ECIENCIA_ORIGEN_NOMBRE`
-- `N8N_ECIENCIA_ESTADO_RESERVADO_NOMBRE`
-
-El webhook manual que llama el backend es:
-
-```txt
-http://localhost:7000/webhook/eciencia-enviar-menu-manual
-```
-
-El workflow ejecuta diariamente a las `02:30` (zona `America/Bogota`) la limpieza de
-imagenes `telegram/menu-dashboard-*` que superen la retencion de `menu_settings`.
-
-El bot usa webhook en el backend. Despues de desplegar el backend HTTPS, registra Telegram asi:
-
-```powershell
-cd backend
-npm run telegram:set-webhook
-```
-
-Endpoint esperado:
-
-```txt
-https://TU_BACKEND/api/telegram/webhook
-```
-
-No uses `getUpdates` ni polling en n8n cuando el webhook este activo.
-
-## Alta de clientes en Telegram
-
-Telegram no permite que un bot escriba primero a un usuario que nunca inicio conversacion.
-
-Al crear el cliente, la API genera un enlace privado con vigencia de siete dias:
-
-```txt
-https://t.me/NOMBRE_DEL_BOT?start=TOKEN_DE_UN_SOLO_USO
-```
-
-Para el bot de pruebas usado localmente:
-
-```txt
-https://t.me/ECIENCIATESTEBOT?start=TOKEN
-```
-
-El frontend muestra el enlace y genera el QR localmente. Si Resend esta configurado,
-el backend envia el mismo enlace y un QR embebido al correo obligatorio del cliente.
-Un fallo de correo no revierte el alta y puede reintentarse desde Clientes.
-
-El cliente abre el enlace,
-acepta el aviso y comparte su propio contacto con el boton oficial de Telegram. El
-telefono debe coincidir con el cliente exacto de la invitacion. Rechazos y
-revocaciones quedan bloqueados hasta una reinvitacion administrativa.
-
-Los pedidos solo aceptan botones para menu, cantidad y confirmacion. Los comandos de
-privacidad son `/privacidad`, `/misdatos`, `/eliminarmisdatos`, `/revocar` y `/ayuda`.
-Publica `TELEGRAM_PRIVACY_POLICY_URL` tambien en BotFather.
-
-## Datos de simulacion
-
-El saneamiento del proyecto de pruebas usa nombres empresariales reconocibles de
-Ecuador como referencia visual. Todos los RUC, representantes, telefonos, correos y
-convenios generados son ficticios y no representan relaciones comerciales reales.
-
-## Validacion rapida
-
-```powershell
-cd backend
-npm test
-npm run lint
-
-cd ../frontend
-npm test
-npm run lint
 npm run build
 ```

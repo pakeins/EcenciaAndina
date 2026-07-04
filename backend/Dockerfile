@@ -1,21 +1,17 @@
-FROM node:22.22.3-slim AS dependencies
+FROM node:18-alpine
 
-WORKDIR /app
+# Crear directorio de trabajo
+WORKDIR /usr/src/app
+
+# Instalar dependencias
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --production
 
-FROM gcr.io/distroless/base-debian12:nonroot
+# Copiar el resto del código
+COPY . .
 
-ENV NODE_ENV=production
-WORKDIR /app
-
-COPY --from=dependencies /usr/local/bin/node /usr/local/bin/node
-COPY --from=dependencies /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib/x86_64-linux-gnu/libgcc_s.so.1
-COPY --from=dependencies /lib/x86_64-linux-gnu/libstdc++.so.6 /lib/x86_64-linux-gnu/libstdc++.so.6
-COPY --from=dependencies --chown=65532:65532 /app/node_modules ./node_modules
-COPY --chown=65532:65532 index.js ./
-COPY --chown=65532:65532 src ./src
-
+# Exponer el puerto del backend
 EXPOSE 3001
-ENTRYPOINT ["/usr/local/bin/node"]
-CMD ["index.js"]
+
+# Iniciar la aplicación
+CMD ["node", "index.js"]

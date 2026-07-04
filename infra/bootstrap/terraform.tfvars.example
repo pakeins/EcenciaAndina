@@ -1,0 +1,3 @@
+project_id           = "eciencia-andina-preprod"
+github_repository    = "RengifORG/gestion-almuerzos-bot"
+tf_state_bucket_name = "eciencia-andina-preprod-tfstate"

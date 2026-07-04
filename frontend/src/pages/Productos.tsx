@@ -34,7 +34,6 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { FIELD_LIMITS, isNonNegativeNumber } from '@/lib/validation';
 
 interface Product {
   id: string;
@@ -53,7 +52,8 @@ interface Category {
 
 export default function Productos() {
   const { user } = useAuth();
-  const isAdmin = user?.rol === 'administrador';
+  const isAdministrador = user?.rol === 'administrador';
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,7 +90,7 @@ export default function Productos() {
         apiFetch('/productos'),
         apiFetch('/categorias')
       ]);
-
+      
       if (prodRes.ok) setProducts(await prodRes.json());
       if (catRes.ok) setCategories(await catRes.json());
     } catch (err) {
@@ -128,11 +128,8 @@ export default function Productos() {
     if (!productForm.nombre || !productForm.precio || !productForm.id_categoria) {
       toast.error('Complete todos los campos'); return;
     }
-    if (productForm.nombre.trim().length > 80 || productForm.descripcion.trim().length > FIELD_LIMITS.descripcion) {
-      toast.error('Revise la longitud del nombre o la descripcion');
-      return;
-    }
-    if (!isNonNegativeNumber(productForm.precio)) {
+
+    if (parseFloat(productForm.precio) < 0) {
       toast.error('El precio no puede ser negativo');
       return;
     }
@@ -203,8 +200,8 @@ export default function Productos() {
     } finally { setIsSaving(false); }
   };
 
-  const filteredProducts = products.filter(p =>
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredProducts = products.filter(p => 
+    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.categoria_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -234,7 +231,7 @@ export default function Productos() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Buscar producto..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             </div>
-            {isAdmin && (
+            {isAdministrador && (
               <Button onClick={() => handleOpenProduct()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
                 <Plus className="mr-2 h-4 w-4" />
                 Nuevo Producto
@@ -252,7 +249,7 @@ export default function Productos() {
                     <TableHead className="text-cafe font-bold">Categoría</TableHead>
                     <TableHead className="text-cafe font-bold">Precio</TableHead>
                     <TableHead className="text-cafe font-bold">Estado</TableHead>
-                    {isAdmin && <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>}
+                    {isAdministrador && <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -272,22 +269,22 @@ export default function Productos() {
                       <TableCell className="font-semibold">${p.precio.toFixed(2)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Switch
-                            checked={p.activo}
-                            onCheckedChange={() => toggleProductStatus(p)}
-                            disabled={!isAdmin}
+                          <Switch 
+                            checked={p.activo} 
+                            onCheckedChange={() => toggleProductStatus(p)} 
+                            disabled={!isAdministrador}
                           />
                           <Badge variant={p.activo ? 'default' : 'secondary'}>
                             {p.activo ? 'Activo' : 'Inactivo'}
                           </Badge>
                         </div>
                       </TableCell>
-                      {isAdmin && (
+                      {isAdministrador && (
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleOpenProduct(p)} title="Editar producto">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                             <Button variant="outline" size="sm" onClick={() => handleOpenProduct(p)} title="Editar producto">
+                               <Pencil className="h-4 w-4" />
+                             </Button>
                           </div>
                         </TableCell>
                       )}
@@ -304,18 +301,18 @@ export default function Productos() {
           <div className="flex items-center justify-between gap-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar categoría..."
-                className="pl-10"
-                value={categorySearchTerm}
-                onChange={e => setCategorySearchTerm(e.target.value)}
+              <Input 
+                placeholder="Buscar categoría..." 
+                className="pl-10" 
+                value={categorySearchTerm} 
+                onChange={e => setCategorySearchTerm(e.target.value)} 
               />
             </div>
-            {isAdmin && (
-            <Button onClick={() => handleOpenCategory()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva Categoría
-            </Button>
+            {isAdministrador && (
+              <Button onClick={() => handleOpenCategory()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+                <Plus className="mr-2 h-4 w-4" />
+                Nueva Categoría
+              </Button>
             )}
           </div>
 
@@ -327,7 +324,7 @@ export default function Productos() {
                     <TableRow className="bg-secondary/10 hover:bg-secondary/10">
                       <TableHead className="text-cafe font-bold">Nombre de la Categoría</TableHead>
                       <TableHead className="text-cafe font-bold">Productos Vinculados</TableHead>
-                      {isAdmin && <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>}
+                      {isAdministrador && <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -348,14 +345,14 @@ export default function Productos() {
                             {products.filter(p => p.id_categoria === c.id_categoria).length} productos
                           </Badge>
                         </TableCell>
-                        {isAdmin && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleOpenCategory(c)} title="Editar categoría">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                        {isAdministrador && (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleOpenCategory(c)} title="Editar categoría">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         )}
                       </TableRow>
                     ))}
@@ -377,7 +374,7 @@ export default function Productos() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nombre del Producto *</Label>
-              <Input value={productForm.nombre} onChange={e => setProductForm({...productForm, nombre: e.target.value})} placeholder="Ej: Almuerzo Ejecutivo" maxLength={80} />
+              <Input value={productForm.nombre} onChange={e => setProductForm({...productForm, nombre: e.target.value})} placeholder="Ej: Almuerzo Ejecutivo" />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -385,7 +382,7 @@ export default function Productos() {
                   <Label>Precio Unitario ($) *</Label>
                   <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Incluye IVA</span>
                 </div>
-                <Input type="number" min="0" step="0.01" value={productForm.precio} onChange={e => setProductForm({...productForm, precio: e.target.value})} placeholder="0.00" />
+                <Input type="number" step="0.01" min="0" value={productForm.precio} onChange={e => setProductForm({...productForm, precio: e.target.value})} placeholder="0.00" />
               </div>
               <div className="space-y-2">
                 <Label>Categoría *</Label>
@@ -399,10 +396,10 @@ export default function Productos() {
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
-              <Textarea
-                value={productForm.descripcion}
-                onChange={e => setProductForm({...productForm, descripcion: e.target.value})}
-                placeholder="Detalle los ingredientes o características del producto..."
+              <Textarea 
+                value={productForm.descripcion} 
+                onChange={e => setProductForm({...productForm, descripcion: e.target.value})} 
+                placeholder="Detalle los ingredientes o características del producto..." 
                 className="resize-none"
               />
             </div>
@@ -421,7 +418,7 @@ export default function Productos() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nombre de la Categoría *</Label>
-              <Input value={categoryForm.nombre_categoria} onChange={e => setCategoryForm({nombre_categoria: e.target.value})} placeholder="Ej: Bebidas, Postres..." maxLength={80} />
+              <Input value={categoryForm.nombre_categoria} onChange={e => setCategoryForm({nombre_categoria: e.target.value})} placeholder="Ej: Bebidas, Postres..." />
             </div>
           </div>
           <DialogFooter>

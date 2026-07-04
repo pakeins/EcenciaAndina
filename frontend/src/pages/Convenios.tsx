@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { Convenio, Client, ConvenioHistorial } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,16 +26,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Plus, Pencil, Users, Building2, Mail, Phone, CalendarDays, Trash2, Search, UserPlus, ArrowLeft, FileDown, ShieldCheck, Eye, Upload, History, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { API_BASE_URL, apiFetch } from '@/lib/api';
+import { apiFetch, API_BASE_URL } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { differenceInYears } from 'date-fns';
-import { FIELD_LIMITS, isNonNegativeNumber, isValidEcDocument, isValidEmail, isValidPhone, isValidRuc, normalizePhone, onlyDigits } from '@/lib/validation';
-import { escapeHtml, formatMoney, openPrintWindow, openSafeBlankWindow, toFiniteNumber } from '@/lib/html';
-import { CLIENT_TYPE } from '@/constants/domain';
 
 export default function Convenios() {
-  const { user } = useAuth();
-  const isAdmin = user?.rol === 'administrador';
   const [convenios, setConvenios] = useState<Convenio[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +88,7 @@ interface ReportEmployee {
     cupo_maximo: 0,
   });
 
-  // --- GESTION DE COLABORADORES ---
+  // --- GESTIÓN DE COLABORADORES ---
   const [associatedClients, setAssociatedClients] = useState<Client[]>([]);
   const [availableClients, setAvailableClients] = useState<Client[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
@@ -104,8 +98,7 @@ interface ReportEmployee {
     cedula: '',
     nombre: '',
     apellido: '',
-    telefono: '',
-    correo: '',
+    telefono: ''
   });
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
@@ -170,26 +163,6 @@ interface ReportEmployee {
       toast.error('Campos obligatorios faltantes'); return;
     }
 
-    if (!isValidRuc(formData.ruc)) {
-      toast.error('Ingrese un RUC ecuatoriano valido');
-      return;
-    }
-    if (formData.nombre_empresa.trim().length > FIELD_LIMITS.empresa || formData.representante.trim().length > FIELD_LIMITS.empresa) {
-      toast.error(`Empresa y representante no pueden superar ${FIELD_LIMITS.empresa} caracteres`);
-      return;
-    }
-    if (formData.email && formData.email.length > FIELD_LIMITS.email) {
-      toast.error('El correo es demasiado largo');
-      return;
-    }
-    if (!isValidPhone(formData.telefono)) {
-      toast.error('El telefono debe tener entre 8 y 15 digitos');
-      return;
-    }
-    if (!isNonNegativeNumber(formData.cupo_maximo)) {
-      toast.error('El cupo maximo no puede ser negativo');
-      return;
-    }
     if (new Date(formData.fecha_caducidad) < new Date(formData.fecha_inicio)) {
       toast.error('La fecha de caducidad no puede ser anterior a la fecha de inicio');
       return;
@@ -198,19 +171,14 @@ interface ReportEmployee {
     try {
       const url = editingConvenio ? `/convenios/${editingConvenio.id}` : '/convenios';
       const method = editingConvenio ? 'PUT' : 'POST';
-      const payload = {
-        ...formData,
-        ruc: onlyDigits(formData.ruc),
-        telefono: normalizePhone(formData.telefono),
-      };
-      const response = await apiFetch(url, { method, body: JSON.stringify(payload) });
+      const response = await apiFetch(url, { method, body: JSON.stringify(formData) });
       const data = await response.json();
       if (response.ok) {
         if (editingConvenio) {
           setConvenios(convenios.map(c => c.id === editingConvenio.id ? data : c));
         } else {
           setConvenios([data, ...convenios]);
-          // Generar PDF automaticamente para el nuevo convenio
+          // Generar PDF automáticamente para el nuevo convenio
           setTimeout(() => handleExportPDF(data), 500);
         }
         toast.success(editingConvenio ? 'Actualizado' : 'Convenio creado. Generando documento para firma...');
@@ -237,43 +205,22 @@ interface ReportEmployee {
   };
 
   const handleCreateAndAddClient = async () => {
-    if (!newClientData.cedula || !newClientData.nombre || !newClientData.apellido || !newClientData.correo) {
-      toast.error('Cedula, nombre, apellido y correo son obligatorios'); return;
-    }
-    if (!isValidEcDocument(newClientData.cedula)) {
-      toast.error('Ingrese una cedula o RUC ecuatoriano valido');
-      return;
-    }
-    if (newClientData.nombre.trim().length > FIELD_LIMITS.nombre || newClientData.apellido.trim().length > FIELD_LIMITS.nombre) {
-      toast.error(`Nombre y apellido no pueden superar ${FIELD_LIMITS.nombre} caracteres`);
-      return;
-    }
-    if (!isValidPhone(newClientData.telefono)) {
-      toast.error('El telefono debe tener entre 8 y 15 digitos');
-      return;
-    }
-    if (!isValidEmail(newClientData.correo)) {
-      toast.error('Ingrese un correo electronico valido');
-      return;
+    if (!newClientData.cedula || !newClientData.nombre || !newClientData.apellido) {
+      toast.error('Cédula, nombre y apellido son obligatorios'); return;
     }
     if (!editingConvenio) return;
     setIsSaving(true);
     try {
       const response = await apiFetch(`/convenios/${editingConvenio.id}/clientes/nuevo`, {
         method: 'POST',
-        body: JSON.stringify({
-          ...newClientData,
-          cedula: onlyDigits(newClientData.cedula),
-          telefono: normalizePhone(newClientData.telefono),
-          correo: newClientData.correo.trim().toLowerCase(),
-        })
+        body: JSON.stringify(newClientData)
       });
       const data = await response.json();
       if (response.ok) {
         toast.success('Cliente creado y vinculado');
         setAssociatedClients([...associatedClients, data]);
         setShowCreateForm(false);
-        setNewClientData({ cedula: '', nombre: '', apellido: '', telefono: '', correo: '' });
+        setNewClientData({ cedula: '', nombre: '', apellido: '', telefono: '' });
         fetchConvenios();
       } else toast.error(data.error);
     } finally { setIsSaving(false); }
@@ -304,9 +251,9 @@ interface ReportEmployee {
   const handleToggleClick = (convenio: Convenio) => {
     if (isExpired(convenio.fecha_caducidad)) {
       setConvenioToRenew(convenio);
-      setRenewalDates({
-        fecha_inicio: new Date().toISOString().split('T')[0],
-        fecha_caducidad: ''
+      setRenewalDates({ 
+        fecha_inicio: new Date().toISOString().split('T')[0], 
+        fecha_caducidad: '' 
       });
       setIsRenewalDialogOpen(true);
       return;
@@ -335,17 +282,17 @@ interface ReportEmployee {
       toast.error('La fecha de caducidad no puede ser anterior a la fecha de inicio');
       return;
     }
-
+    
     setIsSaving(true);
     try {
-      const response = await apiFetch(`/convenios/${convenioToRenew.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          ...renewalDates,
-          activo: true
-        })
+      const response = await apiFetch(`/convenios/${convenioToRenew.id}`, { 
+        method: 'PUT', 
+        body: JSON.stringify({ 
+          ...renewalDates, 
+          activo: true 
+        }) 
       });
-
+      
       if (response.ok) {
         const data = await response.json();
         setConvenios(convenios.map(c => c.id === convenioToRenew.id ? data : c));
@@ -399,21 +346,18 @@ interface ReportEmployee {
 
   const handleExportReportPDF = () => {
     try {
-      const printWindow = openPrintWindow();
+      const printWindow = window.open('', '_blank');
       if (!printWindow) {
         toast.error('Ventana emergente bloqueada');
         return;
       }
 
-      const granTotal = reportData.reduce((acc, curr) => acc + toFiniteNumber(curr.total), 0);
-      const empresaReporte = escapeHtml(reportConvenio?.nombre_empresa);
-      const fechaDesde = escapeHtml(reportDates.desde);
-      const fechaHasta = escapeHtml(reportDates.hasta);
+      const granTotal = reportData.reduce((acc, curr) => acc + curr.total, 0);
 
       let contenido = `
         <html>
           <head>
-            <title>Reporte de Consumos - ${empresaReporte}</title>
+            <title>Reporte de Consumos - ${reportConvenio?.nombre_empresa}</title>
             <style>
               body { font-family: 'Arial', sans-serif; padding: 20px 40px; color: #333; }
               .header { text-align: center; border-bottom: 2px solid #8B4513; margin-bottom: 20px; padding-bottom: 10px; }
@@ -434,29 +378,25 @@ interface ReportEmployee {
           <body>
             <div class="header">
               <h2>ECENCIA ANDINA</h2>
-              <p>REPORTE DE CONSUMOS: <strong>${empresaReporte}</strong></p>
-              <p>Periodo: ${fechaDesde} al ${fechaHasta}</p>
+              <p>REPORTE DE CONSUMOS: <strong>${reportConvenio?.nombre_empresa}</strong></p>
+              <p>Periodo: ${reportDates.desde} al ${reportDates.hasta}</p>
             </div>
-
+            
             <div class="totales">
               <div><strong>Total de Colaboradores:</strong> ${reportData.length}</div>
-              <div class="gran-total">Total Consumo Mensual: $${formatMoney(granTotal)}</div>
+              <div class="gran-total">Total Consumo Mensual: $${granTotal.toFixed(2)}</div>
             </div>
       `;
 
       reportData.forEach(emp => {
-        const empleado = escapeHtml(emp.empleado);
-        const cedula = escapeHtml(emp.cedula);
-        const totalEmpleado = formatMoney(emp.total);
-
         contenido += `
             <div class="empleado-card">
               <div class="empleado-header">
                 <div>
-                  <h4>${empleado}</h4>
-                  <span style="font-size: 12px; color: #666;">C.I: ${cedula}</span>
+                  <h4>${emp.empleado}</h4>
+                  <span style="font-size: 12px; color: #666;">C.I: ${emp.cedula}</span>
                 </div>
-                <div class="empleado-total">Total: $${totalEmpleado}</div>
+                <div class="empleado-total">Total: $${emp.total.toFixed(2)}</div>
               </div>
               <table>
                 <thead>
@@ -468,22 +408,17 @@ interface ReportEmployee {
                 </thead>
                 <tbody>
         `;
-
+        
         emp.consumos.forEach((cons: ReportConsumo) => {
-          const fechaConsumo = escapeHtml(new Date(cons.fecha).toLocaleDateString('es-EC'));
-          const producto = escapeHtml(cons.producto);
-          const cantidad = toFiniteNumber(cons.cantidad);
-          const valor = formatMoney(cons.valor);
-
           contenido += `
                   <tr>
-                    <td>${fechaConsumo}</td>
-                    <td>${cantidad}x ${producto}</td>
-                    <td class="text-right">$${valor}</td>
+                    <td>${new Date(cons.fecha).toLocaleDateString('es-EC')}</td>
+                    <td>${cons.cantidad}x ${cons.producto}</td>
+                    <td class="text-right">$${cons.valor.toFixed(2)}</td>
                   </tr>
           `;
         });
-
+        
         contenido += `
                 </tbody>
               </table>
@@ -498,7 +433,7 @@ interface ReportEmployee {
 
       printWindow.document.write(contenido);
       printWindow.document.close();
-
+      
       setTimeout(() => {
         printWindow.focus();
         printWindow.print();
@@ -519,10 +454,11 @@ interface ReportEmployee {
     try {
       // Usamos fetch directo para manejar FormData correctamente sin los headers JSON de apiFetch
       const token = localStorage.getItem('token');
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await fetch(`${API_BASE_URL}/convenios/${id}/upload`, {
         method: 'POST',
-        headers,
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formDataUpload
       });
 
@@ -542,36 +478,9 @@ interface ReportEmployee {
     }
   };
 
-  const openProtectedFile = async (filePath?: string | null) => {
-    if (!filePath) return;
-
-    const opened = openSafeBlankWindow();
-    if (!opened) {
-      toast.error('Ventana emergente bloqueada');
-      return;
-    }
-
-    try {
-      const response = await apiFetch(filePath);
-      if (!response.ok) {
-        opened.close();
-        toast.error('No se pudo abrir el archivo firmado');
-        return;
-      }
-
-      const blobUrl = URL.createObjectURL(await response.blob());
-      opened.location.href = blobUrl;
-
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-    } catch (err) {
-      opened.close();
-      toast.error('Error al abrir el archivo firmado');
-    }
-  };
-
   const handleExportPDF = (convenio: Convenio) => {
     try {
-      const printWindow = openPrintWindow();
+      const printWindow = window.open('', '_blank');
       if (!printWindow) {
         toast.error('Ventana emergente bloqueada');
         return;
@@ -579,27 +488,20 @@ interface ReportEmployee {
 
       const inicio = convenio.fecha_inicio || '';
       const fin = convenio.fecha_caducidad || '';
-      const empresaContrato = escapeHtml(convenio.nombre_empresa);
-      const rucContrato = escapeHtml(convenio.ruc);
-      const cupoContrato = escapeHtml(convenio.cupo_maximo);
-      const inicioContrato = escapeHtml(inicio);
-      const finContrato = escapeHtml(fin);
-      const representanteContrato = escapeHtml(convenio.representante || '________________');
-      const contactoContrato = escapeHtml(convenio.email || convenio.telefono || '________________');
-
-      // Calculo de anios
-      let anios = 1;
+      
+      // Cálculo de años
+      let años = 1;
       if (inicio && fin) {
         const d1 = new Date(inicio);
         const d2 = new Date(fin);
-        anios = Math.abs(differenceInYears(d2, d1));
-        if (anios === 0) anios = 1;
+        años = Math.abs(differenceInYears(d2, d1));
+        if (años === 0) años = 1; // Mínimo 1 año para mostrar en contrato
       }
 
       const contenido = `
         <html>
           <head>
-            <title>Contrato ${empresaContrato}</title>
+            <title>Contrato ${convenio.nombre_empresa}</title>
             <style>
               body { font-family: 'Times New Roman', serif; padding: 40px 60px; line-height: 1.6; text-align: justify; }
               .header { text-align: center; border-bottom: 2px solid #000; margin-bottom: 30px; padding-bottom: 10px; }
@@ -615,19 +517,19 @@ interface ReportEmployee {
               <p style="margin:0; font-size:12px">CONVENIOS DE ALIMENTACIÓN</p>
             </div>
             <div class="titulo">CONTRATO DE SERVICIO DE ALIMENTACIÓN</div>
-
-            <p>Se celebra el presente convenio con fecha <span class="dato">${escapeHtml(new Date().toLocaleDateString())}</span> para brindar servicios de almuerzos a la empresa <span class="dato">${empresaContrato}</span> con RUC <span class="dato">${rucContrato}</span>.</p>
-
-            <p>El convenio contempla un máximo de <span class="dato">${cupoContrato}</span> colaboradores debidamente registrados en el sistema.</p>
-
-            <p>La duracion del contrato sera de <span class="dato">${anios} anio(s)</span>, iniciando el dia <span class="dato">${inicioContrato}</span> y finalizando el dia <span class="dato">${finContrato}</span>.</p>
-
-            <p>Representante legal: <span class="dato">${representanteContrato}</span><br>
-               Contacto: <span class="dato">${contactoContrato}</span></p>
+            
+            <p>Se celebra el presente convenio con fecha <span class="dato">${new Date().toLocaleDateString()}</span> para brindar servicios de almuerzos a la empresa <span class="dato">${convenio.nombre_empresa}</span> con RUC <span class="dato">${convenio.ruc}</span>.</p>
+            
+            <p>El convenio contempla un máximo de <span class="dato">${convenio.cupo_maximo}</span> colaboradores debidamente registrados en el sistema.</p>
+            
+            <p>La duración del contrato será de <span class="dato">${años} año(s)</span>, iniciando el día <span class="dato">${inicio}</span> y finalizando el día <span class="dato">${fin}</span>.</p>
+            
+            <p>Representante legal: <span class="dato">${convenio.representante || '________________'}</span><br>
+               Contacto: <span class="dato">${convenio.email || convenio.telefono || '________________'}</span></p>
 
             <div class="firma">
               <div class="linea">Por ECencia Andina</div>
-              <div class="linea">Por ${empresaContrato}</div>
+              <div class="linea">Por ${convenio.nombre_empresa}</div>
             </div>
           </body>
         </html>
@@ -635,7 +537,7 @@ interface ReportEmployee {
 
       printWindow.document.write(contenido);
       printWindow.document.close();
-
+      
       setTimeout(() => {
         printWindow.focus();
         printWindow.print();
@@ -646,8 +548,8 @@ interface ReportEmployee {
     }
   };
 
-  const filteredAvailableClients = availableClients.filter(c =>
-    c.id_tipo_cliente === CLIENT_TYPE.DIRECT &&
+  const filteredAvailableClients = availableClients.filter(c => 
+    c.id_tipo_cliente === 1 &&
     !c.convenio &&
     !associatedClients.find(ac => ac.id === c.id) &&
     (clientSearch === '' || c.nombre.toLowerCase().includes(clientSearch.toLowerCase()) || c.cedula.includes(clientSearch))
@@ -659,39 +561,32 @@ interface ReportEmployee {
   };
 
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
             Convenios
           </h1>
-          <p className="text-lg text-muted-foreground">Administración de alianzas empresariales de Ecencia Andina</p>
+          <p className="text-muted-foreground text-lg">Administración de alianzas empresariales de Ecencia Andina</p>
         </div>
-        {isAdmin && (
-          <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
-            <Plus className="h-5 w-5" /> Nuevo Convenio
-          </Button>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        Entorno de simulacion: los nombres empresariales son referencias demostrativas. RUC, representantes,
-        telefonos, correos y convenios son completamente ficticios y no representan acuerdos reales.
+        <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+          <Plus className="h-5 w-5" /> Nuevo Convenio
+        </Button>
       </div>
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>
       ) : (
-        <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {convenios.map((convenio) => (
-            <Card key={convenio.id} className="group min-w-0 overflow-hidden border-border border-t-4 border-t-primary bg-primary/5 shadow-sm transition-all duration-300 hover:shadow-md">
+            <Card key={convenio.id} className="border-border shadow-sm border-t-4 border-t-primary bg-primary/5 group hover:shadow-md transition-all duration-300">
               <CardHeader className="pb-3">
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white shadow-sm group-hover:scale-110 transition-transform">
                       <Building2 className="h-5 w-5" />
                     </div>
-                    <div className="min-w-0"><CardTitle className="break-words text-lg font-bold text-cafe">{convenio.nombre_empresa}</CardTitle><CardDescription className="break-words font-medium">RUC: {convenio.ruc}</CardDescription></div>
+                    <div><CardTitle className="text-lg font-bold text-cafe">{convenio.nombre_empresa}</CardTitle><CardDescription className="font-medium">RUC: {convenio.ruc}</CardDescription></div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Badge variant={isExpired(convenio.fecha_caducidad) ? 'destructive' : (convenio.activo ? 'default' : 'secondary')}>
@@ -702,70 +597,67 @@ interface ReportEmployee {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2 text-sm text-muted-foreground">
-                   <div className="flex min-w-0 items-center gap-2 break-words font-medium text-foreground"><Users className="h-4 w-4 shrink-0 text-terracota" /> {convenio.representante || '—'}</div>
-                   <div className="flex min-w-0 items-center gap-2 break-words font-medium text-foreground"><CalendarDays className="h-4 w-4 shrink-0 text-oro" /> {formatDate(convenio.fecha_inicio)} — {formatDate(convenio.fecha_caducidad)}</div>
+                   <div className="flex items-center gap-2 text-foreground font-medium"><Users className="h-4 w-4 text-terracota" /> {convenio.representante || '—'}</div>
+                   <div className="flex items-center gap-2 text-foreground font-medium"><CalendarDays className="h-4 w-4 text-oro" /> {formatDate(convenio.fecha_inicio)} — {formatDate(convenio.fecha_caducidad)}</div>
                 </div>
                 <div className="space-y-3 py-2">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="font-medium text-muted-foreground">Máximo de colaboradores</span>
+                    <span className="text-muted-foreground font-medium">Máximo de Colaboradores</span>
                     <span className={`px-2 py-0.5 rounded-full ${convenio.totalColaboradores >= convenio.cupo_maximo ? "bg-destructive/10 text-destructive font-bold" : "bg-primary/10 text-primary font-bold"}`}>
                       {convenio.totalColaboradores} / {convenio.cupo_maximo}
                     </span>
                   </div>
                   <div className="h-2 w-full bg-accent/50 rounded-full overflow-hidden border border-border/50">
-                    <div
+                    <div 
                       className={`h-full transition-all ${convenio.totalColaboradores >= convenio.cupo_maximo ? 'bg-destructive' : 'bg-oro'}`}
                       style={{ width: `${Math.min((convenio.totalColaboradores / (convenio.cupo_maximo || 1)) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
-
+                
                 <div className="flex flex-col gap-3 border-t pt-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Switch
-                          checked={convenio.activo && !isExpired(convenio.fecha_caducidad)}
-                          onCheckedChange={() => handleToggleClick(convenio)}
-                          disabled={!isAdmin}
+                        <Switch 
+                          checked={convenio.activo && !isExpired(convenio.fecha_caducidad)} 
+                          onCheckedChange={() => handleToggleClick(convenio)} 
                         />
                         <span className={`text-[10px] font-bold uppercase ${isExpired(convenio.fecha_caducidad) ? 'text-destructive' : (convenio.activo ? 'text-primary' : 'text-muted-foreground')}`}>
                           {isExpired(convenio.fecha_caducidad) ? 'Vencido' : (convenio.activo ? 'Activo' : 'Inactivo')}
                         </span>
                       </div>
-                      {isAdmin && <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
                           onClick={() => handleEdit(convenio)}
                           disabled={isExpired(convenio.fecha_caducidad)}
                         >
                           <Pencil className="mr-1 h-4 w-4" /> Editar
                         </Button>
-                      </div>}
+                      </div>
                     </div>
-
+                    
                     <div className="flex flex-wrap items-center gap-2">
                       {convenio.archivo_firmado ? (
-                        <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs flex-1 min-w-[100px] border-primary/30 text-primary hover:bg-primary/10" onClick={() => openProtectedFile(convenio.archivo_firmado)}>
+                        <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs flex-1 min-w-[100px] border-primary/30 text-primary hover:bg-primary/10" onClick={() => window.open(convenio.archivo_firmado, '_blank')}>
                           <Eye className="h-3.5 w-3.5" /> Ver Contrato
                         </Button>
-                      ) : isAdmin ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 h-8 text-xs flex-1 min-w-[100px]"
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="gap-1.5 h-8 text-xs flex-1 min-w-[100px]" 
                           onClick={() => handleExportPDF(convenio)}
                           title="Generar documento para firmar"
                         >
                           <FileDown className="h-3.5 w-3.5 text-muted-foreground" /> Generar Contrato
                         </Button>
-                      ) : null}
-
-                      {isAdmin && (
-                        <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs flex-1 min-w-[100px] border-cafe/30 text-cafe hover:bg-cafe/10" onClick={() => handleOpenReport(convenio)}>
-                          <FileText className="h-3.5 w-3.5" /> Generar Reporte
-                        </Button>
                       )}
+                      
+                      <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs flex-1 min-w-[100px] border-cafe/30 text-cafe hover:bg-cafe/10" onClick={() => handleOpenReport(convenio)}>
+                        <FileText className="h-3.5 w-3.5" /> Generar Reporte
+                      </Button>
                     </div>
                   </div>
               </CardContent>
@@ -783,68 +675,68 @@ interface ReportEmployee {
 
           <Tabs defaultValue="info" className="w-full mt-4">
             <TabsList className={`grid w-full ${editingConvenio ? 'grid-cols-3' : 'grid-cols-2'}`}>
-              <TabsTrigger value="info">Información general</TabsTrigger>
+              <TabsTrigger value="info">Información General</TabsTrigger>
               <TabsTrigger value="clients" disabled={!editingConvenio}>Colaboradores ({associatedClients.length})</TabsTrigger>
               {editingConvenio && <TabsTrigger value="history">Historial</TabsTrigger>}
             </TabsList>
-
+            
             <TabsContent value="info" className="space-y-4 py-4">
                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2"><Label>RUC *</Label><Input value={formData.ruc} onChange={e => setFormData({...formData, ruc: e.target.value})} maxLength={13} inputMode="numeric" /></div>
-                  <div className="space-y-2"><Label>Empresa *</Label><Input value={formData.nombre_empresa} onChange={e => setFormData({...formData, nombre_empresa: e.target.value})} maxLength={FIELD_LIMITS.empresa} /></div>
+                  <div className="space-y-2"><Label>RUC *</Label><Input value={formData.ruc} onChange={e => setFormData({...formData, ruc: e.target.value})} /></div>
+                  <div className="space-y-2"><Label>Empresa *</Label><Input value={formData.nombre_empresa} onChange={e => setFormData({...formData, nombre_empresa: e.target.value})} /></div>
                </div>
-               <div className="space-y-2"><Label>Representante</Label><Input value={formData.representante} onChange={e => setFormData({...formData, representante: e.target.value})} maxLength={FIELD_LIMITS.empresa} /></div>
+               <div className="space-y-2"><Label>Representante</Label><Input value={formData.representante} onChange={e => setFormData({...formData, representante: e.target.value.replace(/[\d]/g, '')})} /></div>
                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2"><Label>Teléfono</Label><Input value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} maxLength={16} inputMode="tel" /></div>
-                  <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} maxLength={FIELD_LIMITS.email} /></div>
+                  <div className="space-y-2"><Label>Teléfono</Label><Input value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value.replace(/\D/g, '')})} maxLength={10} /></div>
+                  <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
                </div>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label>Fecha Inicio *</Label>
-                    <Input
-                      type="date"
-                      value={formData.fecha_inicio}
-                      onChange={e => setFormData({...formData, fecha_inicio: e.target.value})}
+                    <Input 
+                      type="date" 
+                      value={formData.fecha_inicio} 
+                      onChange={e => setFormData({...formData, fecha_inicio: e.target.value})} 
                       disabled={!!editingConvenio}
                       className={editingConvenio ? "bg-muted" : ""}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Fecha Caducidad *</Label>
-                    <Input
-                      type="date"
-                      value={formData.fecha_caducidad}
-                      onChange={e => setFormData({...formData, fecha_caducidad: e.target.value})}
+                    <Input 
+                      type="date" 
+                      value={formData.fecha_caducidad} 
+                      onChange={e => setFormData({...formData, fecha_caducidad: e.target.value})} 
                       disabled={!!editingConvenio}
                       className={editingConvenio ? "bg-muted" : ""}
                     />
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label>Máximo de colaboradores *</Label>
+                      <Label>Máximo de Colaboradores *</Label>
                       <ShieldCheck className="h-3 w-3 text-muted-foreground" />
                     </div>
-                    <Input
-                      type="number"
+                    <Input 
+                      type="number" 
                       min="0"
-                      value={formData.cupo_maximo}
-                      onChange={e => setFormData({...formData, cupo_maximo: Math.max(0, parseInt(e.target.value) || 0)})}
+                      value={formData.cupo_maximo} 
+                      onChange={e => setFormData({...formData, cupo_maximo: Math.max(0, parseInt(e.target.value) || 0)})} 
                     />
                   </div>
                 </div>
 
                 {editingConvenio && (
                   <div className="flex justify-end px-1">
-                    <Button
-                      variant="link"
-                      size="sm"
+                    <Button 
+                      variant="link" 
+                      size="sm" 
                       className="text-primary font-bold h-auto p-0 flex items-center gap-1"
                       onClick={() => {
                         setDialogOpen(false);
                         setConvenioToRenew(editingConvenio);
-                        setRenewalDates({
-                          fecha_inicio: new Date().toISOString().split('T')[0],
-                          fecha_caducidad: ''
+                        setRenewalDates({ 
+                          fecha_inicio: new Date().toISOString().split('T')[0], 
+                          fecha_caducidad: '' 
                         });
                         setIsRenewalDialogOpen(true);
                       }}
@@ -860,24 +752,24 @@ interface ReportEmployee {
                       <Upload className="h-4 w-4 text-primary" />
                       Documento del Convenio
                     </Label>
-
+                    
                     {!editingConvenio.archivo_firmado ? (
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-destructive">
-                          El convenio aún no cuenta con el documento firmado. Por favor, súbalo lo antes posible.
+                          ⚠️ El convenio aún no cuenta con el documento firmado, por favor subirlo lo antes posible.
                         </p>
-                        <Input
-                          type="file"
+                        <Input 
+                          type="file" 
                           ref={fileInputRef}
-                          accept=".pdf,image/*"
+                          accept=".pdf,image/*" 
                           onChange={(e) => handleFileUpload(e, editingConvenio.id)}
                           disabled={isUploading}
                           className="hidden"
                         />
-                        <Button
+                        <Button 
                           type="button"
-                          variant="outline"
-                          className="w-full gap-2 border-primary/30 text-primary hover:bg-primary/10"
+                          variant="outline" 
+                          className="w-full gap-2 border-primary/30 text-primary hover:bg-primary/10" 
                           onClick={() => fileInputRef.current?.click()}
                           disabled={isUploading}
                         >
@@ -892,11 +784,11 @@ interface ReportEmployee {
                             <ShieldCheck className="h-5 w-5" />
                             <span className="text-sm font-semibold">Convenio Firmado Cargado</span>
                           </div>
-                          <Button
-                            variant="default"
-                            size="sm"
+                          <Button 
+                            variant="default" 
+                            size="sm" 
                             className="gap-2 shadow-sm"
-                            onClick={() => openProtectedFile(editingConvenio.archivo_firmado)}
+                            onClick={() => window.open(editingConvenio.archivo_firmado, '_blank')}
                           >
                             <Eye className="h-4 w-4" />
                             Ver convenio firmado
@@ -906,9 +798,9 @@ interface ReportEmployee {
                           <p className="text-[10px] text-muted-foreground italic">
                             Cargado correctamente en el sistema local.
                           </p>
-                          <Button
-                            variant="link"
-                            size="sm"
+                          <Button 
+                            variant="link" 
+                            size="sm" 
                             className="text-muted-foreground hover:text-primary text-[10px] h-auto p-0"
                             onClick={() => {
                               const input = document.createElement('input');
@@ -940,10 +832,10 @@ interface ReportEmployee {
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar por nombre o cédula..."
-                        className="pl-10"
-                        value={clientSearch}
+                      <Input 
+                        placeholder="Buscar por nombre o cédula..." 
+                        className="pl-10" 
+                        value={clientSearch} 
                         onChange={e => setClientSearch(e.target.value)}
                         onFocus={() => setIsSearchFocused(true)}
                         onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
@@ -988,13 +880,12 @@ interface ReportEmployee {
                     <Button variant="ghost" size="sm" onClick={() => setShowCreateForm(false)} className="h-8 w-8 p-0"><ArrowLeft className="h-4 w-4" /></Button>
                     <h3 className="font-semibold">Nuevo Colaborador</h3>
                   </div>
-                  <div className="space-y-2"><Label>Cédula *</Label><Input value={newClientData.cedula} onChange={e => setNewClientData({...newClientData, cedula: e.target.value})} maxLength={13} inputMode="numeric" /></div>
+                  <div className="space-y-2"><Label>Cédula *</Label><Input value={newClientData.cedula} onChange={e => setNewClientData({...newClientData, cedula: e.target.value.replace(/\D/g, '')})} maxLength={13} /></div>
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2"><Label>Nombre *</Label><Input value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} maxLength={FIELD_LIMITS.nombre} /></div>
-                    <div className="space-y-2"><Label>Apellido *</Label><Input value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} maxLength={FIELD_LIMITS.nombre} /></div>
+                    <div className="space-y-2"><Label>Nombre *</Label><Input value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value.replace(/[\d]/g, '')})} /></div>
+                    <div className="space-y-2"><Label>Apellido *</Label><Input value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value.replace(/[\d]/g, '')})} /></div>
                   </div>
-                  <div className="space-y-2"><Label>Teléfono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} maxLength={16} inputMode="tel" /></div>
-                  <div className="space-y-2"><Label>Correo electrónico *</Label><Input type="email" value={newClientData.correo} onChange={e => setNewClientData({...newClientData, correo: e.target.value})} maxLength={FIELD_LIMITS.email} /></div>
+                  <div className="space-y-2"><Label>Teléfono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value.replace(/\D/g, '')})} maxLength={10} /></div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>Cancelar</Button>
                     <Button className="flex-1" onClick={handleCreateAndAddClient} disabled={isSaving}>{isSaving ? 'Guardando...' : 'Crear y Vincular'}</Button>
@@ -1009,7 +900,7 @@ interface ReportEmployee {
                   <History className="h-5 w-5" />
                   <h3>Historial de Periodos y Contratos</h3>
                 </div>
-
+                
                 {convenioHistorial.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
                     No hay registros anteriores para este convenio.
@@ -1026,11 +917,11 @@ interface ReportEmployee {
                           <p className="text-[10px] text-muted-foreground">Registrado el {new Date(h.fecha_registro).toLocaleString()}</p>
                         </div>
                         {h.archivo_url ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
                             className="gap-2 text-primary hover:bg-primary/10"
-                            onClick={() => openProtectedFile(h.archivo_url)}
+                            onClick={() => window.open(h.archivo_url!, '_blank')}
                           >
                             <FileText className="h-4 w-4" />
                             Ver contrato
@@ -1058,7 +949,7 @@ interface ReportEmployee {
       <Dialog open={isRenewalDialogOpen} onOpenChange={setIsRenewalDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Renovación de convenio</DialogTitle>
+            <DialogTitle>Renovación de Convenio</DialogTitle>
             <DialogDescription>
               Su convenio debe renovarse. Por favor seleccione el nuevo periodo para reactivarlo.
             </DialogDescription>
@@ -1067,18 +958,18 @@ interface ReportEmployee {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Nueva Fecha Inicio</Label>
-                <Input
-                  type="date"
-                  value={renewalDates.fecha_inicio}
-                  onChange={e => setRenewalDates({...renewalDates, fecha_inicio: e.target.value})}
+                <Input 
+                  type="date" 
+                  value={renewalDates.fecha_inicio} 
+                  onChange={e => setRenewalDates({...renewalDates, fecha_inicio: e.target.value})} 
                 />
               </div>
               <div className="space-y-2">
                 <Label>Nueva Fecha Fin</Label>
-                <Input
-                  type="date"
-                  value={renewalDates.fecha_caducidad}
-                  onChange={e => setRenewalDates({...renewalDates, fecha_caducidad: e.target.value})}
+                <Input 
+                  type="date" 
+                  value={renewalDates.fecha_caducidad} 
+                  onChange={e => setRenewalDates({...renewalDates, fecha_caducidad: e.target.value})} 
                 />
               </div>
             </div>
@@ -1107,12 +998,12 @@ interface ReportEmployee {
               <Label>Hasta</Label>
               <Input type="date" value={reportDates.hasta} onChange={e => setReportDates({...reportDates, hasta: e.target.value})} />
             </div>
-            <Button
+            <Button 
               onClick={() => {
                 setReportData([]);
                 handleGenerateReport();
-              }}
-              disabled={isGeneratingReport}
+              }} 
+              disabled={isGeneratingReport} 
               className="bg-cafe hover:bg-cafe/90"
             >
               {isGeneratingReport ? 'Generando...' : 'Generar Reporte'}
@@ -1127,7 +1018,7 @@ interface ReportEmployee {
                   <span className="text-2xl font-black text-primary">
                     ${reportData.reduce((acc, curr) => acc + curr.total, 0).toFixed(2)}
                   </span>
-                  <Button
+                  <Button 
                     onClick={handleExportReportPDF}
                     variant="outline"
                     className="gap-2 border-cafe text-cafe hover:bg-cafe/10"

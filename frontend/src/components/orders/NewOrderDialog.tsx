@@ -27,9 +27,6 @@ import {
 import { UserPlus, X } from 'lucide-react';
 import { OrderFormFields, OrderFormState } from './OrderFormFields';
 import { toast } from 'sonner';
-import { FIELD_LIMITS, isValidEcDocument, isValidEmail, isValidPhone, normalizePhone, onlyDigits } from '@/lib/validation';
-import { CLIENT_TYPE, ORDER_SOURCE, ORDER_STATE } from '@/constants/domain';
-import { useAuth } from '@/contexts/AuthContext';
 
 const formSchema = z.object({
   clientMode: z.enum(['existing', 'new']),
@@ -37,7 +34,6 @@ const formSchema = z.object({
   cedula: z.string().optional(),
   nombre: z.string().optional(),
   apellido: z.string().optional(),
-  correo: z.string().optional(),
   appMensajeria: z.string().optional(),
   tipoCliente: z.enum(['cliente', 'convenio']),
   convenioId: z.string().optional(),
@@ -47,26 +43,14 @@ const formSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Seleccione un cliente", path: ["clienteId"] });
     }
   } else {
-    if (!data.cedula || !isValidEcDocument(data.cedula)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingrese una cedula o RUC ecuatoriano valido", path: ["cedula"] });
+    if (!data.cedula || data.cedula.length < 10) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Cédula debe tener al menos 10 dígitos", path: ["cedula"] });
     }
     if (!data.nombre || data.nombre.trim() === '') {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre es requerido", path: ["nombre"] });
     }
-    if (data.nombre && data.nombre.trim().length > FIELD_LIMITS.nombre) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Nombre demasiado largo", path: ["nombre"] });
-    }
     if (!data.apellido || data.apellido.trim() === '') {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El apellido es requerido", path: ["apellido"] });
-    }
-    if (data.apellido && data.apellido.trim().length > FIELD_LIMITS.nombre) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Apellido demasiado largo", path: ["apellido"] });
-    }
-    if (!data.correo || !isValidEmail(data.correo)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ingrese un correo valido", path: ["correo"] });
-    }
-    if (data.appMensajeria && !isValidPhone(data.appMensajeria)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Telefono invalido", path: ["appMensajeria"] });
     }
     if (data.tipoCliente === 'convenio' && !data.convenioId) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Seleccione el convenio", path: ["convenioId"] });
@@ -83,10 +67,8 @@ interface NewOrderDialogProps {
 }
 
 export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogProps) {
-  const { user } = useAuth();
-  const isAdmin = user?.rol === 'administrador';
   const { clientes, convenios, isLoading, refetchClients } = useClientsAndConvenios();
-
+  
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -95,7 +77,6 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
       cedula: '',
       nombre: '',
       apellido: '',
-      correo: '',
       appMensajeria: '',
       tipoCliente: 'cliente',
       convenioId: '',
@@ -103,7 +84,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
   });
 
   const { watch, handleSubmit, reset, control, setValue, formState: { errors } } = form;
-
+  
   const clientMode = watch('clientMode');
   const tipoCliente = watch('tipoCliente');
   const clienteId = watch('clienteId');
@@ -125,7 +106,6 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
         cedula: '',
         nombre: '',
         apellido: '',
-        correo: '',
         appMensajeria: '',
         tipoCliente: 'cliente',
         convenioId: '',
@@ -139,18 +119,12 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
   }, [open, reset]);
 
   const selectedClient = clientes.find((c) => c.id === clienteId);
-  const effectiveTipoCliente: ClientType = clientMode === 'existing'
-    ? selectedClient?.convenio
-      ? 'convenio'
-      : 'cliente'
-    : (tipoCliente as ClientType);
+  const effectiveTipoCliente: ClientType = clientMode === 'existing' ? 'cliente' : (tipoCliente as ClientType);
   const showProductos = effectiveTipoCliente === 'convenio';
 
   const isClientSelected = (clientMode === 'existing' && !!clienteId) || (clientMode === 'new' && !!tipoCliente && !!watch('cedula'));
-  const isFrecuente = clientMode === 'existing'
-    ? !selectedClient?.convenio && selectedClient?.id_tipo_cliente === CLIENT_TYPE.DIRECT
-    : tipoCliente === 'cliente';
-
+  const isFrecuente = clientMode === 'existing' ? (!selectedClient?.convenio && selectedClient?.id_tipo_cliente === 2) : (tipoCliente === 'cliente');
+  
   const showOrderForm = isClientSelected;
   const blockMessage = isClientSelected ? '' : 'Seleccione un cliente para continuar con el pedido.';
 
@@ -162,9 +136,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
     if (data.clientMode === 'existing') {
       finalClienteId = data.clienteId!;
     } else {
-      const cedulaNormalizada = onlyDigits(data.cedula || '');
-      const telefonoNormalizado = normalizePhone(data.appMensajeria || '');
-      const cedulaExists = clientes.some((c) => c.cedula === cedulaNormalizada);
+      const cedulaExists = clientes.some((c) => c.cedula === data.cedula?.trim());
       if (cedulaExists) {
         toast.error('Ya existe un cliente registrado con esta cédula o RUC');
         form.setError('cedula', { type: 'manual', message: 'Cédula ya registrada' });
@@ -174,28 +146,26 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
       setIsSaving(true);
       try {
         let createRes;
-        if (data.tipoCliente === 'convenio' && isAdmin) {
+        if (data.tipoCliente === 'convenio') {
           createRes = await apiFetch(`/convenios/${data.convenioId}/clientes/nuevo`, {
             method: 'POST',
-            body: JSON.stringify({
-              cedula: cedulaNormalizada,
-              nombre: data.nombre,
-              apellido: data.apellido,
-              correo: data.correo?.trim().toLowerCase(),
-              telefono: telefonoNormalizado
+            body: JSON.stringify({ 
+              cedula: data.cedula, 
+              nombre: data.nombre, 
+              apellido: data.apellido, 
+              telefono: data.appMensajeria 
             })
           });
         } else {
           createRes = await apiFetch('/clientes', {
             method: 'POST',
-            body: JSON.stringify({
-              cedula: cedulaNormalizada,
-              nombre: data.nombre,
-              apellido: data.apellido,
-              correo: data.correo?.trim().toLowerCase(),
-              telefono: telefonoNormalizado,
-              id_tipo_cliente: CLIENT_TYPE.DIRECT,
-            })
+            body: JSON.stringify({ 
+              cedula: data.cedula, 
+              nombre: data.nombre, 
+              apellido: data.apellido, 
+              telefono: data.appMensajeria, 
+              id_tipo_cliente: 2 
+            }) // 2 = Frecuente
           });
         }
 
@@ -228,10 +198,10 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
         method: 'POST',
         body: JSON.stringify({
           id_cliente: finalClienteId,
-          id_estado: ORDER_STATE.RESERVED,
-          id_origen: ORDER_SOURCE.SYSTEM,
+          id_estado: 1, // 'Reservado' - Assuming ID 1
+          id_origen: 2,
           canal_origen: 'Sistema',
-          metodo_pago: (clientMode === 'existing' && (!selectedClient?.convenio && selectedClient?.id_tipo_cliente === CLIENT_TYPE.DIRECT)) || (clientMode === 'new' && tipoCliente === 'cliente') ? 'Saldo Prepago' : 'Convenio Empresa',
+          metodo_pago: (clientMode === 'existing' && (!selectedClient?.convenio && selectedClient?.id_tipo_cliente === 2)) || (clientMode === 'new' && tipoCliente === 'cliente') ? 'Saldo Prepago' : 'Convenio Empresa',
           observaciones: state.observaciones,
           detalles: state.items.map(item => {
             const opciones: Record<string, string> = {};
@@ -250,10 +220,12 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
 
       if (response.ok) {
         toast.success('Pedido registrado exitosamente en la base de datos');
-        onCreate({} as Order);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate({} as any); // Refresh or handle local update if needed
         onOpenChange(false);
       } else {
-        const errorData = await response.json() as { error?: string };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const errorData: any = await response.json();
         toast.error(`Error al guardar: ${errorData.error}`);
       }
     } catch (err) {
@@ -278,7 +250,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
               Cliente
               {clientMode === 'new' && <span className="text-xs font-bold text-white bg-oro px-2 py-0.5 rounded-full shadow-sm">Nuevo</span>}
             </Label>
-
+            
             <div className="flex items-center gap-2">
               <div className="flex-1">
                 {clientMode === 'existing' ? (
@@ -330,33 +302,22 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
               <div className="grid gap-4 md:grid-cols-2 pt-2 animate-in slide-in-from-top-2 duration-300">
                 <div className="space-y-1.5 md:col-span-2">
                   <Label className="text-xs text-cafe/70">Cédula *</Label>
-                  <Input {...form.register('cedula')} placeholder="Ej: 1712345678" maxLength={13} inputMode="numeric" className={`bg-background ${errors.cedula ? 'border-destructive' : ''}`} />
+                  <Input {...form.register('cedula')} onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, ''); form.setValue('cedula', e.currentTarget.value); }} placeholder="Ej: 1712345678" maxLength={13} className={`bg-background ${errors.cedula ? 'border-destructive' : ''}`} />
                   {errors.cedula && <span className="text-xs text-destructive">{errors.cedula.message}</span>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">Nombre *</Label>
-                  <Input {...form.register('nombre')} placeholder="Ej: Juan" maxLength={FIELD_LIMITS.nombre} className={`bg-background ${errors.nombre ? 'border-destructive' : ''}`} />
+                  <Input {...form.register('nombre')} onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/[\d]/g, ''); form.setValue('nombre', e.currentTarget.value); }} placeholder="Ej: Juan" className={`bg-background ${errors.nombre ? 'border-destructive' : ''}`} />
                   {errors.nombre && <span className="text-xs text-destructive">{errors.nombre.message}</span>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">Apellido *</Label>
-                  <Input {...form.register('apellido')} placeholder="Ej: Pérez" maxLength={FIELD_LIMITS.nombre} className={`bg-background ${errors.apellido ? 'border-destructive' : ''}`} />
+                  <Input {...form.register('apellido')} onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/[\d]/g, ''); form.setValue('apellido', e.currentTarget.value); }} placeholder="Ej: Pérez" className={`bg-background ${errors.apellido ? 'border-destructive' : ''}`} />
                   {errors.apellido && <span className="text-xs text-destructive">{errors.apellido.message}</span>}
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label className="text-xs text-cafe/70">Correo electrónico *</Label>
-                  <Input
-                    type="email"
-                    {...form.register('correo')}
-                    placeholder="cliente@example.test"
-                    maxLength={FIELD_LIMITS.email}
-                    className={`bg-background ${errors.correo ? 'border-destructive' : ''}`}
-                  />
-                  {errors.correo && <span className="text-xs text-destructive">{errors.correo.message}</span>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">App de Mensajería</Label>
-                  <Input {...form.register('appMensajeria')} placeholder="099..." maxLength={16} inputMode="tel" className="bg-background" />
+                  <Input {...form.register('appMensajeria')} onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, ''); form.setValue('appMensajeria', e.currentTarget.value); }} placeholder="099..." maxLength={10} className="bg-background" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-cafe/70">Tipo de Cliente</Label>
@@ -373,9 +334,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="cliente">Cliente Frecuente</SelectItem>
-                          {isAdmin && (
-                            <SelectItem value="convenio">Cliente de convenio</SelectItem>
-                          )}
+                          <SelectItem value="convenio">Empresa / Convenio</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
@@ -418,7 +377,7 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
               <p className="text-sm font-semibold text-muted-foreground">{blockMessage}</p>
             </div>
           )}
-
+          
           <DialogFooter className="pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
               Cancelar

@@ -2,75 +2,31 @@ const express = require('express');
 const router = express.Router();
 const { supabase, getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
-const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
-
-const mapRoleToAppRole = (roleName = '') => {
-  const normalized = String(roleName).toLowerCase().trim();
-  if (['super admin', 'administrativo', 'administrador', 'admin'].includes(normalized)) {
-    return 'administrador';
-  }
-  return 'caja';
-};
-
-const USERNAME_LOGIN_PATTERN = /^[A-Za-z0-9._-]{1,40}$/;
-
-const findEmployeeByUsername = async (adminClient, username) => {
-  const normalizedUsername = String(username || '').trim().toLowerCase();
-  if (!USERNAME_LOGIN_PATTERN.test(username)) return null;
-
-  const { data, error } = await adminClient
-    .from('empleados')
-    .select('correo,nombre_usuario')
-    .limit(1000);
-
-  if (error) throw error;
-
-  const matches = (data || []).filter(
-    (empleado) => String(empleado.nombre_usuario || '').trim().toLowerCase() === normalizedUsername
-  );
-
-  return matches.length === 1 ? matches[0] : null;
-};
-
-const PASSWORD_RESET_RESPONSE = 'Si el correo esta registrado, recibira un enlace pronto.';
-
-const requestPasswordReset = async ({
-  email,
-  adminClient,
-  authClient,
-  redirectTo = process.env.PASSWORD_RECOVERY_REDIRECT_URL,
-}) => {
-  const { data: employee, error } = await adminClient
-    .from('empleados')
-    .select('correo, esta_activo')
-    .ilike('correo', email)
-    .maybeSingle();
-  if (error) throw error;
-  if (!employee || employee.esta_activo === false) return PASSWORD_RESET_RESPONSE;
-
-  const options = redirectTo ? { redirectTo } : undefined;
-  const { error: authError } = await authClient.auth.resetPasswordForEmail(employee.correo, options);
-  if (authError) throw authError;
-  return PASSWORD_RESET_RESPONSE;
-};
 
 // Ruta para el LOGIN
 router.post('/login', async (req, res) => {
-  try {
-    const { identificador, email, password } = parseBody(schemas.login, req.body);
-    const loginId = identificador || email;
-    if (!loginId) return res.status(400).json({ mensaje: 'Identificador y contrasena obligatorios' });
+  const { identificador, password } = req.body;
+  const loginId = identificador || req.body.email;
 
+  if (!loginId || !password) {
+    return res.status(400).json({ mensaje: 'Identificador y contraseña obligatorios' });
+  }
+
+  try {
     let emailToLogin = loginId;
     const adminClient = getAdminClient();
 
     // Si es nombre de usuario, buscar correo
     if (!loginId.includes('@')) {
-      const empleado = await findEmployeeByUsername(adminClient, loginId);
+      const { data: empleado, error: empError } = await adminClient
+        .from('empleados')
+        .select('correo')
+        .eq('nombre_usuario', loginId)
+        .single();
 
-      if (!empleado) {
-        console.warn('Login: identificador no valido o no registrado.');
-        return res.status(401).json({ mensaje: 'Credenciales invalidas' });
+      if (empError || !empleado) {
+        console.error('Login: Usuario no encontrado en tabla empleados:', loginId, empError?.message);
+        return res.status(401).json({ mensaje: 'Usuario no encontrado' });
       }
       emailToLogin = empleado.correo;
     }
@@ -81,8 +37,8 @@ router.post('/login', async (req, res) => {
     });
 
     if (authError || !authData.user) {
-      console.warn('Login: autenticacion rechazada por Supabase Auth.');
-      return res.status(401).json({ mensaje: 'Credenciales invalidas' });
+      console.error('Login: Error en Supabase Auth:', emailToLogin, authError?.message);
+      return res.status(401).json({ mensaje: 'Credenciales inválidas' });
     }
 
     const uid = authData.user.id;
@@ -118,7 +74,7 @@ router.post('/login', async (req, res) => {
     const empleadoData = empleadosData && empleadosData.length > 0 ? empleadosData[0] : null;
 
     if (!empleadoData) {
-      console.error('Login: empleado no encontrado tras autenticacion exitosa.');
+      console.error('Login: Empleado no encontrado tras auth exitosa:', uid, uemail);
       return res.status(404).json({ mensaje: 'Empleado no registrado en la base de datos' });
     }
 
@@ -127,20 +83,22 @@ router.post('/login', async (req, res) => {
     }
 
     // Mapeo de Rol para el Frontend
+    let rolFrontend = 'caja';
     const rawRoles = empleadoData.roles || empleadoData.Roles;
     const roleName = (Array.isArray(rawRoles) ? rawRoles[0]?.nombre_rol : rawRoles?.nombre_rol) || '';
-    const rolFrontend = mapRoleToAppRole(roleName);
+    const normRole = roleName.toLowerCase().trim();
+
+    if (['administrativo', 'administrador', 'admin'].includes(normRole)) {
+      rolFrontend = 'administrador';
+    }
 
     // ACTUALIZAR METADATOS EN SUPABASE AUTH (para que el middleware no tenga que consultar la DB)
     // Solo lo hacemos si hay cambios o para asegurar sincronización
-    if (authData.user.app_metadata?.rol !== rolFrontend || authData.user.user_metadata?.esta_activo !== empleadoData.esta_activo) {
+    if (authData.user.user_metadata?.rol !== rolFrontend || authData.user.user_metadata?.esta_activo !== empleadoData.esta_activo) {
       await adminClient.auth.admin.updateUserById(uid, {
-        app_metadata: {
-          ...authData.user.app_metadata,
-          rol: rolFrontend,
-        },
         user_metadata: { 
           ...authData.user.user_metadata,
+          rol: rolFrontend,
           esta_activo: empleadoData.esta_activo
         }
       });
@@ -160,9 +118,8 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (error) {
-    if (sendValidationError(res, error)) return;
     console.error('Login: Error fatal:', error);
-    res.status(500).json({ mensaje: 'Error interno del servidor' });
+    res.status(500).json({ mensaje: 'Error interno del servidor', detalle: error.message });
   }
 });
 
@@ -175,38 +132,47 @@ router.get('/datos-privados', authMiddleware, async (req, res) => {
 });
 
 router.post('/refresh', async (req, res) => {
+  const { refresh_token } = req.body;
+  if (!refresh_token) return res.status(400).json({ error: 'Token obligatorio' });
   try {
-    const { refresh_token } = parseBody(schemas.refresh, req.body);
     const { data, error } = await supabase.auth.refreshSession({ refresh_token });
-    if (error) return res.status(401).json({ error: 'Sesion expirada' });
+    if (error) return res.status(401).json({ error: 'Sesión expirada' });
     res.json({ token: data.session.access_token, refresh_token: data.session.refresh_token });
-  } catch (error) {
-    if (sendValidationError(res, error)) return;
+  } catch {
     res.status(500).json({ error: 'Error interno' });
   }
 });
 
 router.post('/forgot-password', async (req, res) => {
+  const { correo } = req.body;
+  if (!correo) return res.status(400).json({ error: 'Correo obligatorio' });
+  
   try {
-    const { correo } = parseBody(schemas.forgotPassword, req.body);
-    const message = await requestPasswordReset({
-      email: correo.trim(),
-      adminClient: getAdminClient(),
-      authClient: supabase,
-    });
-    res.json({ mensaje: message });
+    const adminClient = getAdminClient();
+    
+    const { data: empleado, error: dbError } = await adminClient
+      .from('empleados')
+      .select('correo, esta_activo')
+      .eq('correo', correo)
+      .single();
+      
+    if (dbError || !empleado) {
+      // Se devuelve success igual para no revelar qué correos existen en el sistema (seguridad)
+      return res.json({ mensaje: 'Si el correo está registrado, recibirá un enlace pronto.' });
+    }
+    
+    if (!empleado.esta_activo) {
+      return res.status(403).json({ error: 'La cuenta asociada está inactiva.' });
+    }
+
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(correo);
+    if (authError) throw authError;
+
+    res.json({ mensaje: 'Si el correo está registrado, recibirá un enlace pronto.' });
   } catch (error) {
-    if (sendValidationError(res, error)) return;
-    console.error('Error solicitando recuperacion de contrasena:', error);
-    res.status(500).json({ error: 'No se pudo procesar la solicitud.' });
+    console.error(error);
+    res.status(500).json({ error: 'Error al procesar la solicitud' });
   }
 });
-
-router._private = {
-  findEmployeeByUsername,
-  requestPasswordReset,
-  PASSWORD_RESET_RESPONSE,
-  USERNAME_LOGIN_PATTERN,
-};
 
 module.exports = router;

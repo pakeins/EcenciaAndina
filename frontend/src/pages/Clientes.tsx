@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Pencil, User, Phone, Search, IdCard, Users, Building2, Activity, UserCheck, Wallet, Send, ShieldCheck, Mail } from 'lucide-react';
+import { Plus, Pencil, User, Phone, Search, IdCard, Users, Building2, Activity, UserCheck, Wallet, Send, ShieldCheck, Mail, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import {
@@ -194,6 +194,25 @@ export default function Clientes() {
       id_convenio: '',
     });
     setDialogOpen(true);
+  };
+
+  // --- FORMULARIO: ELIMINAR CLIENTE ---
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este cliente? Solo se podrá eliminar si no tiene órdenes ni saldo asociado.')) return;
+    
+    try {
+      const response = await apiFetch(`/api/clientes/${id}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok) {
+        toast.error(data.error || 'Error al eliminar cliente');
+        return;
+      }
+      toast.success(data.message || 'Cliente eliminado correctamente');
+      fetchClientes();
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de red al intentar eliminar el cliente');
+    }
   };
 
   // --- FORMULARIO: ABRIR EDICIÓN ---
@@ -694,6 +713,17 @@ export default function Clientes() {
                           <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleDelete(client.id)}
+                              title="Eliminar Cliente"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
