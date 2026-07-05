@@ -658,9 +658,11 @@ const validateMenuImageInput = (image, opts = {}) => {
         throw new Error('La imagen del menu debe ser JPG, PNG o WebP valida');
       }
       const buffer = Buffer.from(match[1], 'base64');
-      const mimeType = match[0].toLowerCase().includes('png') ? 'image/png'
-        : match[0].toLowerCase().includes('webp') ? 'image/webp'
-        : 'image/jpeg';
+      const mimeType = match[0].toLowerCase().includes('png')
+        ? 'image/png'
+        : match[0].toLowerCase().includes('webp')
+          ? 'image/webp'
+          : 'image/jpeg';
       if (!hasAllowedImageSignature(buffer, mimeType)) {
         throw new Error('La imagen del menu debe ser JPG, PNG o WebP valida');
       }

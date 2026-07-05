@@ -20,9 +20,7 @@ describe('makeSquareWithBlurredBackground', () => {
         channels: 3,
         background: { r: 255, g: 0, b: 0 }
       }
-    })
-    .png()
-    .toBuffer();
+    }).png().toBuffer();
 
     const outputBuffer = await makeSquareWithBlurredBackground(squareBuffer);
     const metadata = await sharp(outputBuffer).metadata();
@@ -40,9 +38,7 @@ describe('makeSquareWithBlurredBackground', () => {
         channels: 3,
         background: { r: 0, g: 255, b: 0 }
       }
-    })
-    .png()
-    .toBuffer();
+    }).png().toBuffer();
 
     const outputBuffer = await makeSquareWithBlurredBackground(rectBuffer);
     const metadata = await sharp(outputBuffer).metadata();
@@ -60,9 +56,7 @@ describe('makeSquareWithBlurredBackground', () => {
         channels: 3,
         background: { r: 0, g: 0, b: 255 }
       }
-    })
-    .png()
-    .toBuffer();
+    }).png().toBuffer();
 
     const outputBuffer = await makeSquareWithBlurredBackground(rectBuffer);
     const metadata = await sharp(outputBuffer).metadata();

@@ -492,7 +492,7 @@ const buildPedidoMessage = (order, detail) => {
     `Producto: ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
     (opc.sopa ? `Sopa: ${opc.sopa}\n` : '') +
     (opc.segundo ? `Plato fuerte: ${opc.segundo}\n` : '') +
-    `Estado: Reservado\n` +
+    'Estado: Reservado\n' +
     `Orden: ${order.id_orden}`
   );
 };
