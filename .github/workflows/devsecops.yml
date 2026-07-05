@@ -105,9 +105,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Start ephemeral stack
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: docker compose -f docker-compose.zap.yml up -d --build
 
       - name: Wait for HTTP targets
+        env:
+          WAIT_HTTP_TIMEOUT_MS: 300000
         run: |
           npm init -y
           npm install axios
