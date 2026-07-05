@@ -48,9 +48,6 @@ describe('Dashboard', () => {
         },
         consumosPorDia: [],
         consumosPorConvenio: [],
-        reservasVsConsumos: [
-          { name: 'Jue', date: '2026-06-11', reservados: 8, consumidos: 6 },
-        ],
         topProducts: [],
       }),
     } as Response);
@@ -63,11 +60,9 @@ describe('Dashboard', () => {
     expect(screen.getByText('120')).toBeInTheDocument();
     expect(screen.getByText('4')).toBeInTheDocument();
     expect(screen.getByText('25')).toBeInTheDocument();
-    expect(screen.getByText('No hay consumos en el periodo.')).toBeInTheDocument();
-    expect(screen.getByText('No hay consumos por convenio.')).toBeInTheDocument();
-    expect(screen.getByText('Reservados vs consumidos')).toBeInTheDocument();
     expect(screen.queryByText('Actividad reciente')).not.toBeInTheDocument();
-    expect(screen.getByText('No hay productos vendidos.')).toBeInTheDocument();
+    expect(screen.getByText('No hay ventas registradas en este periodo')).toBeInTheDocument();
+    expect(screen.getByText('No hay actividad registrada en este periodo')).toBeInTheDocument();
     expect(apiFetch).toHaveBeenCalledWith('/reportes/dashboard');
   });
 });
