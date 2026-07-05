@@ -24,6 +24,7 @@ check_*.js
 # Archivos de despliegue temporales
 backend.tar.gz
 backend/.env
+frontend/.env
 
 # n8n
 n8n-data.tar.gz
