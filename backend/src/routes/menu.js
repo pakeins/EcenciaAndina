@@ -49,16 +49,19 @@ const buildMenuOpciones = (body) => {
 };
 
 const deriveLegacyMenu = (opciones, categories) => {
-  const legacy = { sopas: [], segundos: [], guarniciones: [] };
+  const legacy = { entradas: [], sopas: [], segundos: [], postres: [], bebidas: [], guarniciones: [] };
   const nameMap = {};
   for (const cat of categories) {
     nameMap[cat.id_categoria_menu] = normalizeText(cat.nombre_categoria);
   }
   for (const [catId, options] of Object.entries(opciones)) {
     const name = nameMap[catId] || '';
-    if (name.includes('sopa')) legacy.sopas = options;
+    if (name.includes('entrada')) legacy.entradas = options;
+    else if (name.includes('sopa')) legacy.sopas = options;
     else if (name.includes('segundo') || name.includes('plato')) legacy.segundos = options;
-    else if (name.includes('guarn')) legacy.guarniciones = options;
+    else if (name.includes('postre')) legacy.postres = options;
+    else if (name.includes('bebida')) legacy.bebidas = options;
+    else if (name.includes('guarnicion') || name.includes('arroz') || name.includes('ensalada')) legacy.guarniciones = options;
   }
   return legacy;
 };
@@ -346,8 +349,11 @@ const addLegacyFields = (menuList, categories) => {
     const legacy = deriveLegacyMenu(menu.opciones, categories);
     return {
       ...menu,
+      entradas: legacy.entradas,
       sopas: legacy.sopas,
       segundos: legacy.segundos,
+      postres: legacy.postres,
+      bebidas: legacy.bebidas,
       guarniciones: legacy.guarniciones,
       opciones: menu.opciones || {},
       opciones_count: menu.opciones_count || 0,
@@ -632,8 +638,11 @@ router.post('/enviar', async (req, res) => {
     const legacyMenu = deriveLegacyMenu(opciones, categories);
     const menuPayload = {
       opciones,
+      entradas: legacyMenu.entradas,
       sopas: legacyMenu.sopas,
       segundos: legacyMenu.segundos,
+      postres: legacyMenu.postres,
+      bebidas: legacyMenu.bebidas,
       guarniciones: legacyMenu.guarniciones,
     };
 
