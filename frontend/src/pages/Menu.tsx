@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -14,115 +14,220 @@ import {
   Utensils
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ImageUpload } from '@/components/ImageUpload';
 import { FoodSelector } from '@/components/menu/FoodSelector';
+import { RegisteredMenuList } from '@/components/menu/RegisteredMenuList';
+import type { DailyMenu } from '@/components/menu/RegisteredMenuList';
 import { apiFetch } from '@/lib/api';
-import { Alimento } from '@/types';
-
-interface Category {
-  id_categoria_menu: number;
-  nombre_categoria: string;
-}
+import { buildTelegramMenuImage } from '@/lib/menuImage';
+import type { Alimento } from '@/types';
+import { FIELD_LIMITS } from '@/lib/validation';
+import { MENU_CATEGORY_CODE, type MenuCategoryCode } from '@/constants/domain';
+import { dateInBogota } from '@/lib/date';
+import {
+  getMenuCategoryId,
+  mergeFoodCatalog,
+  type MenuCategory,
+} from '@/lib/menuCatalog';
 
 export default function Menu() {
-  const { sopas, segundos, guarniciones, image } = useMenu();
+  const { sopas, segundos, guarniciones } = useMenu();
   const [isSending, setIsSending] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isActivating, setIsActivating] = useState<string | null>(null);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [allAlimentos, setAllAlimentos] = useState<Alimento[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [menus, setMenus] = useState<DailyMenu[]>([]);
+  const [isLoadingMenus, setIsLoadingMenus] = useState(true);
+  const [menuLoadError, setMenuLoadError] = useState<string | null>(null);
+  const [selectedMenuDate, setSelectedMenuDate] = useState<string | null>(null);
+
+  const cleanOptions = (options: string[]) => options.map(option => option.trim()).filter(Boolean);
+
+  const generatedMenuImage = useMemo(() => {
+    return buildTelegramMenuImage({
+      sopas: cleanOptions(sopas),
+      segundos: cleanOptions(segundos),
+      guarniciones: cleanOptions(guarniciones),
+    });
+  }, [sopas, segundos, guarniciones]);
+
+  const applyMenu = (menu: DailyMenu) => {
+    menuStore.setSopas(menu.sopas.length ? menu.sopas : ['']);
+    menuStore.setSegundos(menu.segundos.length ? menu.segundos : ['']);
+    menuStore.setGuarniciones(menu.guarniciones.length ? menu.guarniciones : ['']);
+    menuStore.setDailyImage(menu.imagen_url);
+    setSelectedMenuDate(menu.fecha);
+  };
+
+  const fetchMenus = async (applyActive = false) => {
+    setIsLoadingMenus(true);
+    setMenuLoadError(null);
+    try {
+      const response = await apiFetch('/menu');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudieron cargar los menus registrados.');
+      }
+      const loadedMenus: DailyMenu[] = Array.isArray(data.menus) ? data.menus : [];
+      setMenus(loadedMenus);
+
+      if (applyActive && loadedMenus.length) {
+        const active = loadedMenus.find(menu => menu.estado === 'activo') || loadedMenus[0];
+        applyMenu(active);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudieron cargar los menus registrados.';
+      setMenuLoadError(message);
+      toast.error('No se pudieron cargar los menus registrados');
+    } finally {
+      setIsLoadingMenus(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoadingCatalog(true);
+      setCatalogError(null);
       try {
-        const [catRes, alimRes, menuRes] = await Promise.all([
+        const [catRes, alimRes] = await Promise.all([
           apiFetch('/alimentos/categorias'),
-          apiFetch('/alimentos'),
-          apiFetch('/alimentos/menu-diario/hoy')
+          apiFetch('/alimentos')
         ]);
-        let fetchedCats: Category[] = [];
-        if (catRes.ok) {
-          fetchedCats = await catRes.json();
-          setCategories(fetchedCats);
-        }
-        
-        let fetchedAlimentos = [];
-        if (alimRes.ok) {
-          fetchedAlimentos = await alimRes.json();
-          setAllAlimentos(fetchedAlimentos);
-        }
 
-        if (menuRes.ok) {
-          const menuHoy = await menuRes.json();
-          // Cargar datos en el store global
-          if (menuHoy.imagen_url) menuStore.setDailyImage(menuHoy.imagen_url);
-          
-          if (menuHoy.alimentos && menuHoy.alimentos.length > 0) {
-            const loadedSopas = menuHoy.alimentos.filter((a: Alimento) => a.id_categoria === getCategoryId('Sopa', fetchedCats)).map((a: { nombre: string }) => a.nombre);
-            const loadedSegundos = menuHoy.alimentos.filter((a: Alimento) => a.id_categoria === getCategoryId('Segundo', fetchedCats)).map((a: { nombre: string }) => a.nombre);
-            const loadedGuarniciones = menuHoy.alimentos.filter((a: Alimento) => a.id_categoria === getCategoryId('Guarni', fetchedCats)).map((a: { nombre: string }) => a.nombre);
-            
-            if (loadedSopas.length > 0) menuStore.setSopas(loadedSopas);
-            if (loadedSegundos.length > 0) menuStore.setSegundos(loadedSegundos);
-            if (loadedGuarniciones.length > 0) menuStore.setGuarniciones(loadedGuarniciones);
-          }
-        }
-      } catch (err) {
-        // Error silenciado para limpieza
+        const categoryData = await catRes.json().catch(() => ({}));
+        const foodData = await alimRes.json().catch(() => ({}));
+        if (!catRes.ok) throw new Error(categoryData.error || 'No se pudieron cargar las categorías del menú.');
+        if (!alimRes.ok) throw new Error(foodData.error || 'No se pudieron cargar los alimentos.');
+
+        setCategories(Array.isArray(categoryData) ? categoryData : []);
+        setAllAlimentos(Array.isArray(foodData) ? foodData : []);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'No se pudo cargar el catálogo del menú.';
+        setCatalogError(message);
+        toast.error('No se pudo cargar el catálogo del menú', { description: message });
+      } finally {
+        setIsLoadingCatalog(false);
       }
     };
     fetchData();
+    fetchMenus(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSendMenu = async () => {
-    const hasSopa = sopas.some(s => s.trim() !== '');
-    const hasSegundo = segundos.some(s => s.trim() !== '');
+    const menuPayload = {
+      sopas: cleanOptions(sopas),
+      segundos: cleanOptions(segundos),
+      guarniciones: cleanOptions(guarniciones),
+    };
     
-    if (!hasSopa || !hasSegundo) {
-      return toast.error('Debe haber al menos una sopa y un segundo configurados');
+    if (!menuPayload.sopas.length || !menuPayload.segundos.length || !menuPayload.guarniciones.length) {
+      return toast.error('Debe haber al menos una sopa, un segundo y una guarnicion configurados');
+    }
+    if ([...menuPayload.sopas, ...menuPayload.segundos, ...menuPayload.guarniciones].some(option => option.length > FIELD_LIMITS.menuOption)) {
+      return toast.error(`Cada opcion debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
     }
     
     setIsSending(true);
-    
-    // Convertir strings a ids para enviar
-    const alimentosIds: number[] = [];
-    [...sopas, ...segundos, ...guarniciones].filter(s => s.trim() !== '').forEach(nombre => {
-      const found = allAlimentos.find(a => a.nombre === nombre);
-      if (found) alimentosIds.push(found.id);
-    });
-
     try {
-      const res = await apiFetch('/alimentos/menu-diario', {
+      const response = await apiFetch('/menu/enviar', {
         method: 'POST',
         body: JSON.stringify({
-          fecha: new Date().toISOString().split('T')[0],
-          alimentos_ids: alimentosIds,
-          imagen_url: image
-        })
+          ...menuPayload,
+          image: buildTelegramMenuImage(menuPayload),
+        }),
       });
+      const data = await response.json().catch(() => ({}));
 
-      if (res.ok) {
-        toast.success('¡Menú del día guardado correctamente!', {
-          description: 'El menú está listo y disponible para tomar pedidos.'
-        });
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Error al guardar el menú en la base de datos');
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo disparar el flujo de Telegram');
       }
-    } catch (err) {
-      toast.error('Error de red al guardar el menú');
+
+      toast.success('Menu enviado a n8n correctamente', {
+        description: data.mensaje || 'Telegram enviara el menu a los chats vinculados.'
+      });
+      fetchMenus(false);
+    } catch (error) {
+      toast.error('No se pudo enviar el menu', {
+        description: error instanceof Error ? error.message : 'Revisa n8n y vuelve a intentarlo.'
+      });
     } finally {
       setIsSending(false);
     }
   };
 
-  const getCategoryId = (name: string, overrideCategories?: Category[]) => {
-    const search = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const catsToUse = overrideCategories || categories;
-    const cat = catsToUse.find(c => {
-      const catName = c.nombre_categoria.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      return catName.includes(search);
-    });
-    return cat ? cat.id_categoria_menu : 0;
+  const currentPayload = () => ({
+    sopas: cleanOptions(sopas),
+    segundos: cleanOptions(segundos),
+    guarniciones: cleanOptions(guarniciones),
+  });
+
+  const handleSaveMenu = async (force = false) => {
+    const menuPayload = currentPayload();
+    if (!menuPayload.sopas.length || !menuPayload.segundos.length || !menuPayload.guarniciones.length) {
+      return toast.error('Debe haber al menos una sopa, un segundo y una guarnicion configurados');
+    }
+    if ([...menuPayload.sopas, ...menuPayload.segundos, ...menuPayload.guarniciones].some(option => option.length > FIELD_LIMITS.menuOption)) {
+      return toast.error(`Cada opcion debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
+    }
+
+    const fecha = selectedMenuDate || dateInBogota();
+    setIsSaving(true);
+    try {
+      const response = await apiFetch(`/menu/${fecha}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...menuPayload,
+          image: buildTelegramMenuImage(menuPayload),
+          confirmarEdicion: force,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 409 && data.requireConfirmation) {
+        const confirmed = window.confirm(data.error || 'Este menu esta activo. Confirma la edicion.');
+        if (confirmed) await handleSaveMenu(true);
+        return;
+      }
+
+      if (!response.ok) throw new Error(data.error || 'No se pudo guardar el menu');
+
+      toast.success('Menu guardado correctamente');
+      setSelectedMenuDate(fecha);
+      fetchMenus(false);
+    } catch (error) {
+      toast.error('No se pudo guardar el menu', {
+        description: error instanceof Error ? error.message : 'Revisa los datos e intenta otra vez.'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleActivateMenu = async (menu: DailyMenu) => {
+    setIsActivating(menu.fecha);
+    try {
+      const response = await apiFetch(`/menu/${menu.fecha}/activar`, { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'No se pudo activar el menu');
+      toast.success('Menu activado correctamente');
+      setSelectedMenuDate(menu.fecha);
+      fetchMenus(false);
+    } catch (error) {
+      toast.error('No se pudo activar el menu', {
+        description: error instanceof Error ? error.message : 'Intenta otra vez.'
+      });
+    } finally {
+      setIsActivating(null);
+    }
+  };
+
+  const getCategoryId = (code: MenuCategoryCode) => getMenuCategoryId(categories, code);
+
+  const handleFoodCreated = (food: Alimento) => {
+    setAllAlimentos((current) => mergeFoodCatalog(current, food));
   };
 
   const updateOption = (type: 'sopas' | 'segundos' | 'guarniciones', index: number, value: string) => {
@@ -167,10 +272,21 @@ export default function Menu() {
         >
           <CalendarDays style={{ color: '#BF5D30' }} className="h-5 w-5" />
           <span style={{ color: '#BF5D30' }} className="text-sm font-semibold capitalize">
-            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {new Date().toLocaleDateString('es-ES', {
+              timeZone: 'America/Bogota',
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
           </span>
         </div>
       </div>
+
+      {catalogError && (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          {catalogError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
@@ -210,10 +326,12 @@ export default function Menu() {
                     <FoodSelector 
                       value={sopa}
                       onChange={(val) => updateOption('sopas', index, val)}
-                      idCategoria={getCategoryId('Sopa')}
+                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.SOUPS)}
                       alimentos={allAlimentos}
                       placeholder="Seleccionar sopa..."
                       exclude={sopas.filter((_, i) => i !== index)}
+                      disabled={isLoadingCatalog || Boolean(catalogError)}
+                      onFoodCreated={handleFoodCreated}
                     />
                   </div>
                 ))}
@@ -259,10 +377,12 @@ export default function Menu() {
                     <FoodSelector 
                       value={segundo}
                       onChange={(val) => updateOption('segundos', index, val)}
-                      idCategoria={getCategoryId('Segundo')}
+                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.MAINS)}
                       alimentos={allAlimentos}
                       placeholder="Seleccionar plato fuerte..."
                       exclude={segundos.filter((_, i) => i !== index)}
+                      disabled={isLoadingCatalog || Boolean(catalogError)}
+                      onFoodCreated={handleFoodCreated}
                     />
                   </div>
                 ))}
@@ -308,10 +428,12 @@ export default function Menu() {
                     <FoodSelector 
                       value={guarnicion}
                       onChange={(val) => updateOption('guarniciones', index, val)}
-                      idCategoria={getCategoryId('Guarni')}
+                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.SIDES)}
                       alimentos={allAlimentos}
                       placeholder="Seleccionar guarnición..."
                       exclude={guarniciones.filter((_, i) => i !== index)}
+                      disabled={isLoadingCatalog || Boolean(catalogError)}
+                      onFoodCreated={handleFoodCreated}
                     />
                   </div>
                 ))}
@@ -326,15 +448,39 @@ export default function Menu() {
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2 text-cafe">
                 <ImageIcon style={{ color: '#C2803A' }} className="h-5 w-5" />
-                Foto del Menú
+                Imagen para Telegram
               </CardTitle>
-              <CardDescription>Sube la imagen del menú impreso</CardDescription>
+              <CardDescription>Vista previa generada con las opciones del dia</CardDescription>
             </CardHeader>
-            <CardContent className="p-6">
-              <ImageUpload 
-                value={image}
-                onChange={(val) => menuStore.setDailyImage(val)}
-                className="min-h-[300px]"
+            <CardContent className="p-4">
+              <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
+                {generatedMenuImage && (
+                  <img
+                    src={generatedMenuImage}
+                    alt="Vista previa del menu para Telegram"
+                    className="aspect-[4/5] w-full object-cover"
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border shadow-sm h-fit overflow-hidden">
+            <CardHeader className="bg-muted/30 border-b">
+              <CardTitle className="text-xl flex items-center gap-2 text-cafe">
+                <CalendarDays style={{ color: '#4F6F52' }} className="h-5 w-5" />
+                Menus registrados
+              </CardTitle>
+              <CardDescription>Fecha, estado y opciones guardadas</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <RegisteredMenuList
+                menus={menus}
+                isLoading={isLoadingMenus}
+                error={menuLoadError}
+                isActivating={isActivating}
+                onLoad={applyMenu}
+                onActivate={handleActivateMenu}
               />
             </CardContent>
           </Card>
@@ -352,9 +498,19 @@ export default function Menu() {
             )}
             {isSending ? 'Enviando...' : 'ENVIAR MENÚ'}
           </Button>
+
+          <Button
+            size="lg"
+            variant="outline"
+            className="w-full h-12 font-bold gap-3 border-cafe text-cafe hover:bg-cafe/10"
+            onClick={() => handleSaveMenu(false)}
+            disabled={isSaving}
+          >
+            {isSaving ? 'Guardando...' : 'Guardar cambios'}
+          </Button>
           
           <p className="text-center text-sm text-muted-foreground px-4">
-            Al presionar enviar, el menú se compartirá con todos los contactos de la app de mensajería registrados.
+            Al presionar enviar, n8n compartira el menu con los chats de Telegram vinculados.
           </p>
         </div>
       </div>

@@ -4,16 +4,10 @@ export interface DailyMenu {
   fecha: string;
   estado: 'activo' | 'inactivo';
   imagen_url: string | null;
-  entradas?: string[];
   sopas: string[];
   segundos: string[];
-  postres?: string[];
-  bebidas?: string[];
   guarniciones: string[];
   opciones: number;
-  enviado?: boolean;
-  sent_at?: string | null;
-  send_count?: number;
 }
 
 interface RegisteredMenuListProps {
@@ -39,18 +33,6 @@ const MenuOptions = ({ label, options }: { label: string; options: string[] }) =
   </p>
 );
 
-const menuStatusClassName = (menu: DailyMenu) => {
-  if (menu.enviado) return 'rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700';
-  if (menu.estado === 'activo') return 'rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-700';
-  return 'rounded-full bg-muted px-2 py-1 text-xs font-bold text-muted-foreground';
-};
-
-const menuStatusLabel = (menu: DailyMenu) => {
-  if (menu.enviado) return 'Enviado';
-  if (menu.estado === 'activo') return 'Activo';
-  return 'Inactivo';
-};
-
 export function RegisteredMenuList({
   menus,
   isLoading,
@@ -58,12 +40,12 @@ export function RegisteredMenuList({
   isActivating,
   onLoad,
   onActivate,
-}: Readonly<RegisteredMenuListProps>) {
+}: RegisteredMenuListProps) {
   if (isLoading) {
     return (
-      <output className="block rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+      <div role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
         Cargando menus registrados...
-      </output>
+      </div>
     );
   }
 
@@ -94,16 +76,21 @@ export function RegisteredMenuList({
                 {menu.opciones} {menu.opciones === 1 ? 'opcion' : 'opciones'}
               </p>
             </div>
-            <span className={menuStatusClassName(menu)}>{menuStatusLabel(menu)}</span>
+            <span
+              className={
+                menu.estado === 'activo'
+                  ? 'rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-700'
+                  : 'rounded-full bg-muted px-2 py-1 text-xs font-bold text-muted-foreground'
+              }
+            >
+              {menu.estado === 'activo' ? 'Activo' : 'Inactivo'}
+            </span>
           </div>
 
           <div className="space-y-1 border-t pt-2">
-            {menu.entradas?.length ? <MenuOptions label="Entradas" options={menu.entradas} /> : null}
             <MenuOptions label="Sopas" options={menu.sopas} />
-            <MenuOptions label="Platos fuertes" options={menu.segundos} />
-            {menu.postres?.length ? <MenuOptions label="Postres" options={menu.postres} /> : null}
-            {menu.bebidas?.length ? <MenuOptions label="Bebidas" options={menu.bebidas} /> : null}
-            {menu.guarniciones?.length ? <MenuOptions label="Guarniciones" options={menu.guarniciones} /> : null}
+            <MenuOptions label="Segundos" options={menu.segundos} />
+            <MenuOptions label="Guarniciones" options={menu.guarniciones} />
           </div>
 
           <div className="flex gap-2">
