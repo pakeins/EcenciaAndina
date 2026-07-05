@@ -1,40 +1,108 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { menuStore, useMenu } from '@/data/menuStore';
-import { 
-  Soup, 
-  ChefHat, 
-  Send, 
+import {
+  Soup,
+  ChefHat,
+  Send,
   CalendarDays,
   Image as ImageIcon,
   Plus,
   Trash2,
-  Utensils
+  Utensils,
+  Cake,
+  Wine,
+  Cookie,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FoodSelector } from '@/components/menu/FoodSelector';
 import { RegisteredMenuList } from '@/components/menu/RegisteredMenuList';
+import { CategoryManager } from '@/components/menu/CategoryManager';
+import { ProductManager } from '@/components/menu/ProductManager';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import type { DailyMenu } from '@/components/menu/RegisteredMenuList';
 import { apiFetch } from '@/lib/api';
 import { buildTelegramMenuImage } from '@/lib/menuImage';
 import type { Alimento } from '@/types';
 import { FIELD_LIMITS } from '@/lib/validation';
-import { MENU_CATEGORY_CODE, type MenuCategoryCode } from '@/constants/domain';
 import { dateInBogota } from '@/lib/date';
-import {
-  getMenuCategoryId,
-  mergeFoodCatalog,
-  type MenuCategory,
-} from '@/lib/menuCatalog';
+import { BRAND_COLORS } from '@/lib/brand';
+import type { MenuCategory } from '@/lib/menuCatalog';
+
+const CATEGORY_ICONS: Record<string, typeof Soup> = {
+  entrada: Utensils,
+  sopa: Soup,
+  segundo: ChefHat,
+  'plato fuerte': ChefHat,
+  'platos fuertes': ChefHat,
+  postre: Cookie,
+  bebida: Wine,
+};
+
+const getCategoryIcon = (name: string) => {
+  const norm = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const [key, Icon] of Object.entries(CATEGORY_ICONS)) {
+    if (norm.includes(key)) return Icon;
+  }
+  return Utensils;
+};
+
+const CATEGORY_ORDER = ['entradas', 'sopas', 'platos fuertes', 'bebidas', 'postres'];
+
+const sortCategories = (cats: CategoryWithCode[]) => {
+  const orderMap = new Map(CATEGORY_ORDER.map((name, i) => {
+    const norm = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return [norm, i];
+  }));
+  return [...cats].sort((a, b) => {
+    const aNorm = a.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const bNorm = b.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return (orderMap.get(aNorm) ?? 999) - (orderMap.get(bNorm) ?? 999);
+  });
+};
+
+const CATEGORY_IMAGE_COLORS: Record<string, string> = {
+  entrada: BRAND_COLORS.verdeProfundo,
+  sopa: BRAND_COLORS.oro,
+  segundo: BRAND_COLORS.terracota,
+  'plato fuerte': BRAND_COLORS.terracota,
+  'platos fuertes': BRAND_COLORS.terracota,
+  postre: BRAND_COLORS.cafe,
+  bebida: BRAND_COLORS.olivo,
+};
+
+const getCategoryIconColor = (name: string) => {
+  const norm = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const [key, color] of Object.entries(CATEGORY_IMAGE_COLORS)) {
+    if (norm.includes(key)) return color;
+  }
+  return BRAND_COLORS.cafe;
+};
+
+const getImageAccent = (name: string) => {
+  const norm = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const [key, color] of Object.entries(CATEGORY_IMAGE_COLORS)) {
+    if (norm.includes(key)) return color;
+  }
+  return BRAND_COLORS.piedra;
+};
+
+const cleanOptions = (options: string[]) => options.map(option => option.trim()).filter(Boolean);
+
+const normalizeOption = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+
+interface CategoryWithCode extends MenuCategory {
+  codigo?: string;
+}
 
 export default function Menu() {
-  const { sopas, segundos, guarniciones } = useMenu();
+  const { categoryOptions, image } = useMenu();
   const [isSending, setIsSending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isActivating, setIsActivating] = useState<string | null>(null);
-  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [categories, setCategories] = useState<CategoryWithCode[]>([]);
   const [allAlimentos, setAllAlimentos] = useState<Alimento[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -43,20 +111,47 @@ export default function Menu() {
   const [menuLoadError, setMenuLoadError] = useState<string | null>(null);
   const [selectedMenuDate, setSelectedMenuDate] = useState<string | null>(null);
 
-  const cleanOptions = (options: string[]) => options.map(option => option.trim()).filter(Boolean);
+  const getCatOptions = useCallback(
+    (catId: number) => categoryOptions[catId] ?? [''],
+    [categoryOptions],
+  );
+
+  const getCategoryIdByName = useCallback(
+    (...searchTerms: string[]) => {
+      const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      for (const term of searchTerms) {
+        const t = norm(term);
+        for (const cat of categories) {
+          if (norm(cat.nombre_categoria).includes(t)) return cat.id_categoria_menu;
+        }
+      }
+      return 0;
+    },
+    [categories],
+  );
+
+  const buildSections = useCallback(() => {
+    return categories
+      .filter(cat => cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []).length > 0)
+      .map(cat => ({
+        title: cat.nombre_categoria,
+        items: cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []),
+        accent: getImageAccent(cat.nombre_categoria),
+      }));
+  }, [categories, categoryOptions]);
 
   const generatedMenuImage = useMemo(() => {
-    return buildTelegramMenuImage({
-      sopas: cleanOptions(sopas),
-      segundos: cleanOptions(segundos),
-      guarniciones: cleanOptions(guarniciones),
-    });
-  }, [sopas, segundos, guarniciones]);
+    const sections = buildSections();
+    if (!sections.length) return '';
+    return buildTelegramMenuImage({ sections });
+  }, [buildSections]);
 
   const applyMenu = (menu: DailyMenu) => {
-    menuStore.setSopas(menu.sopas.length ? menu.sopas : ['']);
-    menuStore.setSegundos(menu.segundos.length ? menu.segundos : ['']);
-    menuStore.setGuarniciones(menu.guarniciones.length ? menu.guarniciones : ['']);
+    if (menu.opciones) {
+      for (const [catId, options] of Object.entries(menu.opciones)) {
+        menuStore.setCategoryOptions(Number(catId), options.length ? options : ['']);
+      }
+    }
     menuStore.setDailyImage(menu.imagen_url);
     setSelectedMenuDate(menu.fecha);
   };
@@ -86,57 +181,79 @@ export default function Menu() {
     }
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoadingCatalog(true);
-      setCatalogError(null);
-      try {
-        const [catRes, alimRes] = await Promise.all([
-          apiFetch('/alimentos/categorias'),
-          apiFetch('/alimentos')
-        ]);
+  const fetchCatalogs = useCallback(async () => {
+    setIsLoadingCatalog(true);
+    setCatalogError(null);
+    try {
+      const [catRes, alimRes] = await Promise.all([
+        apiFetch('/alimentos/categorias'),
+        apiFetch('/alimentos')
+      ]);
 
-        const categoryData = await catRes.json().catch(() => ({}));
-        const foodData = await alimRes.json().catch(() => ({}));
-        if (!catRes.ok) throw new Error(categoryData.error || 'No se pudieron cargar las categorías del menú.');
-        if (!alimRes.ok) throw new Error(foodData.error || 'No se pudieron cargar los alimentos.');
+      const categoryData = await catRes.json().catch(() => ({}));
+      const foodData = await alimRes.json().catch(() => ({}));
+      if (!catRes.ok) throw new Error(categoryData.error || 'No se pudieron cargar las categorías del menú.');
+      if (!alimRes.ok) throw new Error(foodData.error || 'No se pudieron cargar los alimentos.');
 
-        setCategories(Array.isArray(categoryData) ? categoryData : []);
-        setAllAlimentos(Array.isArray(foodData) ? foodData : []);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'No se pudo cargar el catálogo del menú.';
-        setCatalogError(message);
-        toast.error('No se pudo cargar el catálogo del menú', { description: message });
-      } finally {
-        setIsLoadingCatalog(false);
+      const loadedCats: CategoryWithCode[] = Array.isArray(categoryData) ? categoryData : [];
+      setCategories(sortCategories(loadedCats));
+      setAllAlimentos(Array.isArray(foodData) ? foodData : []);
+
+      // Initialize store with empty arrays for all categories
+      for (const cat of loadedCats) {
+        if (!(cat.id_categoria_menu in categoryOptions)) {
+          menuStore.setCategoryOptions(cat.id_categoria_menu, ['']);
+        }
       }
-    };
-    fetchData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo cargar el catálogo del menú.';
+      setCatalogError(message);
+      toast.error('No se pudo cargar el catálogo del menú', { description: message });
+    } finally {
+      setIsLoadingCatalog(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCatalogs();
     fetchMenus(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSendMenu = async () => {
-    const menuPayload = {
-      sopas: cleanOptions(sopas),
-      segundos: cleanOptions(segundos),
-      guarniciones: cleanOptions(guarniciones),
-    };
-    
-    if (!menuPayload.sopas.length || !menuPayload.segundos.length || !menuPayload.guarniciones.length) {
-      return toast.error('Debe haber al menos una sopa, un segundo y una guarnicion configurados');
+  const buildOpcionesPayload = () => {
+    const opciones: Record<string, string[]> = {};
+    for (const cat of categories) {
+      const opts = cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []);
+      if (opts.length) opciones[String(cat.id_categoria_menu)] = opts;
     }
-    if ([...menuPayload.sopas, ...menuPayload.segundos, ...menuPayload.guarniciones].some(option => option.length > FIELD_LIMITS.menuOption)) {
+    return opciones;
+  };
+
+  const handleSendMenu = async () => {
+    const opciones = buildOpcionesPayload();
+    const sopaCatId = getCategoryIdByName('sopa');
+    const segundoCatId = getCategoryIdByName('segundo', 'plato');
+
+    if (!sopaCatId || !cleanOptions(categoryOptions[sopaCatId] ?? []).length) {
+      return toast.error('Debe haber al menos una sopa configurada');
+    }
+    if (!segundoCatId || !cleanOptions(categoryOptions[segundoCatId] ?? []).length) {
+      return toast.error('Debe haber al menos un segundo/plato fuerte configurado');
+    }
+
+    const allOptions = Object.values(opciones).flat();
+    if (allOptions.some(option => option.length > FIELD_LIMITS.menuOption)) {
       return toast.error(`Cada opcion debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
     }
-    
+
     setIsSending(true);
     try {
+      const sections = buildSections();
       const response = await apiFetch('/menu/enviar', {
         method: 'POST',
         body: JSON.stringify({
-          ...menuPayload,
-          image: buildTelegramMenuImage(menuPayload),
+          opciones,
+          image: sections.length ? buildTelegramMenuImage({ sections }) : undefined,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -158,29 +275,32 @@ export default function Menu() {
     }
   };
 
-  const currentPayload = () => ({
-    sopas: cleanOptions(sopas),
-    segundos: cleanOptions(segundos),
-    guarniciones: cleanOptions(guarniciones),
-  });
-
   const handleSaveMenu = async (force = false) => {
-    const menuPayload = currentPayload();
-    if (!menuPayload.sopas.length || !menuPayload.segundos.length || !menuPayload.guarniciones.length) {
-      return toast.error('Debe haber al menos una sopa, un segundo y una guarnicion configurados');
+    const opciones = buildOpcionesPayload();
+    const sopaCatId = getCategoryIdByName('sopa');
+    const segundoCatId = getCategoryIdByName('segundo', 'plato');
+
+    if (!sopaCatId || !cleanOptions(categoryOptions[sopaCatId] ?? []).length) {
+      return toast.error('Debe haber al menos una sopa configurada');
     }
-    if ([...menuPayload.sopas, ...menuPayload.segundos, ...menuPayload.guarniciones].some(option => option.length > FIELD_LIMITS.menuOption)) {
+    if (!segundoCatId || !cleanOptions(categoryOptions[segundoCatId] ?? []).length) {
+      return toast.error('Debe haber al menos un segundo/plato fuerte configurado');
+    }
+
+    const allOptions = Object.values(opciones).flat();
+    if (allOptions.some(option => option.length > FIELD_LIMITS.menuOption)) {
       return toast.error(`Cada opcion debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
     }
 
     const fecha = selectedMenuDate || dateInBogota();
     setIsSaving(true);
     try {
+      const sections = buildSections();
       const response = await apiFetch(`/menu/${fecha}`, {
         method: 'PUT',
         body: JSON.stringify({
-          ...menuPayload,
-          image: buildTelegramMenuImage(menuPayload),
+          opciones,
+          image: sections.length ? buildTelegramMenuImage({ sections }) : undefined,
           confirmarEdicion: force,
         }),
       });
@@ -224,35 +344,35 @@ export default function Menu() {
     }
   };
 
-  const getCategoryId = (code: MenuCategoryCode) => getMenuCategoryId(categories, code);
-
   const handleFoodCreated = (food: Alimento) => {
-    setAllAlimentos((current) => mergeFoodCatalog(current, food));
+    setAllAlimentos((current) => {
+      if (current.some(item => item.id === food.id)) return current;
+      return [...current, food];
+    });
   };
 
-  const updateOption = (type: 'sopas' | 'segundos' | 'guarniciones', index: number, value: string) => {
-    const current = type === 'sopas' ? [...sopas] : type === 'segundos' ? [...segundos] : [...guarniciones];
+  const updateOption = (catId: number, index: number, value: string) => {
+    const current = [...(categoryOptions[catId] ?? [''])];
     current[index] = value;
-    if (type === 'sopas') menuStore.setSopas(current);
-    else if (type === 'segundos') menuStore.setSegundos(current);
-    else menuStore.setGuarniciones(current);
+    menuStore.setCategoryOptions(catId, current);
   };
 
-  const addOption = (type: 'sopas' | 'segundos' | 'guarniciones') => {
-    const current = type === 'sopas' ? [...sopas] : type === 'segundos' ? [...segundos] : [...guarniciones];
+  const addOption = (catId: number) => {
+    const current = [...(categoryOptions[catId] ?? [''])];
     current.push('');
-    if (type === 'sopas') menuStore.setSopas(current);
-    else if (type === 'segundos') menuStore.setSegundos(current);
-    else menuStore.setGuarniciones(current);
+    menuStore.setCategoryOptions(catId, current);
   };
 
-  const removeOption = (type: 'sopas' | 'segundos' | 'guarniciones', index: number) => {
-    const current = type === 'sopas' ? [...sopas] : type === 'segundos' ? [...segundos] : [...guarniciones];
+  const removeOption = (catId: number, index: number) => {
+    const current = [...(categoryOptions[catId] ?? [''])];
     if (current.length <= 1) return;
     current.splice(index, 1);
-    if (type === 'sopas') menuStore.setSopas(current);
-    else if (type === 'segundos') menuStore.setSegundos(current);
-    else menuStore.setGuarniciones(current);
+    menuStore.setCategoryOptions(catId, current);
+  };
+
+  const getCategoryExclude = (catId: number, currentIndex: number) => {
+    const options = categoryOptions[catId] ?? [''];
+    return options.filter((_, i) => i !== currentIndex);
   };
 
   return (
@@ -266,7 +386,7 @@ export default function Menu() {
             Configura los platos disponibles para el día de hoy.
           </p>
         </div>
-        <div 
+        <div
           style={{ backgroundColor: 'rgba(191, 93, 48, 0.1)', borderColor: 'rgba(191, 93, 48, 0.2)' }}
           className="px-4 py-2 rounded-2xl flex items-center gap-2 border backdrop-blur-sm"
         >
@@ -288,162 +408,109 @@ export default function Menu() {
         </div>
       )}
 
+      <div className="flex flex-wrap justify-end gap-2 mb-4">
+        <CategoryManager onCategoriesChanged={fetchCatalogs} />
+        <ProductManager onProductsChanged={fetchCatalogs} />
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="border-cafe text-cafe hover:bg-cafe/10 font-semibold shadow-sm">
+              <CalendarDays className="h-4 w-4 mr-2" />
+              Ver Historial de Menús
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5" />
+                Historial de Menús
+              </DialogTitle>
+            </DialogHeader>
+            <RegisteredMenuList
+              menus={menus}
+              isLoading={isLoadingMenus}
+              error={menuLoadError}
+              isActivating={isActivating}
+              onLoad={applyMenu}
+              onActivate={handleActivateMenu}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
-          
-          {/* MODULO SOPAS */}
-          <Card className="border-border shadow-md border-l-4 border-l-secondary overflow-hidden bg-secondary/5">
-            <CardHeader className="pb-4 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-3 text-cafe">
-                  <div className="bg-secondary text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-md">
-                    <Soup className="h-6 w-6" />
-                  </div>
-                  Sopas
-                </CardTitle>
-                <CardDescription className="mt-1 font-medium">Define las opciones de sopas para hoy</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => addOption('sopas')} className="gap-2 border-secondary/30 bg-background hover:bg-secondary/10 text-secondary font-bold">
-                <Plus className="h-4 w-4" />
-                Añadir Opción
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-2">
-              <div className="grid gap-4 md:grid-cols-2">
-                {sopas.map((sopa, index) => (
-                  <div key={index} className="space-y-2 relative group">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Opción {index + 1}</Label>
-                      {sopas.length > 1 && (
-                        <button 
-                          onClick={() => removeOption('sopas', index)}
-                          className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                    <FoodSelector 
-                      value={sopa}
-                      onChange={(val) => updateOption('sopas', index, val)}
-                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.SOUPS)}
-                      alimentos={allAlimentos}
-                      placeholder="Seleccionar sopa..."
-                      exclude={sopas.filter((_, i) => i !== index)}
-                      disabled={isLoadingCatalog || Boolean(catalogError)}
-                      onFoodCreated={handleFoodCreated}
-                    />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {categories.map((cat) => {
+            const catOptions = getCatOptions(cat.id_categoria_menu);
+            const IconComponent = getCategoryIcon(cat.nombre_categoria);
 
-          {/* MODULO SEGUNDOS */}
-          <Card className="border-border shadow-md border-l-4 border-l-terracota overflow-hidden bg-terracota/5">
-            <CardHeader className="pb-4 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-3 text-cafe">
-                  <div 
-                    style={{ backgroundColor: '#BF5D30' }} 
-                    className="text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-md"
+            return (
+              <Card
+                key={cat.id_categoria_menu}
+                className="border-border shadow-md border-l-4 overflow-hidden bg-muted/5 border-l-secondary"
+                style={{ borderLeftColor: getImageAccent(cat.nombre_categoria) }}
+              >
+                <CardHeader className="pb-4 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-2xl flex items-center gap-3 text-cafe">
+                      <div
+                        className="text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-md"
+                        style={{ background: `linear-gradient(135deg, ${getCategoryIconColor(cat.nombre_categoria)}, ${getCategoryIconColor(cat.nombre_categoria)}cc)` }}
+                      >
+                        <IconComponent className="h-6 w-6" />
+                      </div>
+                      {cat.nombre_categoria}
+                    </CardTitle>
+                    <CardDescription className="mt-1 font-medium">
+                      Define las opciones de {cat.nombre_categoria.toLowerCase()} para hoy
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addOption(cat.id_categoria_menu)}
+                    className="gap-2 border-secondary/30 bg-background hover:bg-secondary/10 text-secondary font-bold"
                   >
-                    <ChefHat className="h-6 w-6" />
+                    <Plus className="h-4 w-4" />
+                    Añadir Opción
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-2">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {catOptions.map((option, index) => (
+                      <div key={index} className="space-y-2 relative group">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                            Opción {index + 1}
+                          </Label>
+                          {catOptions.length > 1 && (
+                            <button
+                              onClick={() => removeOption(cat.id_categoria_menu, index)}
+                              className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                        <FoodSelector
+                          value={option}
+                          onChange={(val) => updateOption(cat.id_categoria_menu, index, val)}
+                          idCategoria={cat.id_categoria_menu}
+                          alimentos={allAlimentos}
+                          placeholder={`Seleccionar ${cat.nombre_categoria.toLowerCase()}...`}
+                          exclude={getCategoryExclude(cat.id_categoria_menu, index)}
+                          disabled={isLoadingCatalog || Boolean(catalogError)}
+                          onFoodCreated={handleFoodCreated}
+                        />
+                      </div>
+                    ))}
                   </div>
-                  Almuerzos (Segundos)
-                </CardTitle>
-                <CardDescription className="mt-1 font-medium">Platos fuertes disponibles para hoy</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => addOption('segundos')} className="gap-2 border-terracota/30 bg-background hover:bg-terracota/10 text-terracota font-bold">
-                <Plus className="h-4 w-4" />
-                Añadir Opción
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-2">
-              <div className="grid gap-4 md:grid-cols-2">
-                {segundos.map((segundo, index) => (
-                  <div key={index} className="space-y-2 relative group">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Opción {index + 1}</Label>
-                      {segundos.length > 1 && (
-                        <button 
-                          onClick={() => removeOption('segundos', index)}
-                          className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                    <FoodSelector 
-                      value={segundo}
-                      onChange={(val) => updateOption('segundos', index, val)}
-                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.MAINS)}
-                      alimentos={allAlimentos}
-                      placeholder="Seleccionar plato fuerte..."
-                      exclude={segundos.filter((_, i) => i !== index)}
-                      disabled={isLoadingCatalog || Boolean(catalogError)}
-                      onFoodCreated={handleFoodCreated}
-                    />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* MODULO GUARNICION */}
-          <Card className="border-border shadow-md border-l-4 border-l-oro overflow-hidden bg-oro/5">
-            <CardHeader className="pb-4 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-3 text-cafe">
-                  <div 
-                    style={{ backgroundColor: '#C2803A' }} 
-                    className="text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-md"
-                  >
-                    <Utensils className="h-6 w-6" />
-                  </div>
-                  Guarniciones
-                </CardTitle>
-                <CardDescription className="mt-1 font-medium">Acompañamientos extras del día</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => addOption('guarniciones')} className="gap-2 border-oro/30 bg-background hover:bg-oro/10 text-oro font-bold">
-                <Plus className="h-4 w-4" />
-                Añadir Opción
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-2">
-              <div className="grid gap-4 md:grid-cols-2">
-                {guarniciones.map((guarnicion, index) => (
-                  <div key={index} className="space-y-2 relative group">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Guarnición {index + 1}</Label>
-                      {guarniciones.length > 1 && (
-                        <button 
-                          onClick={() => removeOption('guarniciones', index)}
-                          className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                    <FoodSelector 
-                      value={guarnicion}
-                      onChange={(val) => updateOption('guarniciones', index, val)}
-                      idCategoria={getCategoryId(MENU_CATEGORY_CODE.SIDES)}
-                      alimentos={allAlimentos}
-                      placeholder="Seleccionar guarnición..."
-                      exclude={guarniciones.filter((_, i) => i !== index)}
-                      disabled={isLoadingCatalog || Boolean(catalogError)}
-                      onFoodCreated={handleFoodCreated}
-                    />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         <div className="lg:col-span-4 space-y-8">
-          {/* Imagen del Menú */}
           <Card className="border-border shadow-sm h-fit overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2 text-cafe">
@@ -458,35 +525,15 @@ export default function Menu() {
                   <img
                     src={generatedMenuImage}
                     alt="Vista previa del menu para Telegram"
-                    className="aspect-[4/5] w-full object-cover"
+                    className="w-full object-contain max-h-[720px]"
                   />
                 )}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-border shadow-sm h-fit overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl flex items-center gap-2 text-cafe">
-                <CalendarDays style={{ color: '#4F6F52' }} className="h-5 w-5" />
-                Menus registrados
-              </CardTitle>
-              <CardDescription>Fecha, estado y opciones guardadas</CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 space-y-3">
-              <RegisteredMenuList
-                menus={menus}
-                isLoading={isLoadingMenus}
-                error={menuLoadError}
-                isActivating={isActivating}
-                onLoad={applyMenu}
-                onActivate={handleActivateMenu}
-              />
-            </CardContent>
-          </Card>
-
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             className="w-full h-16 text-xl font-bold gap-4 shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all hover:-translate-y-1 active:translate-y-0.5 rounded-2xl bg-primary hover:bg-primary/90"
             onClick={handleSendMenu}
             disabled={isSending}
@@ -508,7 +555,7 @@ export default function Menu() {
           >
             {isSaving ? 'Guardando...' : 'Guardar cambios'}
           </Button>
-          
+
           <p className="text-center text-sm text-muted-foreground px-4">
             Al presionar enviar, n8n compartira el menu con los chats de Telegram vinculados.
           </p>

@@ -338,19 +338,21 @@ const schemas = {
   categoriaProducto: z.object({
     nombre_categoria: requiredText(80, 'Nombre de categoria'),
   }),
+  categoriaMenu: z.object({
+    nombre_categoria: requiredText(80, 'Nombre de categoria de menu'),
+  }),
   menuDiario: z.object({
     fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato YYYY-MM-DD.'),
     alimentos_ids: z.array(positiveInt('Alimento')).max(50, 'No puede registrar mas de 50 alimentos.'),
     imagen_url: optionalText(2048, 'URL de imagen'),
   }),
   menuDashboard: z.object({
-    sopas: menuOptionsSchema,
-    segundos: menuOptionsSchema,
-    guarniciones: menuOptionsSchema,
+    opciones: z.record(z.string(), menuOptionsSchema).optional().default({}),
     image: optionalText(8 * 1024 * 1024, 'Imagen'),
     confirmarEdicion: booleanSchema.optional(),
     clientIds: z.array(z.union([z.string(), z.number()])).optional(),
   }),
+  menuOpciones: z.record(z.string(), menuOptionsSchema),
   telegramPrivacyResolution: z.object({
     status: z.enum(['in_review', 'resolved', 'rejected']),
     resolution_notes: optionalText(1000, 'Notas de resolucion'),

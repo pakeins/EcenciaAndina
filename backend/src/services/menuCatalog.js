@@ -17,7 +17,7 @@ const findFood = async (adminClient, categoryId, normalizedName) => {
     .from('alimentos')
     .select('id_alimento,nombre_alimento,id_categoria_menu,categorias_menu(nombre_categoria)')
     .eq('id_categoria_menu', categoryId)
-    .eq('nombre_normalizado', normalizedName)
+    .ilike('nombre_alimento', normalizedName)
     .maybeSingle();
 
   if (error) throw error;

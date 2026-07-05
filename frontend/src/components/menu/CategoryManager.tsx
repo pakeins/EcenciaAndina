@@ -7,6 +7,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { Trash2, Plus, Loader2 } from 'lucide-react';
 import { Category } from '@/types';
 
+const normalizeName = (name: string) =>
+  name.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
 export function CategoryManager({ onCategoriesChanged }: { onCategoriesChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -32,11 +35,20 @@ export function CategoryManager({ onCategoriesChanged }: { onCategoriesChanged: 
   }, [open]);
 
   const handleAdd = async () => {
-    if (!newCatName.trim()) return;
+    const name = newCatName.trim();
+    if (!name) return;
+
+    const normalizedNew = normalizeName(name);
+    const duplicate = categories.find((c) => normalizeName(c.nombre_categoria) === normalizedNew);
+    if (duplicate) {
+      toast({ variant: 'destructive', title: 'Ya existe una categoría con ese nombre' });
+      return;
+    }
+
     try {
       const res = await apiFetch('/alimentos/categorias', {
         method: 'POST',
-        body: JSON.stringify({ nombre_categoria: newCatName.trim() }),
+        body: JSON.stringify({ nombre_categoria: name }),
       });
       if (res.ok) {
         toast({ title: 'Categoría agregada' });
@@ -44,7 +56,8 @@ export function CategoryManager({ onCategoriesChanged }: { onCategoriesChanged: 
         fetchCategories();
         onCategoriesChanged();
       } else {
-        toast({ variant: 'destructive', title: 'Error al agregar categoría' });
+        const data = await res.json().catch(() => ({}));
+        toast({ variant: 'destructive', title: 'Error', description: data.error || 'No se pudo agregar la categoría' });
       }
     } catch (e) {
       toast({ variant: 'destructive', title: 'Error de red' });

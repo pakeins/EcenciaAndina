@@ -10,7 +10,8 @@ const makeMenu = (day: number): DailyMenu => ({
   sopas: [`Sopa ${day}`],
   segundos: [`Segundo ${day}`],
   guarniciones: [`Guarnicion ${day}`],
-  opciones: 3,
+  opciones: { '1': [`Sopa ${day}`], '2': [`Segundo ${day}`], '3': [`Guarnicion ${day}`] },
+  opciones_count: 3,
 });
 
 const defaultProps = {

@@ -12,44 +12,32 @@ beforeAll(() => {
 });
 
 describe('ciclo de vida de menu diario', () => {
-  it('considera valido solo un menu con una opcion en cada apartado', () => {
+  it('considera valido solo un menu con opciones en al menos una categoria', () => {
     expect(menuPrivate.hasCompleteMenu({
-      sopas: ['Locro'],
-      segundos: ['Seco de pollo'],
-      guarniciones: ['Arroz'],
+      opciones: { '1': ['Locro'], '2': ['Seco de pollo'], '3': ['Arroz'] },
     })).toBe(true);
 
     expect(menuPrivate.hasCompleteMenu({
-      sopas: ['Locro'],
-      segundos: [],
-      guarniciones: ['Arroz'],
+      opciones: {},
     })).toBe(false);
   });
 
   it('compara menus normalizando espacios y opciones vacias', () => {
     expect(menuPrivate.menuPayloadEquals(
       {
-        sopas: [' Locro ', ''],
-        segundos: ['Seco de pollo'],
-        guarniciones: ['Arroz'],
+        opciones: { '1': [' Locro ', ''], '2': ['Seco de pollo'], '3': ['Arroz'] },
       },
       {
-        sopas: ['Locro'],
-        segundos: ['Seco de pollo'],
-        guarniciones: ['Arroz'],
+        opciones: { '1': ['Locro'], '2': ['Seco de pollo'], '3': ['Arroz'] },
       },
     )).toBe(true);
 
     expect(menuPrivate.menuPayloadEquals(
       {
-        sopas: ['Locro'],
-        segundos: ['Seco de pollo'],
-        guarniciones: ['Arroz'],
+        opciones: { '1': ['Locro'], '2': ['Seco de pollo'], '3': ['Arroz'] },
       },
       {
-        sopas: ['Locro'],
-        segundos: ['Carne asada'],
-        guarniciones: ['Arroz'],
+        opciones: { '1': ['Locro'], '2': ['Carne asada'], '3': ['Arroz'] },
       },
     )).toBe(false);
   });

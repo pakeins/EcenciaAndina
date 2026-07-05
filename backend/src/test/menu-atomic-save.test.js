@@ -48,15 +48,18 @@ const createAdminClient = ({ rpcError = null } = {}) => {
       if (table === 'alimentos') {
         return {
           select: () => ({
-            eq: vi.fn().mockReturnThis(),
-            maybeSingle: async () => ({
-              data: {
-                id_alimento: foodIds[foodIndex++],
-                nombre_alimento: 'Existente',
-                id_categoria_menu: 1,
-              },
-              error: null,
-            }),
+            eq: vi.fn(() => ({
+              ilike: vi.fn(() => ({
+                maybeSingle: async () => ({
+                  data: {
+                    id_alimento: foodIds[foodIndex++],
+                    nombre_alimento: 'Existente',
+                    id_categoria_menu: 1,
+                  },
+                  error: null,
+                }),
+              })),
+            })),
           }),
         };
       }

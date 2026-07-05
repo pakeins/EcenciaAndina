@@ -1,13 +1,17 @@
+interface MenuImageSection {
+  title: string;
+  items: string[];
+  accent: string;
+}
+
 interface MenuImageInput {
-  sopas: string[];
-  segundos: string[];
-  guarniciones: string[];
+  sections: MenuImageSection[];
   date?: Date;
 }
 
 const WIDTH = 1080;
-const HEIGHT = 1350;
-const PADDING = 72;
+const PADDING = 64;
+const HEADER_HEIGHT = 200;
 
 const COLORS = {
   ink: '#2f261f',
@@ -15,9 +19,6 @@ const COLORS = {
   paper: '#fffaf2',
   panel: '#ffffff',
   coffee: '#4b2f22',
-  copper: '#bf5d30',
-  gold: '#c2803a',
-  green: '#4f6f52',
 };
 
 const clean = (items: string[]) => items.map((item) => item.trim()).filter(Boolean);
@@ -81,6 +82,10 @@ const wrapText = (
   return lines;
 };
 
+const SECTION_HEADER = 64;
+const SECTION_FIRST_GAP = 48;
+const SECTION_ROW_ALLOC = 54;
+
 const drawSection = (
   ctx: CanvasRenderingContext2D,
   title: string,
@@ -91,86 +96,105 @@ const drawSection = (
   accent: string,
 ) => {
   const sectionItems = clean(items);
-  const rowHeight = 76;
-  const headerHeight = 72;
-  const height = headerHeight + Math.max(sectionItems.length, 1) * rowHeight + 32;
+  const rows = sectionItems.length ? sectionItems : ['Sin opciones configuradas'];
+
+  // Measure text to find exact visual bottom
+  ctx.font = '500 30px Arial, sans-serif';
+  const rowY = (index: number) => y + SECTION_HEADER + SECTION_FIRST_GAP + index * SECTION_ROW_ALLOC;
+  let visualBottom = y + SECTION_HEADER;
+  rows.forEach((item, index) => {
+    const rY = rowY(index);
+    const lines = wrapText(ctx, item, width - 90, 2);
+    const bottom = rY + (lines.length - 1) * 36 + 8;
+    if (bottom > visualBottom) visualBottom = bottom;
+  });
+
+  const height = visualBottom - y + 16;
 
   ctx.save();
   ctx.shadowColor = 'rgba(40, 28, 20, 0.16)';
   ctx.shadowBlur = 24;
   ctx.shadowOffsetY = 10;
   ctx.fillStyle = COLORS.panel;
-  roundRect(ctx, x, y, width, height, 24);
+  roundRect(ctx, x, y, width, height, 20);
   ctx.fill();
   ctx.restore();
 
   ctx.fillStyle = accent;
-  roundRect(ctx, x, y, width, headerHeight, 24);
+  roundRect(ctx, x, y, width, SECTION_HEADER, 20);
   ctx.fill();
-  ctx.fillRect(x, y + headerHeight - 24, width, 24);
+  ctx.fillRect(x, y + SECTION_HEADER - 20, width, 20);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = '700 34px Arial, sans-serif';
-  ctx.fillText(title.toUpperCase(), x + 34, y + 46);
+  ctx.font = '600 30px Arial, sans-serif';
+  ctx.fillText(title.toUpperCase(), x + 28, y + 42);
 
-  ctx.font = '600 34px Arial, sans-serif';
+  ctx.font = '500 30px Arial, sans-serif';
   ctx.fillStyle = COLORS.ink;
 
-  const rows = sectionItems.length ? sectionItems : ['Sin opciones configuradas'];
   rows.forEach((item, index) => {
-    const rowY = y + headerHeight + 40 + index * rowHeight;
+    const rY = rowY(index);
     ctx.fillStyle = accent;
     ctx.beginPath();
-    ctx.arc(x + 42, rowY - 8, 12, 0, Math.PI * 2);
+    ctx.arc(x + 34, rY - 10, 10, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = COLORS.ink;
-    const lines = wrapText(ctx, item, width - 110, 2);
+    const lines = wrapText(ctx, item, width - 90, 2);
     lines.forEach((line, lineIndex) => {
-      ctx.fillText(line, x + 72, rowY + lineIndex * 34);
+      ctx.fillText(line, x + 60, rY + lineIndex * 36);
     });
   });
 
   return height;
 };
 
-export const buildTelegramMenuImage = ({ sopas, segundos, guarniciones, date = new Date() }: MenuImageInput) => {
+export const buildTelegramMenuImage = ({ sections, date = new Date() }: MenuImageInput) => {
+  if (!sections.length) return '';
+
+  const GENEROUS_HEIGHT = 5000;
+  const contentWidth = WIDTH - PADDING * 2;
+
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
-  canvas.height = HEIGHT;
+  canvas.height = GENEROUS_HEIGHT;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
   ctx.fillStyle = COLORS.paper;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.fillRect(0, 0, WIDTH, GENEROUS_HEIGHT);
 
-  const gradient = ctx.createLinearGradient(0, 0, WIDTH, 0);
-  gradient.addColorStop(0, COLORS.green);
-  gradient.addColorStop(0.5, COLORS.coffee);
-  gradient.addColorStop(1, COLORS.copper);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, WIDTH, 250);
+  ctx.fillStyle = COLORS.coffee;
+  ctx.fillRect(0, 0, WIDTH, HEADER_HEIGHT);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = '800 64px Arial, sans-serif';
-  ctx.fillText('Ecencia Andina', PADDING, 100);
-  ctx.font = '700 46px Arial, sans-serif';
-  ctx.fillText('Menu del dia', PADDING, 164);
-  ctx.font = '500 30px Arial, sans-serif';
-  ctx.fillText(formatDate(date), PADDING, 212);
+  ctx.font = '700 52px Arial, sans-serif';
+  ctx.fillText('Ecencia Andina', PADDING, 80);
+  ctx.font = '600 38px Arial, sans-serif';
+  ctx.fillText('Menu del dia', PADDING, 132);
+  ctx.font = '500 26px Arial, sans-serif';
+  ctx.fillText(formatDate(date), PADDING, 174);
 
-  const contentWidth = WIDTH - PADDING * 2;
-  let y = 302;
-  y += drawSection(ctx, 'Sopas', sopas, PADDING, y, contentWidth, COLORS.green) + 36;
-  y += drawSection(ctx, 'Segundos', segundos, PADDING, y, contentWidth, COLORS.copper) + 36;
-  drawSection(ctx, 'Guarniciones', guarniciones, PADDING, y, contentWidth, COLORS.gold);
+  let y = HEADER_HEIGHT + 48;
+  for (const section of sections) {
+    y += drawSection(ctx, section.title, section.items, PADDING, y, contentWidth, section.accent) + 28;
+  }
 
+  const footerY = y + 20;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '500 24px Arial, sans-serif';
+  ctx.font = '500 22px Arial, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Reserva tu almuerzo respondiendo con los botones del bot', WIDTH / 2, HEIGHT - 54);
+  ctx.fillText('Reserva tu almuerzo respondiendo con los botones del bot', WIDTH / 2, footerY);
   ctx.textAlign = 'left';
 
-  return canvas.toDataURL('image/jpeg', 0.9);
+  const exactHeight = footerY + 40;
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = WIDTH;
+  finalCanvas.height = exactHeight;
+  const finalCtx = finalCanvas.getContext('2d');
+  if (!finalCtx) return '';
+  finalCtx.drawImage(canvas, 0, 0);
+
+  return finalCanvas.toDataURL('image/jpeg', 0.9);
 };

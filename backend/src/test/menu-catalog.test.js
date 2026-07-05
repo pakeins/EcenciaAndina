@@ -13,9 +13,9 @@ const foodRow = {
 
 const createClient = ({ existing = null, inserted = foodRow, insertError = null } = {}) => {
   const maybeSingle = vi.fn(async () => ({ data: existing, error: null }));
+  const ilike = vi.fn(() => ({ maybeSingle }));
   const selectExisting = vi.fn(() => ({
-    eq: vi.fn().mockReturnThis(),
-    maybeSingle,
+    eq: vi.fn(() => ({ ilike, maybeSingle })),
   }));
   const single = vi.fn(async () => ({ data: inserted, error: insertError }));
   const insert = vi.fn(() => ({

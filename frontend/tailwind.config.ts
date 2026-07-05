@@ -56,6 +56,7 @@ export default {
         cafe: 'hsl(var(--cafe))',
         terracota: 'hsl(var(--terracota))',
         oro: 'hsl(var(--oro))',
+        'verde-profundo': 'hsl(var(--verde-profundo))',
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar-background))',
           foreground: 'hsl(var(--sidebar-foreground))',

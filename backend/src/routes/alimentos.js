@@ -16,11 +16,62 @@ router.get('/categorias', roleMiddleware(['administrador', 'caja']), async (req,
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('categorias_menu')
-      .select('id_categoria_menu,nombre_categoria,codigo')
+      .select('id_categoria_menu,nombre_categoria')
       .order('nombre_categoria', { ascending: true });
 
     if (error) throw error;
     res.json(data);
+  } catch (error) {
+    if (sendValidationError(res, error)) return;
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Crear nueva categoria de menu
+router.post('/categorias', roleMiddleware(['administrador']), async (req, res) => {
+  try {
+    const { nombre_categoria } = parseBody(schemas.categoriaMenu, req.body);
+    const adminClient = getAdminClient();
+    const { data, error } = await adminClient
+      .from('categorias_menu')
+      .insert({ nombre_categoria })
+      .select('id_categoria_menu,nombre_categoria')
+      .single();
+
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (error) {
+    if (sendValidationError(res, error)) return;
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar categoria de menu
+router.delete('/categorias/:id', roleMiddleware(['administrador']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'ID de categoria invalido.' });
+    }
+
+    const adminClient = getAdminClient();
+
+    const { count } = await adminClient
+      .from('alimentos')
+      .select('id_alimento', { count: 'exact', head: true })
+      .eq('id_categoria_menu', id);
+
+    if (count && count > 0) {
+      return res.status(409).json({ error: 'No se puede eliminar la categoria porque tiene alimentos asociados.' });
+    }
+
+    const { error } = await adminClient
+      .from('categorias_menu')
+      .delete()
+      .eq('id_categoria_menu', id);
+
+    if (error) throw error;
+    res.json({ mensaje: 'Categoria eliminada correctamente.' });
   } catch (error) {
     if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
@@ -72,6 +123,38 @@ router.post('/', roleMiddleware(['administrador', 'caja']), async (req, res) => 
     const { created, ...response } = food;
 
     res.status(created ? 201 : 200).json(response);
+  } catch (error) {
+    if (sendValidationError(res, error)) return;
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar alimento
+router.delete('/:id', roleMiddleware(['administrador']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'ID de alimento invalido.' });
+    }
+
+    const adminClient = getAdminClient();
+
+    const { count } = await adminClient
+      .from('menu_diario')
+      .select('id_alimento', { count: 'exact', head: true })
+      .eq('id_alimento', id);
+
+    if (count && count > 0) {
+      return res.status(409).json({ error: 'No se puede eliminar el alimento porque esta asociado a menus anteriores.' });
+    }
+
+    const { error } = await adminClient
+      .from('alimentos')
+      .delete()
+      .eq('id_alimento', id);
+
+    if (error) throw error;
+    res.json({ mensaje: 'Alimento eliminado correctamente.' });
   } catch (error) {
     if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });

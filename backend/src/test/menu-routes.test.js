@@ -8,7 +8,6 @@ const require = createRequire(import.meta.url);
 let store;
 let writes;
 
-// Cliente Supabase falso: lee de `store[table]` y registra escrituras en `writes`.
 const makeClient = () => {
   class Q {
     constructor(table) {
@@ -113,22 +112,30 @@ afterAll(() => {
 beforeEach(() => {
   store = {
     categorias_menu: [
-      { id_categoria_menu: 1, codigo: 'sopas', nombre_categoria: 'Sopas' },
-      { id_categoria_menu: 2, codigo: 'segundos', nombre_categoria: 'Segundos' },
-      { id_categoria_menu: 3, codigo: 'guarniciones', nombre_categoria: 'Guarniciones' },
+      { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
+      { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
+      { id_categoria_menu: 3, nombre_categoria: 'Guarniciones' },
     ],
   };
   writes = [];
   fakeClient = makeClient();
 });
 
-const menuRow = (fecha, nombre, categoria, imagen = null) => ({
+const menuRow = (fecha, nombre, categoriaId, categoriaNombre, imagen = null) => ({
   fecha,
   imagen_url: imagen,
-  alimentos: { nombre_alimento: nombre, categorias_menu: { nombre_categoria: categoria } },
+  alimentos: {
+    nombre_alimento: nombre,
+    id_categoria_menu: categoriaId,
+    categorias_menu: { nombre_categoria: categoriaNombre, id_categoria_menu: categoriaId },
+  },
 });
 
-const validBody = { sopas: ['Locro'], segundos: ['Seco de pollo'], guarniciones: ['Arroz'] };
+const validBody = {
+  opciones: { '1': ['Locro'], '2': ['Seco de pollo'], '3': ['Arroz'] },
+};
+
+const incompleteBody = { opciones: {} };
 
 describe('routes/menu — sistema y dashboard', () => {
   it('POST /system/expirar-activo expira el menu activo con el secreto correcto', async () => {
@@ -141,16 +148,15 @@ describe('routes/menu — sistema y dashboard', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ previousActiveDate: '2026-06-20' });
-    // registro de la baja del estado activo
     expect(writes.some((w) => w.table === 'menu_settings' && w.op === 'update')).toBe(true);
     expect(writes.some((w) => w.table === 'telegram_bot_state' && w.op === 'delete')).toBe(true);
   });
 
   it('GET / agrupa los menus por fecha con estado y datos de envio', async () => {
     store.menu_diario = [
-      menuRow('2026-06-10', 'Locro', 'Sopas', 'http://img/x.png'),
-      menuRow('2026-06-10', 'Seco de pollo', 'Segundos'),
-      menuRow('2026-06-10', 'Arroz', 'Guarniciones'),
+      menuRow('2026-06-10', 'Locro', 1, 'Sopas', 'http://img/x.png'),
+      menuRow('2026-06-10', 'Seco de pollo', 2, 'Segundos'),
+      menuRow('2026-06-10', 'Arroz', 3, 'Guarniciones'),
     ];
     store.menu_settings = [{ id: 1, active_date: '2026-06-10' }];
     store.menu_envios = [{ fecha: '2026-06-10', last_sent_at: '2026-06-10T14:00:00.000Z', send_count: 2 }];
@@ -178,7 +184,7 @@ describe('routes/menu — sistema y dashboard', () => {
   it('PUT /:fecha rechaza un menu incompleto', async () => {
     const res = await request(app)
       .put('/api/menu/2026-06-26')
-      .send({ sopas: [], segundos: [], guarniciones: [] });
+      .send(incompleteBody);
     expect(res.status).toBe(400);
   });
 
@@ -202,7 +208,7 @@ describe('routes/menu — sistema y dashboard', () => {
   });
 
   it('POST /enviar rechaza un menu incompleto', async () => {
-    const res = await request(app).post('/api/menu/enviar').send({ sopas: [], segundos: [], guarniciones: [] });
+    const res = await request(app).post('/api/menu/enviar').send(incompleteBody);
     expect(res.status).toBe(400);
   });
 
@@ -210,7 +216,7 @@ describe('routes/menu — sistema y dashboard', () => {
     store.menu_envios = [
       {
         fecha: TODAY,
-        menu_payload: { sopas: ['Otra'], segundos: ['Distinto'], guarniciones: ['Cambio'] },
+        menu_payload: { opciones: { '1': ['Otra'], '2': ['Distinto'], '3': ['Cambio'] } },
         last_sent_at: `${TODAY}T11:00:00.000Z`,
       },
     ];
@@ -240,9 +246,9 @@ describe('routes/menu — sistema y dashboard', () => {
     try {
       store.menu_envios = [{ fecha: '2026-06-25', last_sent_at: '2026-06-25T12:00:00.000Z' }];
       store.categorias_menu = [
-        { id_categoria_menu: 1, codigo: 'sopas', nombre_categoria: 'Sopas' },
-        { id_categoria_menu: 2, codigo: 'segundos', nombre_categoria: 'Segundos' },
-        { id_categoria_menu: 3, codigo: 'guarniciones', nombre_categoria: 'Guarniciones' },
+        { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
+        { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
+        { id_categoria_menu: 3, nombre_categoria: 'Guarniciones' },
       ];
 
       const res = await request(app).put('/api/menu/2026-06-25').send(validBody);
@@ -262,16 +268,16 @@ describe('routes/menu — sistema y dashboard', () => {
       store.menu_envios = [
         {
           fecha: TODAY,
-          menu_payload: { sopas: ['Otra'], segundos: ['Distinto'], guarniciones: ['Cambio'] },
+          menu_payload: { opciones: { '1': ['Otra'], '2': ['Distinto'], '3': ['Cambio'] } },
           last_sent_at: `${TODAY}T11:00:00.000Z`,
           image_url: 'https://img.example.test/menu.png',
           send_count: 1,
         },
       ];
       store.categorias_menu = [
-        { id_categoria_menu: 1, codigo: 'sopas', nombre_categoria: 'Sopas' },
-        { id_categoria_menu: 2, codigo: 'segundos', nombre_categoria: 'Segundos' },
-        { id_categoria_menu: 3, codigo: 'guarniciones', nombre_categoria: 'Guarniciones' },
+        { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
+        { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
+        { id_categoria_menu: 3, nombre_categoria: 'Guarniciones' },
       ];
 
       const res = await request(app).post('/api/menu/enviar').send(validBody);

@@ -7,7 +7,6 @@ const { getAdminClient } = require('../config/supabase');
 const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 const { cleanupOldMenuImages } = require('../services/menuImageCleanup');
 const { findOrCreateFood } = require('../services/menuCatalog');
-const { MENU_CATEGORY_CODE } = require('../constants/domain');
 
 const router = express.Router();
 
@@ -38,11 +37,31 @@ const todayInTimezone = () =>
     day: '2-digit',
   }).format(new Date());
 
-const buildMenuPayload = (body) => ({
-  sopas: cleanOptions(body.sopas),
-  segundos: cleanOptions(body.segundos),
-  guarniciones: cleanOptions(body.guarniciones),
-});
+const buildMenuOpciones = (body) => {
+  const opciones = {};
+  if (body.opciones && typeof body.opciones === 'object') {
+    for (const [catId, options] of Object.entries(body.opciones)) {
+      const cleaned = cleanOptions(options);
+      if (cleaned.length) opciones[catId] = cleaned;
+    }
+  }
+  return opciones;
+};
+
+const deriveLegacyMenu = (opciones, categories) => {
+  const legacy = { sopas: [], segundos: [], guarniciones: [] };
+  const nameMap = {};
+  for (const cat of categories) {
+    nameMap[cat.id_categoria_menu] = normalizeText(cat.nombre_categoria);
+  }
+  for (const [catId, options] of Object.entries(opciones)) {
+    const name = nameMap[catId] || '';
+    if (name.includes('sopa')) legacy.sopas = options;
+    else if (name.includes('segundo') || name.includes('plato')) legacy.segundos = options;
+    else if (name.includes('guarn')) legacy.guarniciones = options;
+  }
+  return legacy;
+};
 
 const cleanClientIds = (clientIds) => {
   if (!Array.isArray(clientIds)) return [];
@@ -201,7 +220,18 @@ const getMenuSettings = async (adminClient) => {
   return data || { active_date: null, image_retention_days: DEFAULT_IMAGE_RETENTION_DAYS };
 };
 
-const saveActiveMenuState = async (adminClient, fecha, menu, photoUrl, userId) => {
+const buildActiveMenuPayload = (opciones, categories) => {
+  const legacy = deriveLegacyMenu(opciones, categories);
+  return {
+    opciones,
+    sopas: legacy.sopas,
+    segundos: legacy.segundos,
+    guarniciones: legacy.guarniciones,
+  };
+};
+
+const saveActiveMenuState = async (adminClient, fecha, opciones, categories, photoUrl, userId) => {
+  const menu = buildActiveMenuPayload(opciones, categories);
   const { error: settingsError } = await adminClient
     .from('menu_settings')
     .upsert(
@@ -239,7 +269,7 @@ const menuRowSelect = `
   alimentos(
     nombre_alimento,
     id_categoria_menu,
-    categorias_menu(nombre_categoria)
+    categorias_menu(nombre_categoria, id_categoria_menu)
   )
 `;
 
@@ -253,10 +283,8 @@ const groupMenuRows = (rows, activeDate, envioMap = new Map()) => {
         fecha: row.fecha,
         estado: row.fecha === activeDate ? 'activo' : 'inactivo',
         imagen_url: row.imagen_url || null,
-        sopas: [],
-        segundos: [],
-        guarniciones: [],
-        opciones: 0,
+        opciones: {},
+        opciones_count: 0,
         enviado: !!envio,
         send_count: envio?.sendCount || 0,
       });
@@ -265,15 +293,16 @@ const groupMenuRows = (rows, activeDate, envioMap = new Map()) => {
     const menu = grouped.get(row.fecha);
     if (!menu.imagen_url && row.imagen_url) menu.imagen_url = row.imagen_url;
 
-    const food = Array.isArray(row.alimentos) ? row.alimentos[0] : row.alimentos;
-    const name = String(food?.nombre_alimento || '').trim();
-    if (!name) continue;
-
-    const category = normalizeText(food?.categorias_menu?.nombre_categoria || '');
-    if (category.includes('sopa')) menu.sopas.push(name);
-    else if (category.includes('segundo') || category.includes('plato')) menu.segundos.push(name);
-    else if (category.includes('guarn')) menu.guarniciones.push(name);
-    menu.opciones += 1;
+    const foods = Array.isArray(row.alimentos) ? row.alimentos : [row.alimentos];
+    for (const food of foods) {
+      const name = String(food?.nombre_alimento || '').trim();
+      if (!name) continue;
+      const catId = food?.id_categoria_menu;
+      if (!catId) continue;
+      if (!menu.opciones[catId]) menu.opciones[catId] = [];
+      menu.opciones[catId].push(name);
+      menu.opciones_count += 1;
+    }
   }
 
   return [...grouped.values()].sort((a, b) => b.fecha.localeCompare(a.fecha));
@@ -282,24 +311,25 @@ const groupMenuRows = (rows, activeDate, envioMap = new Map()) => {
 const getCategoryIds = async (adminClient) => {
   const { data, error } = await adminClient
     .from('categorias_menu')
-    .select('id_categoria_menu,codigo');
+    .select('id_categoria_menu,nombre_categoria');
 
   if (error) throw error;
+  return data || [];
+};
 
-  const categories = {};
-  for (const row of data || []) {
-    if (Object.values(MENU_CATEGORY_CODE).includes(row.codigo)) {
-      categories[row.codigo] = row.id_categoria_menu;
-    }
+const hasRequiredCategories = (opciones, categories) => {
+  const nameMap = {};
+  for (const cat of categories) {
+    nameMap[cat.id_categoria_menu] = normalizeText(cat.nombre_categoria);
   }
-
-  if (!categories.sopas || !categories.segundos || !categories.guarniciones) {
-    const error = new Error('Faltan categorias de menu: Sopa, Segundo y Guarnicion.');
-    error.status = 500;
-    throw error;
+  let hasSopa = false;
+  let hasSegundo = false;
+  for (const [catId, options] of Object.entries(opciones)) {
+    const name = nameMap[catId] || '';
+    if (name.includes('sopa') && cleanOptions(options).length) hasSopa = true;
+    if ((name.includes('segundo') || name.includes('plato')) && cleanOptions(options).length) hasSegundo = true;
   }
-
-  return categories;
+  return hasSopa && hasSegundo;
 };
 
 const ensureAlimento = async (adminClient, idCategoria, nombre, userId) => {
@@ -311,7 +341,21 @@ const ensureAlimento = async (adminClient, idCategoria, nombre, userId) => {
   return food.id;
 };
 
-const fetchMenus = async (adminClient, fecha = null) => {
+const addLegacyFields = (menuList, categories) => {
+  return menuList.map((menu) => {
+    const legacy = deriveLegacyMenu(menu.opciones, categories);
+    return {
+      ...menu,
+      sopas: legacy.sopas,
+      segundos: legacy.segundos,
+      guarniciones: legacy.guarniciones,
+      opciones: menu.opciones || {},
+      opciones_count: menu.opciones_count || 0,
+    };
+  });
+};
+
+const fetchMenus = async (adminClient, fecha = null, categories = null) => {
   let query = adminClient
     .from('menu_diario')
     .select(menuRowSelect)
@@ -333,7 +377,8 @@ const fetchMenus = async (adminClient, fecha = null) => {
     envioMap.set(e.fecha, { sentAt: e.last_sent_at, sendCount: e.send_count, menuPayload: e.menu_payload });
   }
 
-  return groupMenuRows(data || [], settings.active_date, envioMap);
+  if (!categories) categories = await getCategoryIds(adminClient);
+  return addLegacyFields(groupMenuRows(data || [], settings.active_date, envioMap), categories);
 };
 
 const getMenuByDate = async (adminClient, fecha) => {
@@ -341,13 +386,12 @@ const getMenuByDate = async (adminClient, fecha) => {
   return menus[0] || null;
 };
 
-const saveDailyMenu = async (adminClient, menu, imageUrl, userId, fecha = todayInTimezone()) => {
-  const categoryIds = await getCategoryIds(adminClient);
+const saveDailyMenu = async (adminClient, opciones, imageUrl, userId, fecha = todayInTimezone()) => {
   const alimentosIds = [];
 
-  for (const [key, options] of Object.entries(menu)) {
-    for (const option of options) {
-      alimentosIds.push(await ensureAlimento(adminClient, categoryIds[key], option, userId));
+  for (const [catId, options] of Object.entries(opciones)) {
+    for (const option of cleanOptions(options)) {
+      alimentosIds.push(await ensureAlimento(adminClient, parseInt(catId), option, userId));
     }
   }
 
@@ -421,8 +465,9 @@ router.get('/config', (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const adminClient = getAdminClient();
-    const menus = await fetchMenus(adminClient);
-    res.json({ menus });
+    const categories = await getCategoryIds(adminClient);
+    const menus = await fetchMenus(adminClient, null, categories);
+    res.json({ menus, categories });
   } catch (error) {
     console.error('Error listando menus:', error);
     res.status(500).json({ error: error.message || 'No se pudieron listar los menus.' });
@@ -455,14 +500,16 @@ router.put('/:fecha', async (req, res) => {
     if (!isIsoDate(fecha)) return res.status(400).json({ error: 'La fecha del menu debe tener formato YYYY-MM-DD.' });
 
     const payload = parseBody(schemas.menuDashboard, req.body || {});
-    const menu = buildMenuPayload(payload);
-    if (!menu.sopas.length || !menu.segundos.length || !menu.guarniciones.length) {
+    const opciones = buildMenuOpciones(payload);
+    adminClient = getAdminClient();
+    const categories = await getCategoryIds(adminClient);
+
+    if (!hasRequiredCategories(opciones, categories)) {
       return res.status(400).json({
-        error: 'Debe haber al menos una sopa, un segundo y una guarnicion configurados.',
+        error: 'Debe haber al menos una sopa y un segundo configurados.',
       });
     }
 
-    adminClient = getAdminClient();
     const { data: envioExistente } = await adminClient
       .from('menu_envios')
       .select('fecha,last_sent_at')
@@ -489,11 +536,11 @@ router.put('/:fecha', async (req, res) => {
       ? await uploadMenuImage(payload.image)
       : { publicUrl: current?.imagen_url || null, path: null };
     const photoUrl = imageUpload.publicUrl;
-    const dailyMenu = await saveDailyMenu(adminClient, menu, photoUrl, req.user.id, fecha);
+    const dailyMenu = await saveDailyMenu(adminClient, opciones, photoUrl, req.user.id, fecha);
     menuSaved = true;
 
     if (settings.active_date === fecha) {
-      await saveActiveMenuState(adminClient, fecha, menu, photoUrl, req.user.id);
+      await saveActiveMenuState(adminClient, fecha, opciones, categories, photoUrl, req.user.id);
     }
 
     res.json({ mensaje: 'Menu actualizado correctamente.', dailyMenu, photoUrl });
@@ -515,18 +562,17 @@ router.post('/:fecha/activar', async (req, res) => {
     const adminClient = getAdminClient();
     const menu = await getMenuByDate(adminClient, fecha);
     if (!menu) return res.status(404).json({ error: 'No existe un menu registrado para esa fecha.' });
-    if (!menu.sopas.length || !menu.segundos.length || !menu.guarniciones.length) {
-      return res.status(400).json({ error: 'El menu debe tener sopa, segundo y guarnicion para activarse.' });
+
+    const categories = await getCategoryIds(adminClient);
+    if (!hasRequiredCategories(menu.opciones, categories)) {
+      return res.status(400).json({ error: 'El menu debe tener al menos sopa y segundo para activarse.' });
     }
 
     await saveActiveMenuState(
       adminClient,
       fecha,
-      {
-        sopas: menu.sopas,
-        segundos: menu.segundos,
-        guarniciones: menu.guarniciones,
-      },
+      menu.opciones,
+      categories,
       menu.imagen_url,
       req.user.id,
     );
@@ -547,14 +593,15 @@ router.post('/enviar', async (req, res) => {
   let isResend = false;
   try {
     const payload = parseBody(schemas.menuDashboard, req.body || {});
-    const menu = buildMenuPayload(payload);
-    if (!menu.sopas.length || !menu.segundos.length || !menu.guarniciones.length) {
+    adminClient = getAdminClient();
+    const categories = await getCategoryIds(adminClient);
+    const opciones = buildMenuOpciones(payload);
+
+    if (!hasRequiredCategories(opciones, categories)) {
       return res.status(400).json({
-        error: 'Debe haber al menos una sopa, un segundo y una guarnicion configurados.',
+        error: 'Debe haber al menos una sopa y un segundo configurados.',
       });
     }
-
-    adminClient = getAdminClient();
 
     const today = todayInTimezone();
     const { data: envioHoy } = await adminClient
@@ -575,12 +622,20 @@ router.post('/enviar', async (req, res) => {
 
     imageUpload = await uploadMenuImage(payload.image);
     const photoUrl = imageUpload.publicUrl;
-    const dailyMenu = await saveDailyMenu(adminClient, menu, photoUrl, req.user.id);
+    const dailyMenu = await saveDailyMenu(adminClient, opciones, photoUrl, req.user.id);
     menuSaved = true;
-    await saveActiveMenuState(adminClient, dailyMenu.fecha, menu, photoUrl, req.user.id);
+    await saveActiveMenuState(adminClient, dailyMenu.fecha, opciones, categories, photoUrl, req.user.id);
     const cleanup = await cleanupOldMenuImages(adminClient);
     const webhookUrl = getN8nMenuWebhookUrl();
     const clientIds = cleanClientIds(payload.clientIds);
+
+    const legacyMenu = deriveLegacyMenu(opciones, categories);
+    const menuPayload = {
+      opciones,
+      sopas: legacyMenu.sopas,
+      segundos: legacyMenu.segundos,
+      guarniciones: legacyMenu.guarniciones,
+    };
 
     const response = await fetch(webhookUrl, {
       method: 'POST',
@@ -597,7 +652,7 @@ router.post('/enviar', async (req, res) => {
           email: req.user.email,
           rol: req.user.rol,
         },
-        menu,
+        menu: menuPayload,
         photoUrl,
         clientIds,
       }),
@@ -629,18 +684,20 @@ router.post('/enviar', async (req, res) => {
 });
 
 const hasCompleteMenu = (payload) => {
-  const sopas = cleanOptions(payload?.sopas);
-  const segundos = cleanOptions(payload?.segundos);
-  const guarniciones = cleanOptions(payload?.guarniciones);
-  return sopas.length > 0 && segundos.length > 0 && guarniciones.length > 0;
+  const opciones = buildMenuOpciones(payload || {});
+  return Object.keys(opciones).length > 0;
 };
 
 const menuPayloadEquals = (a, b) => {
-  const keys = ['sopas', 'segundos', 'guarniciones'];
-  return keys.every((key) => {
-    const left = cleanOptions(a?.[key]);
-    const right = cleanOptions(b?.[key]);
-    return left.length === right.length && left.every((v, i) => v === right[i]);
+  const left = buildMenuOpciones(a || {});
+  const right = buildMenuOpciones(b || {});
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  if (leftKeys.length !== rightKeys.length) return false;
+  return leftKeys.every((key) => {
+    const l = cleanOptions(left[key]);
+    const r = cleanOptions(right[key]);
+    return l.length === r.length && l.every((v, i) => v === r[i]);
   });
 };
 
@@ -680,4 +737,8 @@ module.exports._private = {
   hasCompleteMenu,
   menuPayloadEquals,
   validateMenuImageInput,
+  buildMenuOpciones,
+  deriveLegacyMenu,
+  hasRequiredCategories,
+  addLegacyFields,
 };

@@ -1,21 +1,13 @@
 import { useSyncExternalStore } from 'react';
 
 interface MenuState {
-  dailyMenu: {
-    sopas: string[];
-    segundos: string[];
-    guarniciones: string[];
-    image: string | null;
-  };
+  categoryOptions: Record<number, string[]>;
+  image: string | null;
 }
 
 let state: MenuState = {
-  dailyMenu: {
-    sopas: ['', ''], // Por defecto 2 opciones como pedía el usuario
-    segundos: ['', ''],
-    guarniciones: [''],
-    image: null,
-  },
+  categoryOptions: {},
+  image: null,
 };
 
 const listeners = new Set<() => void>();
@@ -31,27 +23,14 @@ const getSnapshot = () => state;
 
 export const menuStore = {
   get: () => state,
-  
-  setSopas: (sopas: string[]) => {
-    state = {
-      ...state,
-      dailyMenu: { ...state.dailyMenu, sopas },
-    };
-    emit();
-  },
 
-  setSegundos: (segundos: string[]) => {
+  setCategoryOptions: (categoryId: number, options: string[]) => {
     state = {
       ...state,
-      dailyMenu: { ...state.dailyMenu, segundos },
-    };
-    emit();
-  },
-
-  setGuarniciones: (guarniciones: string[]) => {
-    state = {
-      ...state,
-      dailyMenu: { ...state.dailyMenu, guarniciones },
+      categoryOptions: {
+        ...state.categoryOptions,
+        [categoryId]: options,
+      },
     };
     emit();
   },
@@ -59,16 +38,18 @@ export const menuStore = {
   setDailyImage: (image: string | null) => {
     state = {
       ...state,
-      dailyMenu: { ...state.dailyMenu, image },
+      image,
     };
+    emit();
+  },
+
+  reset: () => {
+    state = { categoryOptions: {}, image: null };
     emit();
   },
 };
 
 export function useMenu() {
   const currentState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  return {
-    ...currentState,
-    ...currentState.dailyMenu,
-  };
+  return currentState;
 }

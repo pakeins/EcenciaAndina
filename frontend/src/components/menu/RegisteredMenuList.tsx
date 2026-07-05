@@ -7,7 +7,8 @@ export interface DailyMenu {
   sopas: string[];
   segundos: string[];
   guarniciones: string[];
-  opciones: number;
+  opciones: Record<string, string[]>;
+  opciones_count: number;
 }
 
 interface RegisteredMenuListProps {
@@ -73,7 +74,7 @@ export function RegisteredMenuList({
             <div>
               <p className="font-bold text-cafe">{formatDate(menu.fecha)}</p>
               <p className="text-xs text-muted-foreground">
-                {menu.opciones} {menu.opciones === 1 ? 'opcion' : 'opciones'}
+                {menu.opciones_count} {menu.opciones_count === 1 ? 'opcion' : 'opciones'}
               </p>
             </div>
             <span
