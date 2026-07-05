@@ -1,11 +1,11 @@
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Crear directorio de trabajo
 WORKDIR /usr/src/app
 
 # Instalar dependencias
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copiar el resto del código
 COPY . .

@@ -16,6 +16,6 @@ async function createTable() {
       alter table public.telegram_bot_state enable row level security;
     `
   });
-  console.log("Creation result:", error || "Success");
+  console.log('Creation result:', error || 'Success');
 }
 createTable();

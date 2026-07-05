@@ -17,6 +17,7 @@ import Menu from './pages/Menu';
 import Productos from './pages/Productos';
 import NotFound from './pages/NotFound';
 import Perfil from './pages/Perfil';
+import Privacidad from './pages/Privacidad';
 import TrazabilidadTelegram from './pages/TrazabilidadTelegram';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
@@ -32,6 +33,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to={`/login${window.location.hash}`} replace />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/privacidad" element={<Privacidad />} />
             
             {/* Rutas protegidas generales (Cualquier rol) */}
             <Route element={<ProtectedRoute />}>

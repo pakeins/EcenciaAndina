@@ -391,6 +391,7 @@ module.exports = {
   parseBody,
   sendValidationError,
   onlyDigits,
+  normalizeEmail,
   normalizePhone,
   isValidCedula,
   isValidRuc,

@@ -120,13 +120,19 @@ beforeAll(() => {
     roleFromEmpleado: () => 'administrador',
   });
 
-  ['../middlewares/authMiddleware.js', '../routes/ordenes.js'].forEach((relPath) => {
+  ['../middlewares/authMiddleware.js', '../middlewares/roleMiddleware.js', '../routes/ordenes.js'].forEach((relPath) => {
     try {
       delete require.cache[require.resolve(relPath)];
     } catch {
       /* noop */
     }
   });
+
+  injectModule('../middlewares/authMiddleware.js', (req, _res, next) => {
+    req.user = { id: 'admin-1', email: 'admin@example.com', rol: 'administrador' };
+    next();
+  });
+  injectModule('../middlewares/roleMiddleware.js', () => (_req, _res, next) => next());
 
   const ordenesRouter = require('../routes/ordenes.js');
   app = express();

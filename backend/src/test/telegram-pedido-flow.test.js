@@ -110,6 +110,13 @@ beforeAll(() => {
     answerTelegramCallback: async () => ({ ok: true }),
     telegramRequest: async () => ({ ok: true }),
   });
+  injectModule('../services/telegramApi.js', {
+    sendMessage: (...a) => sendTelegramMessage(...a),
+    answerCallback: async () => ({ ok: true }),
+    deleteMessage: async () => ({ ok: true }),
+    removeInlineKeyboard: async () => ({ ok: true }),
+    telegramRequest: async () => ({ ok: true }),
+  });
   injectModule('../services/telegramOrderTrace.js', {
     createOrderTrace: async () => 'trace-1',
     updateOrderTrace: async () => true,
@@ -117,6 +124,7 @@ beforeAll(() => {
 
   delete require.cache[require.resolve('../services/orderNotifications.js')];
   delete require.cache[require.resolve('../services/orderLifecycle.js')];
+  delete require.cache[require.resolve('../services/telegramConsent.js')];
   delete require.cache[require.resolve('../routes/telegram.js')];
   const telegramRouter = require('../routes/telegram.js');
   handleTelegramUpdate = telegramRouter.handleTelegramUpdate;
@@ -126,7 +134,9 @@ afterAll(() => {
   [
     '../config/supabase.js',
     '../services/telegramBot.js',
+    '../services/telegramApi.js',
     '../services/telegramOrderTrace.js',
+    '../services/telegramConsent.js',
     '../services/orderNotifications.js',
     '../services/orderLifecycle.js',
     '../routes/telegram.js',
@@ -142,7 +152,7 @@ const TODAY = '2026-07-02';
 
 const seedBase = () => {
   store.telegram_subscriptions = [
-    { id: 'sub-1', chat_id: '100', consent_status: 'accepted', is_active: true, id_cliente: 'client-1', phone_normalized: '593986331362' },
+    { id: 'sub-1', chat_id: '100', consent_status: 'accepted', is_active: true, id_cliente: 'client-1', phone_normalized: '593986331362', consent_notice_version: 'EC-LOPDP-TEST' },
   ];
   store.clientes = [
     {
@@ -167,7 +177,7 @@ const seedBase = () => {
       key: 'latest-menu:active',
       value: {
         date: TODAY,
-        menu: { sopas: ['Locro', 'Crema'], segundos: ['Seco', 'Estofado'], bebidas: ['Jugo'] },
+        menu: { sopas: ['Locro', 'Crema'], segundos: ['Seco', 'Estofado'], guarniciones: ['Arroz'], bebidas: ['Jugo'] },
       },
     },
   ];
