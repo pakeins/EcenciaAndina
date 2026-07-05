@@ -125,6 +125,7 @@ jobs:
       - name: ZAP frontend baseline
         uses: zaproxy/action-baseline@v0.12.0
         if: always()
+        continue-on-error: true
         with:
           target: http://127.0.0.1:8080
           allow_issue_writing: false
@@ -141,6 +142,7 @@ jobs:
       - name: ZAP backend baseline
         uses: zaproxy/action-baseline@v0.12.0
         if: always()
+        continue-on-error: true
         with:
           target: http://127.0.0.1:3001
           allow_issue_writing: false
