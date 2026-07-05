@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Check, ChevronsUpDown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,87 +17,55 @@ import {
 } from '@/components/ui/popover';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
-import type { Alimento } from '@/types';
-import { FIELD_LIMITS } from '@/lib/validation';
+import { Alimento } from '@/types';
 
 interface FoodSelectorProps {
   value: string;
   onChange: (value: string) => void;
   idCategoria: number;
-  alimentos?: Alimento[];
   placeholder?: string;
   exclude?: string[];
-  disabled?: boolean;
-  onFoodCreated?: (food: Alimento) => void;
 }
 
-const normalizeOption = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
-export function FoodSelector({
-  value,
-  onChange,
-  idCategoria,
-  alimentos: initialAlimentos = [],
-  placeholder = 'Seleccionar plato...',
-  exclude = [],
-  disabled = false,
-  onFoodCreated,
-}: FoodSelectorProps) {
+export function FoodSelector({ value, onChange, idCategoria, alimentos: initialAlimentos = [], placeholder = "Seleccionar plato...", exclude = [] }: FoodSelectorProps & { alimentos?: Alimento[] }) {
   const [open, setOpen] = useState(false);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    setAlimentos(initialAlimentos.filter((food) => Number(food.id_categoria) === Number(idCategoria)));
+    // Sincronizar alimentos cuando cambian los prop
+    setAlimentos(initialAlimentos.filter(a => Number(a.id_categoria) === Number(idCategoria)));
   }, [initialAlimentos, idCategoria]);
 
   const handleCreateNew = async () => {
-    const name = search.trim().replace(/\s+/g, ' ');
-    if (!name || isLoading) return;
-    if (!Number.isInteger(idCategoria) || idCategoria <= 0) {
-      toast.error('La categoría del plato no está disponible. Recarga la página.');
-      return;
-    }
-    if (name.length > FIELD_LIMITS.menuOption) {
-      toast.error(`La opción no puede superar ${FIELD_LIMITS.menuOption} caracteres`);
-      return;
-    }
-    if (exclude.some((item) => normalizeOption(item) === normalizeOption(name))) {
-      toast.error(`"${name}" ya está seleccionado en otra opción`);
+    if (!search.trim()) return;
+
+    if ((exclude || []).includes(search.trim())) {
+      toast.error(`"${search.trim()}" ya está seleccionado en otra opción`);
       return;
     }
 
-    setIsLoading(true);
     try {
-      const response = await apiFetch('/alimentos', {
+      const res = await apiFetch('/alimentos', {
         method: 'POST',
         body: JSON.stringify({
           id_categoria: idCategoria,
-          nombre: name,
-        }),
+          nombre: search.trim()
+        })
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || 'No se pudo guardar el nuevo plato.');
-      }
 
-      const newFood = data as Alimento;
-      setAlimentos((current) => {
-        if (current.some((food) => food.id === newFood.id)) return current;
-        return [...current, newFood];
-      });
-      onFoodCreated?.(newFood);
-      onChange(newFood.nombre);
-      setOpen(false);
-      setSearch('');
-      toast.success(`"${newFood.nombre}" añadido al catálogo`);
-    } catch (error) {
-      toast.error('No se pudo guardar el nuevo plato', {
-        description: error instanceof Error ? error.message : 'Intenta nuevamente.',
-      });
-    } finally {
-      setIsLoading(false);
+      if (res.ok) {
+        const newFood: Alimento = await res.json();
+        setAlimentos(prev => [...prev, newFood]);
+        onChange(newFood.nombre);
+        setOpen(false);
+        setSearch("");
+        toast.success(`"${newFood.nombre}" añadido al catálogo`);
+      }
+    } catch (err) {
+      toast.error("Error al guardar el nuevo plato");
     }
   };
 
@@ -108,58 +76,54 @@ export function FoodSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          disabled={disabled || idCategoria <= 0}
-          className="h-12 w-full justify-between border-muted-foreground/20 bg-muted/30 text-base font-normal transition-all focus:bg-background"
+          className="w-full justify-between h-12 bg-muted/30 focus:bg-background transition-all border-muted-foreground/20 text-base font-normal"
         >
-          {value || placeholder}
+          {value ? value : placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0" align="start">
         <Command>
-          <CommandInput
-            placeholder="Buscar plato..."
+          <CommandInput 
+            placeholder="Buscar plato..." 
             value={search}
             onValueChange={setSearch}
           />
           <CommandList>
             <CommandEmpty>
               <div className="p-4 text-center">
-                <p className="mb-4 text-sm text-muted-foreground">No se encontró "{search}"</p>
-                <Button
-                  size="sm"
+                <p className="text-sm text-muted-foreground mb-4">No se encontró "{search}"</p>
+                <Button 
+                  size="sm" 
                   onClick={handleCreateNew}
-                  disabled={isLoading || !search.trim()}
                   className="gap-2"
                 >
                   <Plus className="h-4 w-4" />
-                  {isLoading ? 'Guardando...' : `Añadir "${search}" al catálogo`}
+                  Añadir "{search}" al catálogo
                 </Button>
               </div>
             </CommandEmpty>
             <CommandGroup>
               {alimentos
-                .filter(
-                  (food) => !exclude.some((item) => normalizeOption(item) === normalizeOption(food.nombre)),
-                )
-                .map((food) => (
-                  <CommandItem
-                    key={food.id}
-                    value={food.nombre}
-                    onSelect={() => {
-                      onChange(food.nombre);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        'mr-2 h-4 w-4',
-                        value === food.nombre ? 'opacity-100' : 'opacity-0',
-                      )}
-                    />
-                    {food.nombre}
-                  </CommandItem>
-                ))}
+                .filter(a => !exclude.some(ex => ex.toLowerCase() === a.nombre.toLowerCase()))
+                .map((alimento) => (
+                <CommandItem
+                  key={alimento.id}
+                  value={alimento.nombre}
+                  onSelect={(currentValue) => {
+                    onChange(currentValue);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === alimento.nombre ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {alimento.nombre}
+                </CommandItem>
+              ))}
             </CommandGroup>
           </CommandList>
         </Command>
