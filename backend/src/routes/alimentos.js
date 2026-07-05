@@ -3,6 +3,8 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { findOrCreateFood } = require('../services/menuCatalog');
 
 router.use(authMiddleware);
 
@@ -14,12 +16,13 @@ router.get('/categorias', roleMiddleware(['administrador', 'caja']), async (req,
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('categorias_menu')
-      .select('*')
+      .select('id_categoria_menu,nombre_categoria,codigo')
       .order('nombre_categoria', { ascending: true });
 
     if (error) throw error;
     res.json(data);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -51,53 +54,26 @@ router.get('/', roleMiddleware(['administrador', 'caja']), async (req, res) => {
 
     res.json(formatted);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 // Crear nuevo alimento
 router.post('/', roleMiddleware(['administrador', 'caja']), async (req, res) => {
-  const { id_categoria, nombre } = req.body;
   try {
+    const { id_categoria, nombre } = parseBody(schemas.alimentoCreate, req.body);
     const adminClient = getAdminClient();
-    
-    // Primero verificamos si ya existe uno igual para no duplicar
-    const { data: existing } = await adminClient
-      .from('alimentos')
-      .select('*')
-      .eq('nombre_alimento', nombre)
-      .eq('id_categoria_menu', id_categoria)
-      .single();
-    
-    if (existing) {
-      return res.json({
-        id: existing.id_alimento,
-        nombre: existing.nombre_alimento,
-        id_categoria: existing.id_categoria_menu
-      });
-    }
-
-    const { data, error } = await adminClient
-      .from('alimentos')
-      .insert([
-        {
-          id_categoria_menu: id_categoria,
-          nombre_alimento: nombre,
-          created_by: req.user.id
-        }
-      ])
-      .select('*, categorias_menu(nombre_categoria)')
-      .single();
-
-    if (error) throw error;
-
-    res.status(201).json({
-      id: data.id_alimento,
-      nombre: data.nombre_alimento,
-      id_categoria: data.id_categoria_menu,
-      categoria_nombre: data.categorias_menu?.nombre_categoria
+    const food = await findOrCreateFood(adminClient, {
+      categoryId: id_categoria,
+      name: nombre,
+      userId: req.user.id,
     });
+    const { created, ...response } = food;
+
+    res.status(created ? 201 : 200).json(response);
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -115,13 +91,14 @@ router.get('/menu-diario/hoy', roleMiddleware(['administrador', 'caja']), async 
     // Traer los alimentos del menú de hoy
     const { data: alimentosMenu, error } = await adminClient
       .from('menu_diario')
-      .select('id_alimento, alimentos(nombre_alimento, id_categoria_menu)')
+      .select('id_alimento, imagen_url, alimentos(nombre_alimento, id_categoria_menu)')
       .eq('fecha', hoy);
 
     if (error) throw error;
 
     res.json({
       fecha: hoy,
+      imagen_url: alimentosMenu.find(m => m.imagen_url)?.imagen_url || null,
       alimentos: alimentosMenu.map(m => ({
         id_alimento: m.id_alimento,
         nombre: m.alimentos?.nombre_alimento,
@@ -129,19 +106,15 @@ router.get('/menu-diario/hoy', roleMiddleware(['administrador', 'caja']), async 
       }))
     });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 // Guardar el menú del día
 router.post('/menu-diario', roleMiddleware(['administrador', 'caja']), async (req, res) => {
-  const { fecha, alimentos_ids } = req.body;
-  
-  if (!fecha || !Array.isArray(alimentos_ids)) {
-    return res.status(400).json({ error: 'Fecha y array de alimentos_ids requeridos' });
-  }
-
   try {
+    const { fecha, alimentos_ids, imagen_url } = parseBody(schemas.menuDiario, req.body);
     const adminClient = getAdminClient();
     const userId = req.user.id;
 
@@ -158,6 +131,7 @@ router.post('/menu-diario', roleMiddleware(['administrador', 'caja']), async (re
       const inserts = alimentos_ids.map(id => ({
         fecha,
         id_alimento: id,
+        imagen_url: imagen_url || null,
         created_by: userId
       }));
 
@@ -170,6 +144,7 @@ router.post('/menu-diario', roleMiddleware(['administrador', 'caja']), async (re
 
     res.json({ success: true, message: 'Menú diario guardado correctamente' });
   } catch (error) {
+    if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
