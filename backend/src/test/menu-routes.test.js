@@ -54,7 +54,13 @@ const makeClient = () => {
       return Promise.resolve({ error: null }).then(resolve, reject);
     }
   }
-  return { from: (t) => new Q(t) };
+  return {
+    from: (t) => new Q(t),
+    rpc: (name, params) => {
+      writes.push({ table: 'rpc', op: name, payload: params });
+      return Promise.resolve({ data: { success: true }, error: null });
+    }
+  };
 };
 
 let fakeClient;
@@ -105,7 +111,13 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  store = {};
+  store = {
+    categorias_menu: [
+      { id_categoria_menu: 1, codigo: 'sopas', nombre_categoria: 'Sopas' },
+      { id_categoria_menu: 2, codigo: 'segundos', nombre_categoria: 'Segundos' },
+      { id_categoria_menu: 3, codigo: 'guarniciones', nombre_categoria: 'Guarniciones' },
+    ],
+  };
   writes = [];
   fakeClient = makeClient();
 });
@@ -228,9 +240,9 @@ describe('routes/menu — sistema y dashboard', () => {
     try {
       store.menu_envios = [{ fecha: '2026-06-25', last_sent_at: '2026-06-25T12:00:00.000Z' }];
       store.categorias_menu = [
-        { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
-        { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
-        { id_categoria_menu: 3, nombre_categoria: 'Guarniciones' },
+        { id_categoria_menu: 1, codigo: 'sopas', nombre_categoria: 'Sopas' },
+        { id_categoria_menu: 2, codigo: 'segundos', nombre_categoria: 'Segundos' },
+        { id_categoria_menu: 3, codigo: 'guarniciones', nombre_categoria: 'Guarniciones' },
       ];
 
       const res = await request(app).put('/api/menu/2026-06-25').send(validBody);
@@ -257,9 +269,9 @@ describe('routes/menu — sistema y dashboard', () => {
         },
       ];
       store.categorias_menu = [
-        { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
-        { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
-        { id_categoria_menu: 3, nombre_categoria: 'Guarniciones' },
+        { id_categoria_menu: 1, codigo: 'sopas', nombre_categoria: 'Sopas' },
+        { id_categoria_menu: 2, codigo: 'segundos', nombre_categoria: 'Segundos' },
+        { id_categoria_menu: 3, codigo: 'guarniciones', nombre_categoria: 'Guarniciones' },
       ];
 
       const res = await request(app).post('/api/menu/enviar').send(validBody);

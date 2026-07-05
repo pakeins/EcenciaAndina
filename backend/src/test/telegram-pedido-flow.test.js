@@ -152,7 +152,7 @@ const TODAY = '2026-07-02';
 
 const seedBase = () => {
   store.telegram_subscriptions = [
-    { id: 'sub-1', chat_id: '100', consent_status: 'accepted', is_active: true, id_cliente: 'client-1', phone_normalized: '593986331362' },
+    { id: 'sub-1', chat_id: '100', consent_status: 'accepted', is_active: true, id_cliente: 'client-1', phone_normalized: '593986331362', consent_notice_version: 'EC-LOPDP-TEST' },
   ];
   store.clientes = [
     {
@@ -177,7 +177,7 @@ const seedBase = () => {
       key: 'latest-menu:active',
       value: {
         date: TODAY,
-        menu: { sopas: ['Locro', 'Crema'], segundos: ['Seco', 'Estofado'], bebidas: ['Jugo'] },
+        menu: { sopas: ['Locro', 'Crema'], segundos: ['Seco', 'Estofado'], guarniciones: ['Arroz'], bebidas: ['Jugo'] },
       },
     },
   ];

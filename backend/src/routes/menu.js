@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const sharp = require('sharp');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 const { getAdminClient } = require('../config/supabase');
@@ -105,6 +106,42 @@ const hasAllowedImageSignature = (buffer, mimeType) => {
   return isJpeg || isPng || isWebp;
 };
 
+const makeSquareWithBlurredBackground = async (buffer) => {
+  try {
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    const width = metadata.width;
+    const height = metadata.height;
+
+    if (!width || !height) return buffer;
+    if (width === height) return buffer;
+
+    const size = Math.max(width, height);
+
+    // 1. Create a blurred background of size x size
+    const background = await sharp(buffer)
+      .resize(size, size, { fit: 'cover' })
+      .blur(40)
+      .toBuffer();
+
+    // 2. Resize foreground to fit within size x size, preserving aspect ratio, with transparent background
+    const foreground = await sharp(buffer)
+      .resize(size, size, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .toBuffer();
+
+    // 3. Composite foreground over blurred background
+    return await sharp(background)
+      .composite([{ input: foreground, blend: 'over' }])
+      .toBuffer();
+  } catch (err) {
+    console.error('Error al procesar la imagen con sharp:', err);
+    return buffer; // fall back to original buffer if sharp fails
+  }
+};
+
 const uploadMenuImage = async (image) => {
   if (!image) return { publicUrl: null, path: null };
   if (/^https:\/\//i.test(image)) return { publicUrl: image, path: null };
@@ -132,7 +169,9 @@ const uploadMenuImage = async (image) => {
   const fileName = `telegram/menu-dashboard-${Date.now()}.${mimeToExtension(mimeType.toLowerCase())}`;
   const adminClient = getAdminClient();
 
-  const { error } = await adminClient.storage.from(MENU_ASSETS_BUCKET).upload(fileName, buffer, {
+  const processedBuffer = await makeSquareWithBlurredBackground(buffer);
+
+  const { error } = await adminClient.storage.from(MENU_ASSETS_BUCKET).upload(fileName, processedBuffer, {
     contentType: mimeType,
     upsert: false,
   });
@@ -204,11 +243,12 @@ const menuRowSelect = `
   )
 `;
 
-const groupMenuRows = (rows, activeDate) => {
+const groupMenuRows = (rows, activeDate, envioMap = new Map()) => {
   const grouped = new Map();
 
   for (const row of rows || []) {
     if (!grouped.has(row.fecha)) {
+      const envio = envioMap.get(row.fecha);
       grouped.set(row.fecha, {
         fecha: row.fecha,
         estado: row.fecha === activeDate ? 'activo' : 'inactivo',
@@ -217,6 +257,8 @@ const groupMenuRows = (rows, activeDate) => {
         segundos: [],
         guarniciones: [],
         opciones: 0,
+        enviado: !!envio,
+        send_count: envio?.sendCount || 0,
       });
     }
 
@@ -282,7 +324,16 @@ const fetchMenus = async (adminClient, fecha = null) => {
   if (error) throw error;
 
   const settings = await getMenuSettings(adminClient);
-  return groupMenuRows(data || [], settings.active_date);
+
+  const { data: envios } = await adminClient
+    .from('menu_envios')
+    .select('fecha,last_sent_at,send_count,menu_payload');
+  const envioMap = new Map();
+  for (const e of envios || []) {
+    envioMap.set(e.fecha, { sentAt: e.last_sent_at, sendCount: e.send_count, menuPayload: e.menu_payload });
+  }
+
+  return groupMenuRows(data || [], settings.active_date, envioMap);
 };
 
 const getMenuByDate = async (adminClient, fecha) => {
@@ -344,8 +395,28 @@ const runImageCleanup = async (_req, res) => {
 
 router.post('/system/limpiar-imagenes', requireN8nCleanupSecret, runImageCleanup);
 
+router.post('/system/expirar-activo', requireN8nCleanupSecret, async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const settings = await getMenuSettings(adminClient);
+    const previousActiveDate = settings.active_date;
+
+    await adminClient.from('menu_settings').update({ active_date: null }).eq('id', 1);
+    await adminClient.from('telegram_bot_state').delete().eq('key', 'latest-menu:active');
+
+    res.json({ previousActiveDate });
+  } catch (error) {
+    console.error('Error expirando menu activo:', error);
+    res.status(500).json({ error: error.message || 'No se pudo expirar el menu activo.' });
+  }
+});
+
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
+
+router.get('/config', (req, res) => {
+  res.json({ editAfterSend: !!process.env.ECIENCIA_MENU_EDIT_AFTER_SEND });
+});
 
 router.get('/', async (req, res) => {
   try {
@@ -392,6 +463,19 @@ router.put('/:fecha', async (req, res) => {
     }
 
     adminClient = getAdminClient();
+    const { data: envioExistente } = await adminClient
+      .from('menu_envios')
+      .select('fecha,last_sent_at')
+      .eq('fecha', fecha)
+      .maybeSingle();
+
+    if (envioExistente && !process.env.ECIENCIA_MENU_EDIT_AFTER_SEND) {
+      return res.status(409).json({
+        error: 'Este menu ya fue enviado. No se permite editar el menu despues del envio.',
+        sentAt: envioExistente.last_sent_at,
+      });
+    }
+
     const settings = await getMenuSettings(adminClient);
     if (settings.active_date === fecha && !payload.confirmarEdicion) {
       return res.status(409).json({
@@ -460,6 +544,7 @@ router.post('/enviar', async (req, res) => {
   let adminClient;
   let imageUpload;
   let menuSaved = false;
+  let isResend = false;
   try {
     const payload = parseBody(schemas.menuDashboard, req.body || {});
     const menu = buildMenuPayload(payload);
@@ -469,9 +554,27 @@ router.post('/enviar', async (req, res) => {
       });
     }
 
+    adminClient = getAdminClient();
+
+    const today = todayInTimezone();
+    const { data: envioHoy } = await adminClient
+      .from('menu_envios')
+      .select('fecha,last_sent_at,menu_payload')
+      .eq('fecha', today)
+      .maybeSingle();
+
+    if (envioHoy) {
+      if (!process.env.ECIENCIA_MENU_EDIT_AFTER_SEND) {
+        return res.status(409).json({
+          error: 'Ya se envio un menu hoy con contenido diferente. No se permite reenvio.',
+          sentAt: envioHoy.last_sent_at,
+        });
+      }
+      isResend = true;
+    }
+
     imageUpload = await uploadMenuImage(payload.image);
     const photoUrl = imageUpload.publicUrl;
-    adminClient = getAdminClient();
     const dailyMenu = await saveDailyMenu(adminClient, menu, photoUrl, req.user.id);
     menuSaved = true;
     await saveActiveMenuState(adminClient, dailyMenu.fecha, menu, photoUrl, req.user.id);
@@ -511,6 +614,7 @@ router.post('/enviar', async (req, res) => {
       dailyMenu,
       photoUrl,
       cleanup,
+      reenvio: isResend,
     });
   } catch (error) {
     if (!menuSaved && adminClient && imageUpload?.path) {
@@ -524,9 +628,54 @@ router.post('/enviar', async (req, res) => {
   }
 });
 
+const hasCompleteMenu = (payload) => {
+  const sopas = cleanOptions(payload?.sopas);
+  const segundos = cleanOptions(payload?.segundos);
+  const guarniciones = cleanOptions(payload?.guarniciones);
+  return sopas.length > 0 && segundos.length > 0 && guarniciones.length > 0;
+};
+
+const menuPayloadEquals = (a, b) => {
+  const keys = ['sopas', 'segundos', 'guarniciones'];
+  return keys.every((key) => {
+    const left = cleanOptions(a?.[key]);
+    const right = cleanOptions(b?.[key]);
+    return left.length === right.length && left.every((v, i) => v === right[i]);
+  });
+};
+
+const validateMenuImageInput = (image, opts = {}) => {
+  if (opts.required && (image === null || image === undefined)) {
+    throw new Error('La imagen del menu es obligatoria');
+  }
+  if (typeof image === 'string') {
+    if (/^http:\/\//i.test(image)) {
+      throw new Error('La URL publica de imagen del menu debe usar HTTPS');
+    }
+    if (/^data:image\//.test(image)) {
+      const match = image.match(/^data:image\/(?:png|jpe?g|webp);base64,(.+)$/i);
+      if (!match) {
+        throw new Error('La imagen del menu debe ser JPG, PNG o WebP valida');
+      }
+      const buffer = Buffer.from(match[1], 'base64');
+      const mimeType = match[0].toLowerCase().includes('png') ? 'image/png'
+        : match[0].toLowerCase().includes('webp') ? 'image/webp'
+        : 'image/jpeg';
+      if (!hasAllowedImageSignature(buffer, mimeType)) {
+        throw new Error('La imagen del menu debe ser JPG, PNG o WebP valida');
+      }
+    }
+  }
+  return true;
+};
+
 module.exports = router;
 module.exports._private = {
   groupMenuRows,
   removeUploadedMenuImage,
   saveDailyMenu,
+  makeSquareWithBlurredBackground,
+  hasCompleteMenu,
+  menuPayloadEquals,
+  validateMenuImageInput,
 };
