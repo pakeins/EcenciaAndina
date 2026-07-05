@@ -130,7 +130,6 @@ jobs:
           allow_issue_writing: false
           fail_action: false
           artifact_name: zap_frontend
-          cmd_options: "-I"
 
       - name: Preserve ZAP frontend reports
         if: always()
@@ -147,7 +146,6 @@ jobs:
           allow_issue_writing: false
           fail_action: false
           artifact_name: zap_backend
-          cmd_options: "-I"
 
       - name: Preserve ZAP backend reports
         if: always()
