@@ -123,7 +123,7 @@ jobs:
           node scripts/wait-http.js http://127.0.0.1:8080 http://127.0.0.1:3001/
 
       - name: ZAP frontend baseline
-        uses: zaproxy/action-baseline@v0.12.0
+        uses: zaproxy/action-baseline@v0.15.0
         if: always()
         continue-on-error: true
         with:
@@ -140,7 +140,7 @@ jobs:
           cp report_md.md zap-frontend.md || true
 
       - name: ZAP backend baseline
-        uses: zaproxy/action-baseline@v0.12.0
+        uses: zaproxy/action-baseline@v0.15.0
         if: always()
         continue-on-error: true
         with:
