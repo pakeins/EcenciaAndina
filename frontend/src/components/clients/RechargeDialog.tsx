@@ -50,7 +50,7 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
           'Almuerzo del Dia',
           'Almuerzo del Dia Simple'
         ];
-        const almuerzos = data.filter((p: any) =>
+        const almuerzos = data.filter((p: Alimento) =>
           OFFICIAL_LUNCHES.includes(p.nombre)
         );
         setProducts(almuerzos);
