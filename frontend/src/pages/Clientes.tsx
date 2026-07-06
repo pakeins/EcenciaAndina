@@ -140,6 +140,20 @@ export default function Clientes() {
     staleTime: 1000 * 60 * 60,
   });
 
+  const { data: privacyRequests = [] } = useQuery({
+    queryKey: ['privacyRequests'],
+    queryFn: async () => {
+      if (!isAdmin) return [];
+      const response = await apiFetch('/clientes/telegram/privacidad-solicitudes');
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
+
+  const pendingPrivacyCount = privacyRequests.filter((r: any) => ['pending', 'in_review'].includes(r.status)).length;
+
   const error = clientsError ? (clientsError as Error).message : null;
 
   const fetchClientes = async () => {
@@ -278,7 +292,7 @@ export default function Clientes() {
       const payload = {
         ...formData,
         cedula: onlyDigits(formData.cedula),
-        telefono: normalizePhone(formData.telefono),
+        telefono: onlyDigits(formData.telefono),
         correo: formData.correo.trim().toLowerCase(),
         id_convenio: formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT
           ? formData.id_convenio || null
@@ -391,14 +405,21 @@ export default function Clientes() {
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <Button
-              onClick={() => setPrivacyRequestsOpen(true)}
-              variant="outline"
-              className="gap-2 border-terracota text-terracota hover:bg-terracota/10"
-            >
-              <ShieldCheck className="h-5 w-5" />
-              Privacidad
-            </Button>
+            <div className="relative">
+              <Button
+                onClick={() => setPrivacyRequestsOpen(true)}
+                variant="outline"
+                className="gap-2 border-terracota text-terracota hover:bg-terracota/10"
+              >
+                <ShieldCheck className="h-5 w-5" />
+                Gestion de Privacidad
+              </Button>
+              {pendingPrivacyCount > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-background">
+                  {pendingPrivacyCount}
+                </span>
+              )}
+            </div>
           )}
           <Button onClick={() => setRechargeOpen(true)} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 shadow-lg shadow-cafe/5 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
             <Banknote className="h-5 w-5" />

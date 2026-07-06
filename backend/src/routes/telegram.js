@@ -341,7 +341,7 @@ const beginConsent = async ({
     subscriptionId: subscription.id,
     invitationId,
     policyVersion: getConsentVersion(),
-    promptMessageIds: [sent?.message_id].filter(Boolean),
+    promptMessageIds: [],
     cleanupMessageIds: cleanupMessageIds.filter(Boolean),
   });
   return subscription;
@@ -886,16 +886,16 @@ const invitationFailureText = (reason) => {
 
 const acceptConsent = async (parsed, subscription, consentState) => {
   if (!consentState || consentState.status !== 'awaiting_decision') return;
-  await removeInlineKeyboard(parsed.chatId, parsed.messageId);
-  const sent = await sendMessage(
+  await removeInlineKeyboard(parsed.chatId, parsed.messageId);  const sent = await sendMessage(
     parsed.chatId,
-    'Ahora comparte tu propio telefono con el boton. No escribas el numero manualmente.',
+    '📱 <b>¡Paso Final!</b>\n\nPara validar tu suscripcion, necesitamos verificar tu usuario.\n\nPor favor, utiliza el boton <b>"Compartir mi telefono"</b> que acaba de aparecer en la parte inferior de tu pantalla.\n\n<i>(Si no ves el boton en la parte inferior, busca en la barra inferior el icono de un cuadrado para compartir tu numero).</i>',
     contactKeyboard(),
+    'HTML'
   );
   await setState(consentKey(parsed.chatId), {
     ...consentState,
     status: 'accepted_pending_phone',
-    promptMessageIds: [...(consentState.promptMessageIds || []), sent?.message_id].filter(Boolean),
+    promptMessageIds: [],
   });
   await getAdminClient()
     .from('telegram_subscriptions')
@@ -936,8 +936,9 @@ const rejectConsent = async (parsed, subscription, consentState) => {
   await cleanupConsentMessages(parsed.chatId, consentState);
   await sendMessage(
     parsed.chatId,
-    'Registramos que no aceptas. Esta suscripcion queda bloqueada hasta que un administrador la reactive.',
+    '🚫 <b>Suscripcion Rechazada</b>\n\nRegistramos que no aceptas. Esta suscripcion queda bloqueada hasta que un administrador la reactive.',
     removeKeyboard(),
+    'HTML'
   );
 };
 
@@ -945,13 +946,23 @@ const validateAndSaveContact = async (parsed, subscription, consentState) => {
   if (!subscription || consentState?.status !== 'accepted_pending_phone') return false;
   await deleteMessage(parsed.chatId, parsed.messageId);
   if (!parsed.contactVerified) {
-    await sendMessage(parsed.chatId, 'Debes compartir tu propio contacto usando el boton de Telegram.', contactKeyboard());
+    await sendMessage(
+      parsed.chatId, 
+      '⚠️ Por favor, utiliza el boton <b>"Compartir mi telefono"</b> para validar tu suscripcion.\n\n<i>(Si no ves el boton en la parte inferior, busca en la barra inferior el icono de un cuadrado para compartir tu numero).</i>', 
+      contactKeyboard(), 
+      'HTML'
+    );
     return true;
   }
 
   const client = await getClientById(consentState.idCliente);
   if (!client?.esta_activo) {
-    await sendMessage(parsed.chatId, 'El cliente invitado no esta activo. Contacta al administrador.', removeKeyboard());
+    await sendMessage(
+      parsed.chatId, 
+      '⚠️ <b>Cliente Inactivo</b>\n\nEl cliente invitado no esta activo. Contacta al administrador.', 
+      removeKeyboard(),
+      'HTML'
+    );
     return true;
   }
   const contactPhone = normalizePhone(parsed.contactPhone);
@@ -959,8 +970,9 @@ const validateAndSaveContact = async (parsed, subscription, consentState) => {
   if (!contactPhone || !clientPhone || contactPhone !== clientPhone) {
     await sendMessage(
       parsed.chatId,
-      'El telefono compartido no coincide con el cliente invitado. Pide al administrador que revise el registro.',
+      '❌ <b>Telefono no coincide</b>\n\nEl telefono compartido no coincide con el cliente invitado. Pide al administrador que revise el registro.',
       contactKeyboard(),
+      'HTML'
     );
     return true;
   }
@@ -968,7 +980,12 @@ const validateAndSaveContact = async (parsed, subscription, consentState) => {
   const phoneOwner = await getSubscriptionByPhone(contactPhone);
   // Solo es conflicto real si la suscripcion del telefono pertenece a otro cliente
   if (phoneOwner && phoneOwner.id !== subscription.id && phoneOwner.id_cliente && phoneOwner.id_cliente !== consentState.idCliente) {
-    await sendMessage(parsed.chatId, 'Ese telefono ya esta vinculado a otra suscripcion.', removeKeyboard());
+    await sendMessage(
+      parsed.chatId, 
+      '⚠️ <b>Telefono en uso</b>\n\nEse telefono ya esta vinculado a otra suscripcion.', 
+      removeKeyboard(),
+      'HTML'
+    );
     return true;
   }
 
@@ -1022,7 +1039,9 @@ const validateAndSaveContact = async (parsed, subscription, consentState) => {
   await cleanupConsentMessages(parsed.chatId, consentState);
   await sendMessage(
     parsed.chatId,
-    `${client.nombre}, tu Telegram quedo vinculado con tu registro de cliente. Usa /menu cuando quieras reservar.`,
+    `🎉 <b>¡Registro Exitoso!</b>\n\nHola <b>${client.nombre}</b>, tu Telegram quedo vinculado con tu registro de cliente.\n\nUsa /menu cuando quieras reservar.`,
+    removeKeyboard(),
+    'HTML'
   );
   return true;
 };
@@ -1032,7 +1051,9 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
     const settings = getPrivacySettings();
     await sendMessage(
       parsed.chatId,
-      `${privacyText()}\n\nComandos: /misdatos, /eliminarmisdatos, /revocar y /ayuda.\n${settings.policyUrl}`,
+      `🛡️ <b>Centro de Privacidad</b>\n\n${privacyText()}\n\n<b>Comandos disponibles:</b>\n/misdatos - Ver mis datos\n/eliminarmisdatos - Borrar mis datos\n/revocar - Retirar consentimiento\n/ayuda - Ver mas opciones\n\n<a href="${settings.policyUrl}">Ver Politica Completa</a>`,
+      null,
+      'HTML'
     );
     return true;
   }
@@ -1040,17 +1061,16 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
   if (command === '/ayuda') {
     await sendMessage(
       parsed.chatId,
-      'Usa /menu para reservar mediante botones.\n' +
-      'Consulta tu reserva del dia con /pedido.\n' +
-      'Privacidad: /privacidad, /misdatos, /eliminarmisdatos y /revocar.\n' +
-      `Contacto: ${getPrivacySettings().contact}`,
+      '🆘 <b>Ayuda y Comandos</b>\n\n🍲 <b>Reservas</b>\nUsa /menu para reservar mediante botones.\nConsulta tu reserva del dia con /pedido.\n\n🔒 <b>Privacidad</b>\n/privacidad - Centro de privacidad\n/misdatos - Ver que guardamos\n/eliminarmisdatos - Solicitar borrado\n/revocar - Bloquear acceso\n\n📞 <b>Contacto:</b> ' + getPrivacySettings().contact,
+      null,
+      'HTML'
     );
     return true;
   }
 
   if (command === '/misdatos') {
     if (!subscription) {
-      await sendMessage(parsed.chatId, 'Este chat no tiene una suscripcion Telegram vinculada.');
+      await sendMessage(parsed.chatId, '⚠️ <b>Sin suscripcion</b>\n\nEste chat no tiene una suscripcion de Telegram vinculada.', null, 'HTML');
       return true;
     }
     await getAdminClient()
@@ -1058,39 +1078,48 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
       .insert({ action: 'misdatos', outcome: 'informed', chat_id: String(parsed.chatId) });
     await sendMessage(
       parsed.chatId,
-      'Categorias de datos que almacenamos:\n' +
-      '- Identificador del chat de Telegram\n' +
-      '- Numero de telefono (enmascarado)\n' +
-      '- Nombre del cliente (segun tu registro)\n' +
-      '- Selecciones de menu y reservas\n' +
-      '- Historial de consentimiento\n\n' +
-      `Estado del consentimiento: ${subscription.consent_status}\n\n` +
-      `Para acceder, rectificar o eliminar tus datos, contacta: ${getPrivacySettings().contact}`,
+      '📁 <b>Tus Datos Personales</b>\n\nCategorias de datos que almacenamos:\n' +
+      '• Identificador del chat de Telegram\n' +
+      '• Numero de telefono (enmascarado)\n' +
+      '• Nombre del cliente (segun tu registro)\n' +
+      '• Selecciones de menu y reservas\n' +
+      '• Historial de consentimiento\n\n' +
+      `<b>Estado del consentimiento:</b> <code>${subscription.consent_status}</code>\n\n` +
+      `Para acceder, rectificar o eliminar tus datos, contacta a: <b>${getPrivacySettings().contact}</b> o usa /eliminarmisdatos.`,
+      null,
+      'HTML'
     );
     return true;
   }
 
   if (command === '/revocar') {
     if (!subscription) {
-      await sendMessage(parsed.chatId, 'No existe una suscripcion vinculada para revocar.');
+      await sendMessage(parsed.chatId, '⚠️ <b>Sin suscripcion</b>\n\nNo existe una suscripcion vinculada para revocar.', null, 'HTML');
+      return true;
+    }
+    if (['rejected', 'revoked'].includes(subscription.consent_status)) {
+      await sendMessage(parsed.chatId, '🚫 <b>Ya estas revocado</b>\n\nTu suscripcion ya se encuentra bloqueada.', null, 'HTML');
       return true;
     }
     await sendMessage(
       parsed.chatId,
-      'Confirma tu decision:\n\nRevocar el consentimiento bloqueara tu acceso al bot. No recibiras menus hasta que un administrador reactive la suscripcion.',
+      '🛑 <b>Revocar Consentimiento</b>\n\n<b>Confirma tu decision:</b>\n\nRevocar el consentimiento bloqueara tu acceso al bot de Ecencia Andina. No recibiras menus hasta que un administrador reactive tu suscripcion.',
       revokeConfirmKeyboard(),
+      'HTML'
     );
     return true;
   }
 
   if (parsed.text === 'revocar:cancel') {
-    await sendMessage(parsed.chatId, 'Tu consentimiento se mantiene activo.');
+    if (parsed.isCallback) await removeInlineKeyboard(parsed.chatId, parsed.messageId);
+    await sendMessage(parsed.chatId, '✅ <b>Accion Cancelada</b>\n\nTu consentimiento se mantiene activo y seguiras disfrutando del servicio.', null, 'HTML');
     return true;
   }
 
   if (parsed.text === 'revocar:confirm') {
+    if (parsed.isCallback) await removeInlineKeyboard(parsed.chatId, parsed.messageId);
     if (!subscription) {
-      await sendMessage(parsed.chatId, 'No existe una suscripcion vinculada para revocar.');
+      await sendMessage(parsed.chatId, '⚠️ <b>Sin suscripcion</b>\n\nNo existe una suscripcion vinculada para revocar.', null, 'HTML');
       return true;
     }
     await getAdminClient()
@@ -1107,25 +1136,83 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
     await deleteChatStates(parsed.chatId);
     await sendMessage(
       parsed.chatId,
-      'Tu consentimiento quedo revocado. No recibiras menus hasta que un administrador reactive la suscripcion.',
+      '🚫 <b>Consentimiento Revocado</b>\n\nTu acceso ha quedado bloqueado. Ya no recibiras el menu diario hasta que un administrador reactive tu suscripcion.',
       removeKeyboard(),
+      'HTML'
     );
     return true;
   }
 
   if (command === '/eliminarmisdatos') {
     if (!subscription) {
-      await sendMessage(parsed.chatId, 'Este chat no tiene datos Telegram vinculados.');
+      await sendMessage(parsed.chatId, '⚠️ <b>Sin datos</b>\n\nEste chat no tiene datos Telegram vinculados.', null, 'HTML');
       return true;
     }
+
+    // Obtener los datos del cliente
+    const client = await getClientById(subscription.id_cliente);
+
+    // Verificar si ya existe una peticion pendiente o completada
+    const { data: existingRequests } = await getAdminClient()
+      .from('telegram_privacy_requests')
+      .select('id, status')
+      .eq('id_cliente', subscription.id_cliente)
+      .in('status', ['pending', 'in_review', 'resolved']);
+
+    if (existingRequests && existingRequests.length > 0) {
+      if (existingRequests.some(r => ['pending', 'in_review'].includes(r.status))) {
+        await sendMessage(
+          parsed.chatId,
+          '⏳ <b>Solicitud en curso</b>\n\nYa hemos recibido tu solicitud anteriormente. Actualmente se encuentra en proceso de gestion.',
+          null,
+          'HTML'
+        );
+        return true;
+      }
+      if (existingRequests.some(r => r.status === 'resolved') && subscription.consent_status !== 'accepted') {
+        await sendMessage(
+          parsed.chatId,
+          '✅ <b>Solicitud Atendida</b>\n\nTu solicitud de eliminacion de datos ya fue procesada y finalizada exitosamente. Si tienes dudas, contacta al administrador.',
+          null,
+          'HTML'
+        );
+        return true;
+      }
+    }
+
+    // Registrar auditoria
     await getAdminClient()
       .from('telegram_privacy_audits')
-      .insert({ action: 'eliminarmisdatos', outcome: 'informed', chat_id: String(parsed.chatId) });
+      .insert({ action: 'eliminarmisdatos', outcome: 'requested', chat_id: String(parsed.chatId) });
+
+    // Insertar solicitud automatica en la tabla
+    const { data: privacyRequest, error } = await getAdminClient()
+      .from('telegram_privacy_requests')
+      .insert({
+        id_cliente: subscription.id_cliente,
+        subscription_id: subscription.id,
+        request_type: 'deletion',
+        status: 'pending',
+        source: 'telegram'
+      })
+      .select()
+      .single();
+
+    if (error && error.code !== '23505') {
+      console.error('Error al insertar solicitud de privacidad:', error);
+    }
+
+    // Notificar al administrador por correo (asincrono para no bloquear)
+    if (privacyRequest && client) {
+      const { sendPrivacyRequestNotificationEmail } = require('../services/telegramInvitationEmail');
+      sendPrivacyRequestNotificationEmail(client, privacyRequest).catch(err => console.error('Error notificacion:', err));
+    }
+
     await sendMessage(
       parsed.chatId,
-      'Para solicitar la eliminacion de tus datos personales, contacta a nuestro responsable de privacidad:\n\n' +
-      `${getPrivacySettings().contact}\n\n` +
-      'Incluye en tu solicitud: tu nombre, numero de telefono registrado y el motivo de la solicitud. Procesaremos tu pedido en el plazo establecido por la ley.',
+      '🗑️ <b>Solicitud Recibida</b>\n\nHemos recibido tu solicitud de eliminacion de datos personales.\n\nEl requerimiento ha sido registrado automaticamente y nuestro equipo de privacidad lo evaluara y procesara en el plazo establecido por la ley. En caso de requerir detalles adicionales, te contactaremos.',
+      null,
+      'HTML'
     );
     return true;
   }
@@ -1221,7 +1308,12 @@ const handleTelegramUpdate = async (update) => {
 
   if (start?.isStart) {
     if (hasCurrentConsent(subscription)) {
-      await sendMessage(parsed.chatId, 'Recibiras el menu cuando Ecencia Andina lo envie. Usa /menu para reservar o /ayuda para ver comandos.');
+      await sendMessage(
+        parsed.chatId, 
+        '✅ <b>¡Ya estas suscrito!</b>\n\nRecibiras el menu cuando Ecencia Andina lo envie.\nUsa /menu para reservar o /ayuda para ver comandos.',
+        null,
+        'HTML'
+      );
       return;
     }
     if (subscription?.consent_status === 'pending' && subscription.id_cliente) {
@@ -1230,12 +1322,16 @@ const handleTelegramUpdate = async (update) => {
         chatId: parsed.chatId,
         telegramUserId: parsed.telegramUserId,
         telegramUsername: parsed.telegramUsername,
-        cleanupMessageIds: [parsed.messageId],
       });
       return;
     }
     if (['rejected', 'revoked'].includes(subscription?.consent_status)) {
-      await sendMessage(parsed.chatId, 'La suscripcion esta bloqueada. Un administrador debe reactivarla desde Clientes.');
+      await sendMessage(
+        parsed.chatId, 
+        '🚫 <b>Suscripcion Bloqueada</b>\n\nActualmente no cuentas con una suscripcion. Por favor, acercate a Ecencia Andina para poderte ayudar.',
+        null,
+        'HTML'
+      );
       return;
     }
     // Sin suscripcion previa: iniciar el flujo de consentimiento directamente
@@ -1244,7 +1340,6 @@ const handleTelegramUpdate = async (update) => {
       chatId: parsed.chatId,
       telegramUserId: parsed.telegramUserId,
       telegramUsername: parsed.telegramUsername,
-      cleanupMessageIds: [parsed.messageId],
     });
     return;
   }
@@ -1263,15 +1358,26 @@ const handleTelegramUpdate = async (update) => {
     return;
   }
 
-  if (['rejected', 'revoked'].includes(subscription?.consent_status)) return;
+  if (['rejected', 'revoked'].includes(subscription?.consent_status)) {
+    if (['/menu', '/pedido', '/cancelar'].includes(command)) {
+      await sendMessage(
+        parsed.chatId,
+        '🚫 <b>Suscripcion Bloqueada</b>\n\nTu acceso ha sido revocado. Por favor, acercate a Ecencia Andina si deseas reactivar tu suscripcion.',
+        null,
+        'HTML'
+      );
+    }
+    return;
+  }
   if (subscription?.consent_status === 'pending') {
     if (consentState?.status === 'accepted_pending_phone') {
       // El usuario aun no ha compartido su telefono — re-solicitar el boton de contacto
       if (!parsed.isCallback) await deleteMessage(parsed.chatId, parsed.messageId);
       await sendMessage(
         parsed.chatId,
-        'Comparte tu telefono usando el boton "Compartir telefono" que aparece en el teclado.',
+        '📲 <b>¡Casi listo!</b>\n\nAun necesitamos verificar tu usuario. Por favor, presiona el boton <b>"Compartir mi telefono"</b> que aparece en el teclado inferior.\n\n<i>(Si no ves el boton en la parte inferior, busca en la barra inferior el icono de un cuadrado para compartir tu numero).</i>',
         contactKeyboard(),
+        'HTML'
       );
       return;
     }

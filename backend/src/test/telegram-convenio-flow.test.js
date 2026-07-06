@@ -20,7 +20,7 @@ const clientWithConvenio = (overrides = {}) => ({
         nombre_empresa: 'Acme',
         esta_activo: true,
         fecha_caducidad: '2026-12-31',
-        id_tipo_almuerzo: 8,
+        tipos_almuerzo_permitidos: [8],
         ...overrides,
       },
     },
@@ -71,34 +71,34 @@ describe('buildComponentPlan (auto-seleccion, pasos y omision)', () => {
 });
 
 describe('activeConvenio (tipo contratado por empresa)', () => {
-  it('devuelve el tipo de almuerzo contratado del convenio activo', () => {
+  it('devuelve los tipos permitidos contratados del convenio activo', () => {
     const result = activeConvenio(clientWithConvenio(), TODAY);
     expect(result.id_convenio).toBe('conv-1');
     expect(result.nombre_empresa).toBe('Acme');
-    expect(result.id_tipo_almuerzo).toBe(8);
+    expect(result.tipos_almuerzo_permitidos).toEqual([8]);
   });
 
-  it('cae al tipo por defecto (9) si el convenio no tiene tipo contratado', () => {
-    const result = activeConvenio(clientWithConvenio({ id_tipo_almuerzo: null }), TODAY);
+  it('devuelve null en tipos_almuerzo_permitidos si el convenio no lo tiene configurado', () => {
+    const result = activeConvenio(clientWithConvenio({ tipos_almuerzo_permitidos: null }), TODAY);
     expect(result.id_convenio).toBe('conv-1');
-    expect(result.id_tipo_almuerzo).toBe(9);
+    expect(result.tipos_almuerzo_permitidos).toBeNull();
   });
 
   it('cliente frecuente (sin convenio) no tiene convenio ni tipo contratado', () => {
     const result = activeConvenio({ id_cliente: 2, clientes_convenios: [] }, TODAY);
     expect(result.id_convenio).toBeNull();
-    expect(result.id_tipo_almuerzo).toBeNull();
+    expect(result.tipos_almuerzo_permitidos).toBeNull();
   });
 
   it('un convenio vencido se trata como cliente sin convenio', () => {
     const result = activeConvenio(clientWithConvenio({ fecha_caducidad: '2026-06-30' }), TODAY);
     expect(result.id_convenio).toBeNull();
-    expect(result.id_tipo_almuerzo).toBeNull();
+    expect(result.tipos_almuerzo_permitidos).toBeNull();
   });
 
   it('el id contratado mapea a un paquete oficial de Telegram', () => {
     const contracted = activeConvenio(clientWithConvenio(), TODAY);
-    const pkg = TELEGRAM_LUNCH_TYPE_BY_ID[contracted.id_tipo_almuerzo];
+    const pkg = TELEGRAM_LUNCH_TYPE_BY_ID[contracted.tipos_almuerzo_permitidos[0]];
     expect(pkg).toBeTruthy();
     expect(pkg.id).toBe(8);
     expect(pkg.code).toBe('ejecutivo_simple');

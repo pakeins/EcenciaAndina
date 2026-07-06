@@ -16,13 +16,14 @@ const telegramRequest = async (method, body) => {
   return data.result;
 };
 
-const sendMessage = async (chatId, text, replyMarkup) => {
+const sendMessage = async (chatId, text, replyMarkup, parseMode) => {
   const body = {
     chat_id: String(chatId),
     text,
     disable_web_page_preview: true,
   };
   if (replyMarkup) body.reply_markup = replyMarkup;
+  if (parseMode) body.parse_mode = parseMode;
   return telegramRequest('sendMessage', body);
 };
 

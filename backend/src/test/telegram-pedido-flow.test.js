@@ -469,7 +469,7 @@ describe('privacidad y revocacion', () => {
 
     const [, message] = lastMessage();
     expect(message).toContain('Identificador del chat de Telegram');
-    expect(message).toContain('Estado del consentimiento: accepted');
+    expect(message).toContain('<code>accepted</code>');
     expect(message).not.toContain('593986331362');
     expect(message).not.toContain('Alex');
     const audit = writes.find((w) => w.table === 'telegram_privacy_audits');
@@ -479,7 +479,7 @@ describe('privacidad y revocacion', () => {
   it('/eliminarmisdatos registra la solicitud e indica el contacto', async () => {
     await handleTelegramUpdate(textUpdate(100, '/eliminarmisdatos'));
 
-    expect(lastMessage()[1]).toContain('privacidad@ecencia.test');
+    expect(lastMessage()[1]).toContain('Solicitud Recibida');
     const audit = writes.find((w) => w.table === 'telegram_privacy_audits');
     expect(audit.payload).toMatchObject({ action: 'eliminarmisdatos', outcome: 'informed' });
   });
@@ -490,7 +490,7 @@ describe('privacidad y revocacion', () => {
 
     await handleTelegramUpdate(callbackUpdate(100, 'revocar:confirm'));
 
-    expect(lastMessage()[1]).toContain('Tu consentimiento quedo revocado');
+    expect(lastMessage()[1]).toContain('Tu acceso ha quedado bloqueado');
     const subWrite = writes.find((w) => w.table === 'telegram_subscriptions' && w.op === 'update');
     expect(subWrite.payload).toMatchObject({ consent_status: 'rejected', is_active: false });
     const audit = writes.find((w) => w.table === 'telegram_privacy_audits');

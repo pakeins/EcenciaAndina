@@ -253,11 +253,33 @@ router.patch('/telegram/privacidad-solicitudes/:requestId', adminOnly, async (re
     if (!data) throw createHttpError(404, 'Solicitud de privacidad no encontrada.');
 
     if (terminal && data.subscription_id) {
+      const updatePayload = status === 'resolved'
+        ? { deletion_requested_at: null, consent_status: 'rejected', is_active: false, revoked_at: new Date().toISOString() }
+        : { deletion_requested_at: null };
       const clearResult = await adminClient
         .from('telegram_subscriptions')
-        .update({ deletion_requested_at: null })
-        .eq('id', data.subscription_id);
+        .update(updatePayload)
+        .eq('id', data.subscription_id)
+        .select('chat_id')
+        .maybeSingle();
       if (clearResult.error) throw clearResult.error;
+      
+      if (status === 'resolved' && clearResult.data?.chat_id) {
+        await sendMessage(
+          clearResult.data.chat_id,
+          '✅ <b>Solicitud Atendida</b>\n\nTu solicitud de eliminacion de datos ha sido procesada exitosamente. Como resultado, <b>tu suscripcion al bot ha sido revocada</b> y ya no recibiras el menu diario.\n\nPara cualquier duda adicional, acercate a Ecencia Andina.',
+          { remove_keyboard: true },
+          'HTML'
+        ).catch((err) => console.error('No se pudo enviar notificacion de privacidad por Telegram:', err));
+      } else if (status === 'rejected' && clearResult.data?.chat_id) {
+        const motivo = resolution_notes ? `\n\n<b>Motivo:</b> ${resolution_notes}` : '';
+        await sendMessage(
+          clearResult.data.chat_id,
+          `❌ <b>Solicitud Rechazada</b>\n\nTu solicitud de eliminacion de datos ha sido rechazada por la administracion.${motivo}\n\nPara cualquier duda adicional, acercate a Ecencia Andina.`,
+          null,
+          'HTML'
+        ).catch((err) => console.error('No se pudo enviar notificacion de privacidad (rechazo) por Telegram:', err));
+      }
     }
     res.json(data);
   } catch (error) {
@@ -785,6 +807,12 @@ router.delete('/:id', async (req, res) => {
     const adminClient = getAdminClient();
     const { id } = req.params;
 
+    const { data: sub } = await adminClient
+      .from('telegram_subscriptions')
+      .select('chat_id')
+      .eq('id_cliente', id)
+      .maybeSingle();
+
     const { error } = await adminClient.from('clientes').delete().eq('id_cliente', id);
 
     if (error) {
@@ -792,6 +820,15 @@ router.delete('/:id', async (req, res) => {
         return res.status(400).json({ error: 'No se puede eliminar el cliente porque tiene órdenes, recargas o registros asociados.' });
       }
       throw error;
+    }
+
+    if (sub?.chat_id) {
+      await sendMessage(
+        sub.chat_id,
+        '🚫 <b>Cuenta Eliminada</b>\n\nTu cuenta ha sido eliminada del sistema de Ecencia Andina. Como resultado, tu suscripcion al bot de Telegram ha sido revocada permanentemente y todos tus datos asociados han sido borrados.\n\nGracias por utilizar nuestro servicio.',
+        { remove_keyboard: true },
+        'HTML'
+      ).catch((err) => console.error('No se pudo notificar eliminacion de cuenta por Telegram:', err));
     }
 
     res.json({ success: true, message: 'Cliente eliminado correctamente' });

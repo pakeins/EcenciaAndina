@@ -191,7 +191,7 @@ describe('handleTelegramUpdate — consentimiento y comandos', () => {
 
     expect(sendTelegramMessage).toHaveBeenCalledWith(
       '100',
-      expect.stringContaining('Compartir telefono'),
+      expect.stringContaining('Compartir mi telefono'),
       expect.objectContaining({
         keyboard: expect.any(Array),
       }),

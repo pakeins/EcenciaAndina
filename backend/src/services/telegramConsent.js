@@ -1,11 +1,12 @@
 const crypto = require('crypto');
 const { getAdminClient } = require('../config/supabase');
+const fs = require('fs');
+const path = require('path');
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const REQUIRED_TELEGRAM_ENV = [
   'TELEGRAM_BOT_USERNAME',
   'TELEGRAM_PRIVACY_CONTACT',
-  'TELEGRAM_PRIVACY_POLICY_URL',
   'TELEGRAM_CONSENT_VERSION',
   'TELEGRAM_INVITE_TOKEN_SECRET',
 ];
@@ -23,6 +24,9 @@ const requiredEnv = (name) => {
 const validateTelegramEnvironment = () => {
   const missing = REQUIRED_TELEGRAM_ENV.filter((name) => !String(process.env[name] || '').trim());
   if (missing.length) throw new Error(`Faltan variables Telegram obligatorias: ${missing.join(', ')}.`);
+  if (!String(process.env.TELEGRAM_PRIVACY_POLICY_URL || '').trim() && !String(process.env.PUBLIC_FRONTEND_URL || '').trim()) {
+    throw new Error('Falta configurar TELEGRAM_PRIVACY_POLICY_URL o PUBLIC_FRONTEND_URL para generar el enlace de privacidad.');
+  }
   if (requiredEnv('TELEGRAM_INVITE_TOKEN_SECRET').length < 32) {
     throw new Error('TELEGRAM_INVITE_TOKEN_SECRET debe tener al menos 32 caracteres.');
   }
@@ -32,11 +36,17 @@ const getConsentVersion = () => requiredEnv('TELEGRAM_CONSENT_VERSION');
 
 const getBotUsername = () => requiredEnv('TELEGRAM_BOT_USERNAME').replace(/^@/, '');
 
-const getPrivacySettings = () => ({
-  contact: requiredEnv('TELEGRAM_PRIVACY_CONTACT'),
-  policyUrl: requiredEnv('TELEGRAM_PRIVACY_POLICY_URL'),
-  version: getConsentVersion(),
-});
+const getPrivacySettings = () => {
+  const customUrl = String(process.env.TELEGRAM_PRIVACY_POLICY_URL || '').trim();
+  const frontendUrl = String(process.env.PUBLIC_FRONTEND_URL || '').trim();
+  const policyUrl = customUrl || (frontendUrl ? `${frontendUrl}/privacidad` : '');
+
+  return {
+    contact: requiredEnv('TELEGRAM_PRIVACY_CONTACT'),
+    policyUrl,
+    version: getConsentVersion(),
+  };
+};
 
 const privacyText = () => {
   const { contact, policyUrl, version } = getPrivacySettings();
@@ -96,14 +106,29 @@ const createInvitation = async (idCliente, createdBy, createClient = getAdminCli
 };
 
 const getInvitationByToken = async (token, createClient = getAdminClient) => {
-  if (!/^[A-Za-z0-9_-]{32,128}$/.test(String(token || ''))) return null;
-  const { data, error } = await createClient()
-    .from('telegram_invitations')
-    .select('*, clientes(id_cliente,nombre,apellido,telefono,esta_activo)')
-    .eq('token_hmac', hmacHex(token))
-    .maybeSingle();
-  if (error) throw error;
-  return data || null;
+  try {
+    fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Received token: ' + token + '\n');
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(String(token || ''))) {
+      fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Regex failed\n');
+      return null;
+    }
+    const hmac = hmacHex(token);
+    fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'HMAC: ' + hmac + '\n');
+    const { data, error } = await createClient()
+      .from('telegram_invitations')
+      .select('*, clientes(id_cliente,nombre,apellido,telefono,esta_activo)')
+      .eq('token_hmac', hmac)
+      .maybeSingle();
+    if (error) {
+      fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Error: ' + JSON.stringify(error) + '\n');
+      throw error;
+    }
+    fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Found: ' + (data ? 'yes' : 'no') + '\n');
+    return data || null;
+  } catch (err) {
+    fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Exception: ' + err.message + '\n');
+    throw err;
+  }
 };
 
 const invitationAvailability = (invitation, chatId) => {

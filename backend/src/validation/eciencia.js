@@ -108,7 +108,10 @@ const optionalText = (max, field) =>
   );
 
 const phoneSchema = z
-  .preprocess(normalizePhone, z.string().regex(/^\d{8,15}$/, 'El telefono debe tener entre 8 y 15 digitos.').optional())
+  .preprocess((val) => {
+    const digits = onlyDigits(val);
+    return digits || undefined;
+  }, z.string().regex(/^\d{8,15}$/, 'El telefono debe tener entre 8 y 15 digitos.').optional())
   .optional();
 
 const requiredEmailSchema = z.preprocess(

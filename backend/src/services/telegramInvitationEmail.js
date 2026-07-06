@@ -44,7 +44,9 @@ const createTransporter = () => {
   if (cachedTransporter) return cachedTransporter;
 
   cachedTransporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
     pool: true,
     maxConnections: 5,
     maxMessages: 100,
@@ -52,6 +54,10 @@ const createTransporter = () => {
       user: process.env.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com',
       pass: process.env.GMAIL_APP_PASSWORD || '',
     },
+  });
+
+  cachedTransporter.on('error', (err) => {
+    console.error('Nodemailer background error:', err.message);
   });
 
   return cachedTransporter;
@@ -86,50 +92,51 @@ const buildInvitationEmail = async ({ client, onboarding }) => {
       `El enlace vence ${expiresLabel || 'en 7 dias'} y solo puede reclamarse una vez.\n` +
       'No reenvies este correo. Si no solicitaste el registro, contacta a Eciencia Andina.',
     html: `
-      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; color: #333333; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); border: 1px solid #eaeaea;">
-        <!-- Cabecera -->
-        <div style="background: linear-gradient(135deg, #d35400 0%, #e67e22 100%); padding: 32px 20px; text-align: center;">
-          <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: bold; letter-spacing: 0.5px;">¡Bienvenido a Ecencia Andina!</h1>
-          <p style="margin: 8px 0 0; color: #ffeaa7; font-size: 16px;">Hola, <strong>${safeName}</strong></p>
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; color: #1a1a1a; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+        <!-- Premium Header -->
+        <div style="background-color: #0f172a; background-image: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 48px 32px; text-align: center; border-bottom: 4px solid #f59e0b;">
+          <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Ecencia Andina</h1>
+          <p style="margin: 12px 0 0; color: #94a3b8; font-size: 16px; font-weight: 500;">Servicio exclusivo de almuerzos corporativos</p>
         </div>
         
-        <!-- Cuerpo -->
+        <!-- Content -->
         <div style="padding: 40px 32px;">
-          <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #4a4a4a;">Estamos muy emocionados de tenerte con nosotros. Tu cuenta ha sido creada exitosamente y ya eres parte de la familia Ecencia.</p>
+          <h2 style="margin: 0 0 24px; font-size: 22px; color: #0f172a;">¡Hola, <strong>${safeName}</strong>! 👋</h2>
+          <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #475569;">
+            Tu cuenta corporativa ha sido creada exitosamente. Desde ahora, podras gestionar tus reservas diarias, consultar el menu y realizar modificaciones directamente desde tu celular de forma automatica y rapida.
+          </p>
           
-          <div style="background-color: #f8f9fa; border-left: 4px solid #2f4d49; padding: 16px; margin-bottom: 28px; border-radius: 0 8px 8px 0;">
-            <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #555555;">Desde ahora podrás pedir tus almuerzos, ver el menú diario y gestionar tus reservas <strong>directamente desde tu celular</strong>.</p>
-          </div>
-          
-          <p style="margin: 0 0 24px; font-size: 16px; font-weight: bold; text-align: center; color: #2c3e50;">Para empezar, activa tu cuenta de Telegram:</p>
-          
-          <!-- Botón de acción -->
-          <div style="text-align: center; margin-bottom: 32px;">
-            <a href="${safeUrl}" style="display: inline-block; background-color: #2f4d49; color: #ffffff; padding: 16px 32px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(47, 77, 73, 0.3);">
-              Iniciar registro en Telegram
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px 24px; margin-bottom: 32px; text-align: center;">
+            <p style="margin: 0 0 24px; font-size: 16px; font-weight: 600; color: #0f172a;">Activa tu asistente virtual en Telegram</p>
+            <!-- Primary Action -->
+            <a href="${safeUrl}" style="display: inline-block; background-color: #f59e0b; color: #ffffff; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
+              Conectar Telegram
             </a>
-          </div>
-          
-          <hr style="border: none; border-top: 1px solid #eeeeee; margin: 32px 0;" />
-          
-          <!-- Sección QR -->
-          <div style="text-align: center; margin-bottom: 24px;">
-            <p style="margin: 0 0 16px; font-size: 14px; color: #666666;">¿Estás en tu computadora? Escanea este código QR con la cámara de tu celular:</p>
-            <img src="cid:telegram-activation-qr" width="200" height="200" alt="QR de activación" style="border-radius: 12px; border: 1px solid #eeeeee; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);" />
+            <p style="margin: 20px 0 0; font-size: 12px; color: #94a3b8; word-break: break-all;">
+              O copia este enlace: <a href="${safeUrl}" style="color: #3b82f6; text-decoration: none;">${safeUrl}</a>
+            </p>
           </div>
 
-          <!-- Enlace alternativo -->
-          <div style="background-color: #f9f9f9; padding: 16px; border-radius: 8px; text-align: center;">
-            <p style="margin: 0 0 8px; font-size: 13px; color: #777777;">Si el botón no funciona, copia y pega este enlace:</p>
-            <p style="margin: 0; font-size: 12px; word-break: break-all;"><a href="${safeUrl}" style="color: #0088cc; text-decoration: none;">${safeUrl}</a></p>
+          <!-- QR Code Section -->
+          <div style="text-align: center; padding-top: 32px; border-top: 1px solid #e2e8f0;">
+            <p style="margin: 0 0 16px; font-size: 14px; color: #64748b; font-weight: 500;">¿Abriendo esto desde tu computadora? Escanea el codigo QR:</p>
+            <div style="background: #ffffff; padding: 12px; border-radius: 16px; display: inline-block; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <img src="cid:telegram-activation-qr" width="180" height="180" alt="Codigo QR" style="display: block; border-radius: 8px;" />
+            </div>
           </div>
         </div>
         
-        <!-- Pie de página -->
-        <div style="background-color: #f4f6f8; padding: 24px; text-align: center; border-top: 1px solid #eaeaea;">
-          <p style="margin: 0 0 8px; font-size: 13px; font-weight: bold; color: #95a5a6;">Vigencia del enlace: ${escapeHtml(expiresLabel || '7 dias')}</p>
-          <p style="margin: 0 0 8px; font-size: 12px; color: #a4b0be;">Ecencia Andina © 2026</p>
-          <p style="margin: 0; font-size: 11px; color: #b2bec3;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+        <!-- Footer -->
+        <div style="background-color: #f8fafc; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
+          <p style="margin: 0 0 12px; font-size: 13px; font-weight: 600; color: #ef4444;">
+            ⏳ Este enlace de activacion expira el ${escapeHtml(expiresLabel || 'en 7 dias')}
+          </p>
+          <p style="margin: 0 0 8px; font-size: 12px; color: #94a3b8;">
+            Si no solicitaste este acceso, por favor ignora este correo.
+          </p>
+          <p style="margin: 0; font-size: 12px; color: #cbd5e1; font-weight: 500;">
+            © ${new Date().getFullYear()} Ecencia Andina. Todos los derechos reservados.
+          </p>
         </div>
       </div>
     `,
@@ -153,22 +160,55 @@ const sendTelegramReactivationEmail = async (
   const clientName = `${client.nombre || ''} ${client.apellido || ''}`.trim();
   try {
     const transporter = createTransporter();
+    const botUsername = String(process.env.TELEGRAM_BOT_USERNAME || 'EcenciaAndinaBot').replace('@', '');
+    const botUrl = `https://t.me/${botUsername}`;
+
     const info = await transporter.sendMail({
       from: `"Eciencia Andina" <${user}>`,
       to: recipient,
       replyTo: replyTo || undefined,
-      subject: 'Reactivacion de Telegram en Eciencia Andina',
+      subject: 'Renueva tu acceso al bot de Ecencia Andina',
       text:
         `Hola ${clientName || 'cliente'}.\n\n` +
-        'Un administrador solicito renovar tu consentimiento de Telegram. ' +
-        'El aviso fue enviado directamente al chat que ya tenias vinculado.',
+        'Un administrador de Ecencia Andina ha solicitado renovar tu acceso al bot de Telegram.\n' +
+        `Puedes revisar el mensaje abriendo este enlace en tu celular: ${botUrl}`,
       html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#3b2417">
-          <h1 style="font-size:24px">Revisa Telegram</h1>
-          <p>Hola <strong>${escapeHtml(clientName || 'cliente')}</strong>.</p>
-          <p>Un administrador solicito renovar tu consentimiento. El aviso fue enviado directamente al chat de Telegram que ya tenias vinculado.</p>
-          <p>Este correo no contiene enlaces privados ni solicita compartir credenciales.</p>
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; color: #1a1a1a; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+        <!-- Premium Header -->
+        <div style="background-color: #0f172a; background-image: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 48px 32px; text-align: center; border-bottom: 4px solid #f59e0b;">
+          <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Ecencia Andina</h1>
+          <p style="margin: 12px 0 0; color: #94a3b8; font-size: 16px; font-weight: 500;">Renovación de Acceso</p>
         </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 32px;">
+          <h2 style="margin: 0 0 24px; font-size: 22px; color: #0f172a;">¡Hola de nuevo, <strong>${escapeHtml(clientName || 'cliente')}</strong>! 👋</h2>
+          <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #475569;">
+            La administración de Ecencia Andina ha enviado una solicitud para <strong>reactivar tu cuenta</strong> en nuestro asistente virtual de Telegram.
+          </p>
+          <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #475569;">
+            La notificación te ha llegado directamente a tu chat de Telegram. Puedes abrir la aplicación y presionar "Aceptar" para continuar usando el servicio de almuerzos corporativos.
+          </p>
+          
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px 24px; text-align: center;">
+            <p style="margin: 0 0 24px; font-size: 16px; font-weight: 600; color: #0f172a;">Ir directamente al Bot</p>
+            <!-- Primary Action -->
+            <a href="${botUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
+              Abrir Telegram
+            </a>
+            <p style="margin: 20px 0 0; font-size: 12px; color: #94a3b8; word-break: break-all;">
+              O usa este enlace: <a href="${botUrl}" style="color: #3b82f6; text-decoration: none;">${botUrl}</a>
+            </p>
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f8fafc; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
+          <p style="margin: 0; font-size: 12px; color: #cbd5e1; font-weight: 500;">
+            © ${new Date().getFullYear()} Ecencia Andina. Todos los derechos reservados.
+          </p>
+        </div>
+      </div>
       `,
     });
     return deliverySummary(DELIVERY_STATUS.SENT, recipient, info.messageId || null);
@@ -268,10 +308,41 @@ const sendTelegramInvitationEmail = async (
   }
 };
 
+const sendPrivacyRequestNotificationEmail = async (client, requestData) => {
+  const recipient = String(process.env.TELEGRAM_PRIVACY_CONTACT || process.env.ADMIN_SEED_EMAIL || '').trim();
+  const user = String(process.env.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com').trim();
+
+  if (!recipient || !user) return false;
+
+  const clientName = `${client?.nombre || ''} ${client?.apellido || ''}`.trim();
+  
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: `"Eciencia Andina Privacidad" <${user}>`,
+      to: recipient,
+      subject: `Nueva Solicitud de Eliminacion de Datos - ${clientName}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#3b2417">
+          <h1 style="font-size:24px">Solicitud de Privacidad</h1>
+          <p>El cliente <strong>${escapeHtml(clientName)}</strong> (Tel: ${escapeHtml(client?.telefono || 'No registrado')}) ha solicitado la eliminacion de sus datos personales a traves del bot de Telegram.</p>
+          <p>La solicitud ha sido registrada automaticamente en la base de datos con el ID: <strong>${escapeHtml(requestData.id)}</strong>.</p>
+          <p>Por favor, ingresa al panel de administracion en la seccion <strong>Clientes &gt; Privacidad</strong> para gestionar esta solicitud.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (error) {
+    console.error('No se pudo enviar la notificacion de privacidad:', error.message);
+    return false;
+  }
+};
+
 module.exports = {
   DELIVERY_STATUS,
   buildInvitationEmail,
   normalizeEmail,
   sendTelegramReactivationEmail,
   sendTelegramInvitationEmail,
+  sendPrivacyRequestNotificationEmail,
 };
