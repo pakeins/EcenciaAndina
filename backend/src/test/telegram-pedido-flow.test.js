@@ -17,6 +17,7 @@ const makeClient = () => {
     upsert(p) { this.op = 'upsert'; this.payload = p; return this; }
     delete() { this.op = 'delete'; return this; }
     eq(c, v) { this.f.push(['eq', c, v]); return this; }
+    neq(c, v) { this.f.push(['neq', c, v]); return this; }
     gte(c, v) { this.f.push(['gte', c, v]); return this; }
     lt(c, v) { this.f.push(['lt', c, v]); return this; }
     ilike(c, v) { this.f.push(['ilike', c, v]); return this; }
@@ -27,6 +28,7 @@ const makeClient = () => {
       let rows = (store[this.t] || []).slice();
       for (const [op, c, v] of this.f) {
         if (op === 'eq') rows = rows.filter((r) => String(r[c]) === String(v));
+        else if (op === 'neq') rows = rows.filter((r) => String(r[c]) !== String(v));
         else if (op === 'gte') rows = rows.filter((r) => String(r[c]) >= String(v));
         else if (op === 'lt') rows = rows.filter((r) => String(r[c]) < String(v));
         else if (op === 'ilike') rows = rows.filter((r) => String(r[c]).toLowerCase() === String(v).toLowerCase());
