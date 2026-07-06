@@ -134,10 +134,10 @@ const menuCaption = (today) =>
   'Realiza toda la reserva con los botones. Primero elige una sopa.';
 
 const TIPOS_ALMUERZO = [
-  { id: 6, code: 'ejecutivo_completo', label: 'Almuerzo Ejecutivo Completo', shortLabel: 'Ejecutivo Completo', nombreProducto: 'Almuerzo Ejecutivo Completo' },
-  { id: 8, code: 'ejecutivo_simple', label: 'Almuerzo Ejecutivo Simple', shortLabel: 'Ejecutivo Simple', nombreProducto: 'Almuerzo Ejecutivo Simple' },
-  { id: 9, code: 'almuerzo_dia', label: 'Almuerzo del Dia', shortLabel: 'Almuerzo del Dia', nombreProducto: 'Almuerzo del Dia' },
-  { id: 10, code: 'almuerzo_dia_simple', label: 'Almuerzo del Dia Simple', shortLabel: 'Almuerzo del Dia Simple', nombreProducto: 'Almuerzo del Dia Simple' },
+  { id: 6, code: 'ejecutivo_completo', label: 'Almuerzo Ejecutivo Completo', shortLabel: 'Ejecutivo Completo', nombreProducto: 'Almuerzo Ejecutivo Completo', requiresSopa: true },
+  { id: 8, code: 'ejecutivo_simple', label: 'Almuerzo Ejecutivo Simple', shortLabel: 'Ejecutivo Simple', nombreProducto: 'Almuerzo Ejecutivo Simple', requiresSopa: false },
+  { id: 9, code: 'almuerzo_dia', label: 'Almuerzo del Dia', shortLabel: 'Almuerzo del Dia', nombreProducto: 'Almuerzo del Dia', requiresSopa: true },
+  { id: 10, code: 'almuerzo_dia_simple', label: 'Almuerzo del Dia Simple', shortLabel: 'Almuerzo del Dia Simple', nombreProducto: 'Almuerzo del Dia Simple', requiresSopa: false },
 ];
 
 const readUpdate = (update) => {
@@ -445,6 +445,7 @@ const findActiveTodayOrder = async (clientId) => {
     .select('id_orden,id_estado,created_at,canal_origen')
     .eq('id_cliente', clientId)
     .eq('canal_origen', 'Telegram')
+    .neq('id_estado', 3) // Excluir cancelados
     .gte('created_at', `${today}T00:00:00Z`)
     .lt('created_at', `${tomorrowFromDate(today)}T00:00:00Z`)
     .limit(1)
@@ -692,12 +693,18 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const kind = parts[0];
     const code = parts[1];
     if (kind !== 'tipo') {
-      await sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', await tipoAlmuerzoKeyboard(session));
+      await sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', await tipoAlmuerzoKeyboard(session.sid));
       return;
     }
     const tipo = TIPOS_ALMUERZO.find((t) => t.code === code);
     if (!tipo) {
-      await sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', await tipoAlmuerzoKeyboard(session));
+      await sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', await tipoAlmuerzoKeyboard(session.sid));
+      return;
+    }
+    if (tipo.requiresSopa && session.menu.sopas?.length) {
+      session = { ...session, tipoAlmuerzo: tipo, step: 'sopa' };
+      await setState(stateKey(chatId), session);
+      await sendMessage(chatId, `Tipo: ${tipo.shortLabel}\nAhora elige la sopa.`, optionsKeyboard('sopa', session.menu.sopas));
       return;
     }
     session = { ...session, tipoAlmuerzo: tipo, step: 'segundo' };
@@ -772,11 +779,11 @@ const handleAcceptedSession = async (parsed, traceId) => {
     return;
   }
 
-  // ---- Protocolo legacy (confirm:yes / confirm:edit) ----
+  // ---- Paso: sopa ----
   if (session.step === 'sopa') {
     const sopa = optionFromCallback(text, 'sopa', session.menu.sopas);
     if (!sopa) return sendMessage(chatId, 'Elige una sopa con los botones.', optionsKeyboard('sopa', session.menu.sopas));
-    session = { ...session, sopa, step: 'segundo_legacy' };
+    session = { ...session, opciones: { ...session.opciones, sopa }, step: 'segundo' };
     await setState(stateKey(chatId), session);
     await sendMessage(chatId, `Sopa: ${sopa}\nAhora elige el plato fuerte.`, optionsKeyboard('segundo', session.menu.segundos));
     return;
