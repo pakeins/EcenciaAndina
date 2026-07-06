@@ -251,7 +251,7 @@ const getClientById = async (id) => {
   const { data, error } = await getAdminClient()
     .from('clientes')
     .select(
-      'id_cliente,cedula,nombre,apellido,telefono,esta_activo,clientes_convenios(id_convenio,convenios(id_convenio,nombre_empresa,esta_activo,fecha_caducidad))',
+      'id_cliente,cedula,nombre,apellido,telefono,esta_activo,clientes_convenios(id_convenio,convenios(id_convenio,nombre_empresa,esta_activo,fecha_caducidad,tipos_almuerzo_permitidos))',
     )
     .eq('id_cliente', id)
     .maybeSingle();
@@ -365,11 +365,11 @@ const activeConvenio = (client, today) => {
       return {
         id_convenio: convenio.id_convenio || link.id_convenio,
         nombre_empresa: convenio.nombre_empresa || 'Convenio',
-        id_tipo_almuerzo: convenio.id_tipo_almuerzo || DEFAULT_TIPO_ALMUERZO_ID,
+        tipos_almuerzo_permitidos: convenio.tipos_almuerzo_permitidos || null,
       };
     }
   }
-  return { id_convenio: null, nombre_empresa: 'Cliente frecuente', id_tipo_almuerzo: null };
+  return { id_convenio: null, nombre_empresa: 'Cliente frecuente', tipos_almuerzo_permitidos: null };
 };
 
 const getLookupId = async (table, idField, nameField, value) => {
@@ -692,12 +692,12 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const kind = parts[0];
     const code = parts[1];
     if (kind !== 'tipo') {
-      await sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', tipoAlmuerzoKeyboard(session.sid));
+      await sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', await tipoAlmuerzoKeyboard(session));
       return;
     }
     const tipo = TIPOS_ALMUERZO.find((t) => t.code === code);
     if (!tipo) {
-      await sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', tipoAlmuerzoKeyboard(session.sid));
+      await sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', await tipoAlmuerzoKeyboard(session));
       return;
     }
     session = { ...session, tipoAlmuerzo: tipo, step: 'segundo' };
@@ -848,7 +848,7 @@ const handlePedidoCallback = async (parsed, subscription) => {
       await sendMessage(chatId, 'No hay menu activo para modificar la reserva.');
       return true;
     }
-    await sendMessage(chatId, `Vamos a modificar tu reserva ${orderId}.\nElige el tipo de almuerzo:`, tipoAlmuerzoKeyboard(session.sid));
+    await sendMessage(chatId, `Vamos a modificar tu reserva ${orderId}.\nElige el tipo de almuerzo:`, await tipoAlmuerzoKeyboard(session));
     return true;
   }
 
@@ -861,7 +861,7 @@ const promptMenu = async (chatId, client) => {
     await sendMessage(chatId, 'Aun no hay un menu activo. Recibiras el siguiente envio disponible.');
     return;
   }
-  await sendMessage(chatId, `Menu del dia ${session.date}:\n${menuCaption(session.date)}`, tipoAlmuerzoKeyboard(session.sid));
+  await sendMessage(chatId, `Menu del dia ${session.date}:\n${menuCaption(session.date)}`, await tipoAlmuerzoKeyboard(session));
 };
 
 const tracePatch = (session, step, extra = {}) => ({
@@ -1475,11 +1475,11 @@ const parseTextOrder = (text, session) => {
   return result;
 };
 
-// Mapa de tipo de almuerzo por ID (exportado para tests)
-const TELEGRAM_LUNCH_TYPE_BY_ID = {};
-for (const tipo of TIPOS_ALMUERZO) {
-  TELEGRAM_LUNCH_TYPE_BY_ID[tipo.id] = tipo;
-}
+// Obtenemos los tipos de almuerzo de DB dinámicamente y los exportamos como un getter async
+const getTelegramLunchTypeById = async (id) => {
+  const tipos = await getTiposAlmuerzoFromDB();
+  return tipos.find(t => t.id === id);
+};
 
 // Definicion de componentes por tipo de almuerzo
 const LUNCH_COMPONENTS = {
@@ -1526,5 +1526,5 @@ module.exports._private = {
   parseTextOrder,
   quantityFromText,
   readUpdate,
-  TELEGRAM_LUNCH_TYPE_BY_ID,
+  getTelegramLunchTypeById,
 };

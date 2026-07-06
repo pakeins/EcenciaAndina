@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Client, Convenio, TelegramOnboarding, TelegramStatus } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -72,10 +73,8 @@ const telegramStatusClass: Record<TelegramStatus, string> = {
 export default function Clientes() {
   const { user } = useAuth();
   const isAdmin = user?.rol === 'administrador';
-  const [clients, setClients] = useState<Client[]>([]);
-  const [convenios, setConvenios] = useState<Convenio[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   
@@ -108,61 +107,43 @@ export default function Clientes() {
     id_convenio: '',
   });
 
-  const [clientTypes, setClientTypes] = useState<
-    { id_tipo_cliente: number; nombre_tipo: string }[]
-  >([]);
-
-  // --- CARGAR CLIENTES DESDE EL BACKEND ---
-  useEffect(() => {
-    fetchClientes();
-    fetchTipos();
-    fetchConvenios();
-  }, []);
-
-  const fetchConvenios = async () => {
-    try {
-      const response = await apiFetch('/convenios');
-      if (response.ok) {
-        const data: Convenio[] = await response.json();
-        setConvenios(data.filter((convenio) => convenio.activo));
-      }
-    } catch (err) {
-      console.error('Error fetching convenios:', err);
-    }
-  };
-
-  const fetchTipos = async () => {
-    try {
-      const response = await apiFetch('/clientes/tipos');
-      if (response.ok) {
-        const data = await response.json();
-        setClientTypes(data);
-      }
-    } catch (err) {
-      console.error('Error fetching tipos:', err);
-    }
-  };
-
-  const fetchClientes = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
+  const { data: clients = [], isLoading, error: clientsError } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: async () => {
       const response = await apiFetch('/clientes');
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Error al obtener clientes');
+      return data as Client[];
+    },
+    staleTime: 1000 * 60 * 2,
+  });
 
-      if (response.ok) {
-        setClients(data);
-      } else {
-        setError(data.error || 'Error al obtener clientes');
-        toast.error(data.error || 'Error al cargar clientes');
-      }
-    } catch (err) {
-      console.error('Error fetching clientes:', err);
-      setError('Error de conexión con el servidor');
-      toast.error('Error de conexión con el servidor');
-    } finally {
-      setIsLoading(false);
-    }
+  const { data: clientTypes = [] } = useQuery({
+    queryKey: ['tiposCliente'],
+    queryFn: async () => {
+      const response = await apiFetch('/clientes/tipos');
+      const data = await response.json();
+      if (!response.ok) throw new Error('Error fetching tipos');
+      return data;
+    },
+    staleTime: 1000 * 60 * 60,
+  });
+
+  const { data: convenios = [] } = useQuery({
+    queryKey: ['conveniosActivos'],
+    queryFn: async () => {
+      const response = await apiFetch('/convenios');
+      const data = await response.json();
+      if (!response.ok) throw new Error('Error fetching convenios');
+      return data.filter((c: Convenio) => c.activo);
+    },
+    staleTime: 1000 * 60 * 60,
+  });
+
+  const error = clientsError ? (clientsError as Error).message : null;
+
+  const fetchClientes = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['clientes'] });
   };
 
   // --- FILTRO DE BÚSQUEDA ---
@@ -312,7 +293,7 @@ export default function Clientes() {
         const data = await response.json();
 
         if (response.ok) {
-          setClients(clients.map((c) => (c.id === editingClient.id ? data : c)));
+          await fetchClientes();
           toast.success('Cliente actualizado correctamente');
           setDialogOpen(false);
         } else {
@@ -327,7 +308,7 @@ export default function Clientes() {
         const data = await response.json();
 
         if (response.ok) {
-          setClients([data, ...clients]);
+          await fetchClientes();
           toast.success('Cliente registrado correctamente');
           setDialogOpen(false);
           if (data.telegram_onboarding) {
@@ -375,10 +356,9 @@ export default function Clientes() {
 
       if (response.ok) {
         const data = await response.json();
-        setClients(clients.map((c) => (c.id === id ? data : c)));
+        await fetchClientes();
 
-        const nombre = clients.find((c) => c.id === id);
-        const nombreCompleto = nombre ? `${nombre.nombre} ${nombre.apellido}` : 'El cliente';
+        const nombreCompleto = `${data.nombre} ${data.apellido}`;
         toast.success(
           newState
             ? `${nombreCompleto} ha sido activado.`

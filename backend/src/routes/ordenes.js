@@ -88,6 +88,8 @@ router.get('/telegram/trazabilidad', async (req, res) => {
       outcome,
       id_cliente: idCliente,
       id_orden: idOrden,
+      fecha_inicio,
+      fecha_fin
     } = req.query;
     const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
     const limit = Math.min(Math.max(1, Number.parseInt(String(req.query.limit || '20'), 10) || 20), 250);
@@ -108,6 +110,8 @@ router.get('/telegram/trazabilidad', async (req, res) => {
     if (chatId) query = query.eq('chat_id', chatId);
     if (idCliente) query = query.eq('id_cliente', idCliente);
     if (idOrden) query = query.eq('id_orden', idOrden);
+    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
+    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
 
     const { data, error, count } = await query;
     if (error) throw error;

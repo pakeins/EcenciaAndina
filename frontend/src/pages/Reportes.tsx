@@ -311,6 +311,33 @@ export default function Reportes() {
         </tr>
       `;
 
+      let summaryHtml = '';
+      let totalLunches = 0;
+      if (reportType === 'convenio') {
+        totalLunches = reportData.reduce((sum, emp: ColaboradorConsumo) => sum + (emp.consumos || []).reduce((s: number, c: Consumo) => s + c.cantidad, 0), 0);
+      } else if (reportType === 'ventas') {
+        totalLunches = reportData.reduce((sum, row) => sum + (row.almuerzosPrincipales || row.cantidadAlmuerzos || 0), 0);
+      } else if (reportType === 'estados' || reportType === 'clientes') {
+        totalLunches = reportData.filter(r => r.estado !== 'Cancelado').length;
+      }
+      
+      if (totalLunches > 0 || totalAmount > 0) {
+        summaryHtml = `
+          <div style="margin-bottom: 30px;">
+            <table style="width: 50%; margin: 0 auto; border: 1px solid #7A402E; background-color: #fffaf0;">
+              <tr>
+                <td style="padding: 10px; font-weight: bold; text-align: left; border-right: 1px solid #7A402E;">Total de Almuerzos Consumidos:</td>
+                <td style="padding: 10px; text-align: right; font-size: 14px;">${totalLunches}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; font-weight: bold; text-align: left; border-right: 1px solid #7A402E; border-top: 1px solid #7A402E;">Gran Total Neto:</td>
+                <td style="padding: 10px; text-align: right; font-weight: bold; font-size: 16px; color: #7A402E; border-top: 1px solid #7A402E;">$${totalAmount.toFixed(2)}</td>
+              </tr>
+            </table>
+          </div>
+        `;
+      }
+
       const contenido = `
         <!DOCTYPE html>
         <html>
@@ -321,7 +348,8 @@ export default function Reportes() {
               .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #7A402E; padding-bottom: 20px; }
               .title { font-size: 24px; font-weight: bold; color: #7A402E; margin: 0 0 10px 0; }
               .subtitle { font-size: 14px; color: #61603C; margin: 0; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+              th, td { border-bottom: 1px solid #eee; }
               .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #999; }
             </style>
           </head>
@@ -331,6 +359,7 @@ export default function Reportes() {
               <p class="subtitle">${safeTitle}</p>
               <p class="subtitle">Período: ${safeFechaInicio} - ${safeFechaFin}</p>
             </div>
+            ${summaryHtml}
             <table>
               ${htmlRows}
             </table>
@@ -739,8 +768,34 @@ export default function Reportes() {
                 <p>No se encontraron datos para los parámetros seleccionados.</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-border overflow-x-auto shadow-sm">
-                <Table className={reportType === 'ventas' ? 'min-w-[1240px]' : undefined}>
+              <div className="space-y-4">
+                {reportType === 'estados' && (
+                  <div className="p-4 rounded-xl border border-red-200 bg-red-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm">
+                    <div>
+                      <h3 className="font-bold text-red-800 flex items-center gap-2">
+                        <PieChart className="h-5 w-5" />
+                        Resumen de Mermas (Pedidos Cancelados)
+                      </h3>
+                      <p className="text-sm text-red-600">Total de pedidos y valor económico de platos que fueron cancelados y no se consumieron.</p>
+                    </div>
+                    <div className="flex gap-6 text-right">
+                      <div>
+                        <p className="text-xs font-semibold text-red-700 uppercase">Cantidad</p>
+                        <p className="text-2xl font-black text-red-900">
+                          {reportData.filter(r => r.estado === 'Cancelado').length}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-red-700 uppercase">Pérdida Estimada</p>
+                        <p className="text-2xl font-black text-red-900">
+                          ${reportData.filter(r => r.estado === 'Cancelado').reduce((sum, r) => sum + (r.totalConsumo || 0), 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="rounded-xl border border-border overflow-x-auto shadow-sm">
+                  <Table className={reportType === 'ventas' ? 'min-w-[1240px]' : undefined}>
                   <TableHeader>
                     <TableRow className="bg-secondary/20 hover:bg-secondary/20">
                       
@@ -885,6 +940,7 @@ export default function Reportes() {
                   </TableFooter>
                 </Table>
               </div>
+            </div>
             )}
             
           </CardContent>

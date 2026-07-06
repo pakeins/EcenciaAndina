@@ -118,4 +118,28 @@ router.put('/:id', roleMiddleware(['administrador']), async (req, res) => {
   }
 });
 
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Validar si el producto esta siendo usado en otra tabla (ej: menú, pedidos) se atrapará como error de FK.
+    const { data, error } = await supabase
+      .from('productos')
+      .delete()
+      .eq('id_producto', id);
+      
+    if (error) {
+      if (error.code === '23503') { // Foreign Key Violation
+        return res.status(400).json({ error: 'No se puede eliminar el producto porque ya ha sido utilizado en pedidos o menús. Se recomienda desactivarlo.' });
+      }
+      throw error;
+    }
+    
+    res.json({ message: 'Producto eliminado correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar producto:', error);
+    res.status(500).json({ error: error.message || 'Error al eliminar producto' });
+  }
+});
+
 module.exports = router;

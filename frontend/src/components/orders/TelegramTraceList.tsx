@@ -52,6 +52,20 @@ const clientName = (trace: TelegramOrderTrace) => {
   return name || 'Cliente no identificado';
 };
 
+const humanizeAction = (action?: unknown) => {
+  if (typeof action !== 'string' || !action) return 'Mensaje directo o acción desconocida';
+  const mapping: Record<string, string> = {
+    'menu': 'Revisó el menú del día',
+    'pedir': 'Inició un nuevo pedido',
+    'confirmar': 'Confirmó su pedido final',
+    'cancelar': 'Canceló el pedido en curso',
+    'estado': 'Consultó el estado de su pedido',
+    'sopas': 'Seleccionando Sopa',
+    'segundos': 'Seleccionando Segundo',
+  };
+  return mapping[action.toLowerCase()] || action.replace(/_/g, ' ').toUpperCase();
+};
+
 const TraceStep = ({
   number,
   title,
@@ -99,33 +113,38 @@ export function TelegramTraceList({ traces, isLoading, error }: TelegramTraceLis
           </header>
 
           <div className="grid gap-3 lg:grid-cols-3">
-            <TraceStep number={1} title="Mensaje recibido">
-              <p><strong>Tipo:</strong> {displayValue(trace.original_message?.type)}</p>
-              <p><strong>Accion:</strong> {displayValue(trace.original_message?.callbackAction)}</p>
-              <p><strong>Update:</strong> {displayValue(trace.update_id)}</p>
+            <TraceStep number={1} title="Acción del Cliente">
+              <p><strong>Interacción:</strong> {trace.original_message?.type === 'callback_query' ? 'Presionó un botón' : 'Envió un mensaje'}</p>
+              <p><strong>Acción solicitada:</strong> {humanizeAction(trace.original_message?.callbackAction || trace.original_message?.text)}</p>
             </TraceStep>
 
-            <TraceStep number={2} title="Interpretacion">
-              <p><strong>Origen:</strong> {displayValue(trace.interpreted_payload?.source)}</p>
-              <p><strong>Paso:</strong> {displayValue(trace.interpreted_payload?.step)}</p>
-              <p><strong>Sopa:</strong> {displayValue(trace.interpreted_payload?.sopa)}</p>
-              <p><strong>Segundo:</strong> {displayValue(trace.interpreted_payload?.segundo)}</p>
-              <p><strong>Guarnicion:</strong> {displayValue(trace.interpreted_payload?.guarnicion)}</p>
-              <p><strong>Faltantes:</strong> {displayValue(trace.interpreted_payload?.missing)}</p>
+            <TraceStep number={2} title="Interpretación del Sistema">
+              {trace.interpreted_payload?.step && <p><strong>Paso actual:</strong> {displayValue(trace.interpreted_payload?.step)}</p>}
+              {trace.interpreted_payload?.missing && (
+                <p className="text-red-700"><strong>Le faltó elegir:</strong> {displayValue(trace.interpreted_payload?.missing)}</p>
+              )}
+              {trace.interpreted_payload?.sopa && <p><strong>Sopa:</strong> {displayValue(trace.interpreted_payload?.sopa)}</p>}
+              {trace.interpreted_payload?.segundo && <p><strong>Segundo:</strong> {displayValue(trace.interpreted_payload?.segundo)}</p>}
+              {!trace.interpreted_payload?.step && <p className="text-muted-foreground italic">El bot solo envió información (Ej. Menú del día).</p>}
             </TraceStep>
 
-            <TraceStep number={3} title="Resultado">
+            <TraceStep number={3} title="Resultado Final">
               <p><strong>Estado:</strong> {outcomeLabels[trace.outcome]}</p>
-              <p className="break-words"><strong>Detalle:</strong> {trace.error_message || 'Proceso completado sin errores'}</p>
-              <p className="break-all"><strong>Orden:</strong> {trace.id_orden || 'No generada'}</p>
-              <p><strong>Finalizado:</strong> {new Date(trace.updated_at).toLocaleString('es-EC')}</p>
+              <p className="break-words"><strong>Detalle del sistema:</strong> {trace.error_message || 'El proceso se completó correctamente.'}</p>
+              {trace.id_orden && (
+                <p className="break-all font-bold text-cafe"><strong>Orden Generada:</strong> #{trace.id_orden.split('-')[0]}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-2"><strong>Completado a las:</strong> {new Date(trace.updated_at).toLocaleTimeString('es-EC')}</p>
             </TraceStep>
           </div>
 
-          <details className="mt-3 text-xs text-muted-foreground">
-            <summary className="cursor-pointer font-semibold">Ver datos tecnicos completos</summary>
-            <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 text-foreground">
+          <details className="mt-4 text-xs group">
+            <summary className="cursor-pointer font-semibold text-muted-foreground hover:text-cafe transition-colors select-none">
+              ▶ Ver registro técnico para desarrolladores (JSON)
+            </summary>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 text-green-400 p-4 shadow-inner max-h-60 overflow-y-auto">
               {JSON.stringify({
+                update_id: trace.update_id,
                 original_message: trace.original_message,
                 interpreted_payload: trace.interpreted_payload,
                 outcome: trace.outcome,

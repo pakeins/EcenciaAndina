@@ -7,6 +7,7 @@ interface MenuImageSection {
 interface MenuImageInput {
   sections: MenuImageSection[];
   date?: Date;
+  combos?: { icon: string; name: string; desc: string }[];
 }
 
 const WIDTH = 1080;
@@ -149,7 +150,71 @@ const drawSection = (
   return height;
 };
 
-export const buildTelegramMenuImage = ({ sections, date = new Date() }: MenuImageInput) => {
+const drawCombosBox = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  combos: { icon: string; name: string; desc: string }[]
+) => {
+  const title = "Tipos de Almuerzo";
+  const accent = COLORS.coffee;
+  
+  if (!combos || combos.length === 0) {
+    combos = [
+      { icon: "🍴", name: "Del Día Simple $3.99:", desc: "plato fuerte, bebida" },
+      { icon: "🥙", name: "Del Día $4.50:", desc: "sopa, plato fuerte, bebida" },
+      { icon: "🥗", name: "Ejecutivo Simple $4.50:", desc: "plato fuerte, bebida, postre" },
+      { icon: "🍛", name: "Ejecutivo sin Sopa $6.00:", desc: "entrada, plato fuerte, bebida, postre" },
+      { icon: "🍴", name: "Ejecutivo Completo $6.99:", desc: "entrada, sopa, plato fuerte, bebida, postre" }
+    ];
+  }
+
+  const rowHeight = 48;
+  const paddingY = 24;
+  const height = SECTION_HEADER + paddingY * 2 + combos.length * rowHeight;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(40, 28, 20, 0.16)';
+  ctx.shadowBlur = 24;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = COLORS.panel;
+  roundRect(ctx, x, y, width, height, 20);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = accent;
+  roundRect(ctx, x, y, width, SECTION_HEADER, 20);
+  ctx.fill();
+  ctx.fillRect(x, y + SECTION_HEADER - 20, width, 20);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '600 30px Arial, sans-serif';
+  ctx.fillText(title.toUpperCase(), x + 28, y + 42);
+
+  combos.forEach((combo, index) => {
+    const cy = y + SECTION_HEADER + paddingY + index * rowHeight + 32;
+    
+    // Icon
+    ctx.font = '26px Arial, sans-serif';
+    ctx.fillText(combo.icon, x + 28, cy);
+    
+    // Name (Bold)
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = '700 26px Arial, sans-serif';
+    ctx.fillText(combo.name, x + 68, cy);
+    
+    // Desc (Normal)
+    const nameWidth = ctx.measureText(combo.name).width;
+    ctx.font = '400 26px Arial, sans-serif';
+    ctx.fillStyle = COLORS.muted;
+    ctx.fillText(" " + combo.desc, x + 68 + nameWidth, cy);
+  });
+
+  return height;
+};
+
+export const buildTelegramMenuImage = ({ sections, date = new Date(), combos = [] }: MenuImageInput) => {
   if (!sections.length) return '';
 
   const GENEROUS_HEIGHT = 5000;
@@ -180,15 +245,21 @@ export const buildTelegramMenuImage = ({ sections, date = new Date() }: MenuImag
   for (const section of sections) {
     y += drawSection(ctx, section.title, section.items, PADDING, y, contentWidth, section.accent) + 28;
   }
+  
+  y += drawCombosBox(ctx, PADDING, y, contentWidth, combos) + 40;
 
   const footerY = y + 20;
+  ctx.fillStyle = '#458B00'; // Eco green
+  ctx.font = 'italic 600 26px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🌿 Nuestros platos están elaborados con productos agroecológicos 🌿', WIDTH / 2, footerY);
+
   ctx.fillStyle = COLORS.muted;
   ctx.font = '500 22px Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Reserva tu almuerzo respondiendo con los botones del bot', WIDTH / 2, footerY);
+  ctx.fillText('Reserva tu almuerzo respondiendo con los botones del bot', WIDTH / 2, footerY + 40);
   ctx.textAlign = 'left';
 
-  const exactHeight = footerY + 40;
+  const exactHeight = footerY + 80;
   const finalCanvas = document.createElement('canvas');
   finalCanvas.width = WIDTH;
   finalCanvas.height = exactHeight;

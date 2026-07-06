@@ -201,7 +201,7 @@ export default function Perfil() {
         </Card>
 
         {/* Cambiar Contraseña */}
-        <Card>
+        <Card className="h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5" />

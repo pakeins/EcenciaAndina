@@ -38,14 +38,23 @@ const updateInvitationDelivery = async (
   if (error) throw error;
 };
 
+let cachedTransporter = null;
+
 const createTransporter = () => {
-  return nodemailer.createTransport({
+  if (cachedTransporter) return cachedTransporter;
+
+  cachedTransporter = nodemailer.createTransport({
     service: 'gmail',
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
     auth: {
       user: process.env.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com',
       pass: process.env.GMAIL_APP_PASSWORD || '',
     },
   });
+
+  return cachedTransporter;
 };
 
 const buildInvitationEmail = async ({ client, onboarding }) => {

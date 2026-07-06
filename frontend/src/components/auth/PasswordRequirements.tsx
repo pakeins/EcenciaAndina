@@ -7,8 +7,7 @@ interface PasswordRequirementsProps {
 export function PasswordRequirements({ password }: PasswordRequirementsProps) {
   const reqs = [
     { label: 'Al menos 8 caracteres', isValid: password.length >= 8 },
-    { label: 'Una letra mayúscula', isValid: /[A-Z]/.test(password) },
-    { label: 'Una letra minúscula', isValid: /[a-z]/.test(password) },
+    { label: 'Mayúsculas y minúsculas', isValid: /[A-Z]/.test(password) && /[a-z]/.test(password) },
     { label: 'Un número', isValid: /[0-9]/.test(password) },
     { label: 'Un carácter especial (@, $, !, etc.)', isValid: /[^A-Za-z0-9]/.test(password) },
   ];

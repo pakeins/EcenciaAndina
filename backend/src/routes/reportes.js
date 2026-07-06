@@ -81,6 +81,9 @@ const getLocalDayName = (utcDateStr, timeZone = 'America/Guayaquil') => {
 
 const ORDER_DETAIL_SELECT = `
   id_orden, created_at, id_estado,
+  clientes(
+    clientes_convenios(id_convenio)
+  ),
   detalle_orden(
     cantidad,
     precio_aplicado,
@@ -179,7 +182,7 @@ const buildConsumosPorSemana = (ordersChart) => {
 const buildConsumosPorConvenio = (ordersConvenio) => {
   const convenioMap = {};
   ordersConvenio.forEach((o) => {
-    const convenio = o.clientes?.clientes_convenios?.[0]?.convenios?.nombre_empresa || 'Clientes';
+    const convenio = o.clientes?.clientes_convenios?.[0]?.convenios?.nombre_empresa || 'Clientes Frecuentes';
     convenioMap[convenio] = (convenioMap[convenio] || 0) + summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
   });
   return Object.keys(convenioMap).map((name) => ({ name, value: convenioMap[name] }));
@@ -225,16 +228,34 @@ router.get('/dashboard', async (req, res) => {
     const kpiStart = useFilter ? filterStart : dayRange.start;
     const kpiEnd = useFilter ? filterEnd : dayRange.end;
 
-    // 1. Almuerzos en el periodo (id_estado = 2, id_categoria = 1)
-    const { data: ordersKpi, error: errKpi } = await adminClient
+    // 1. Almuerzos en el periodo (Traemos todas las ordenes)
+    const { data: allOrders, error: errKpi } = await adminClient
       .from('ordenes')
       .select(ORDER_DETAIL_SELECT)
-      .eq('id_estado', 2)
       .gte('created_at', kpiStart)
       .lte('created_at', kpiEnd);
 
     if (errKpi) throw errKpi;
 
+    let totalHoy = 0, consumidosHoy = 0, pendientesHoy = 0, canceladosHoy = 0;
+    let conveniosHoy = 0, frecuentesHoy = 0;
+
+    (allOrders || []).forEach(order => {
+      const summary = summarizeOrderDetails(order.detalle_orden || []);
+      const cantidadAlmuerzos = summary.almuerzosPrincipales;
+      
+      totalHoy += cantidadAlmuerzos;
+      
+      if (order.id_estado === 1) pendientesHoy += cantidadAlmuerzos;
+      else if (order.id_estado === 2) consumidosHoy += cantidadAlmuerzos;
+      else if (order.id_estado === 3) canceladosHoy += cantidadAlmuerzos;
+      
+      const tieneConvenio = order.clientes?.clientes_convenios && order.clientes.clientes_convenios.length > 0;
+      if (tieneConvenio) conveniosHoy += cantidadAlmuerzos;
+      else frecuentesHoy += cantidadAlmuerzos;
+    });
+
+    const ordersKpi = allOrders.filter(o => o.id_estado === 2);
     const kpiSummary = sumKpiSummaries(ordersKpi);
     const lunchesPeriod = kpiSummary.almuerzosPrincipales;
 
@@ -266,6 +287,8 @@ router.get('/dashboard', async (req, res) => {
       .eq('esta_activo', true);
 
     if (errCli) throw errCli;
+
+
 
     // 5. Consumos por Día (Rango semanal por defecto, o cada día del periodo filtrado)
     const chartStart = useFilter ? filterStart : weekRange.start;
@@ -349,7 +372,12 @@ router.get('/dashboard', async (req, res) => {
         almuerzosMes: secondaryKpiValue,
         almuerzosMesTitle: secondaryKpiTitle,
         almuerzosMesDesc: secondaryKpiDesc,
-        segundosAlmuerzos: kpiSummary.segundosAlmuerzos,
+        totalHoy,
+        consumidosHoy,
+        pendientesHoy,
+        canceladosHoy,
+        conveniosHoy,
+        frecuentesHoy,
         ejecutivoCompleto: kpiSummary.ejecutivoCompleto,
         ejecutivoSinSopa: kpiSummary.ejecutivoSinSopa,
         ejecutivoSimple: kpiSummary.ejecutivoSimple,

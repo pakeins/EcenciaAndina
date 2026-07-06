@@ -96,6 +96,7 @@ export interface Convenio {
   fecha_caducidad: string;
   activo: boolean;
   cupo_maximo: number;
+  tipos_almuerzo_permitidos?: string[];
   totalColaboradores: number;
   consumoMensual: number;
   archivo_firmado?: string;

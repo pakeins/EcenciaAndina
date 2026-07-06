@@ -27,10 +27,10 @@ const formatDate = (date: string) =>
     year: 'numeric',
   });
 
-const MenuOptions = ({ label, options }: { label: string; options: string[] }) => (
+const MenuOptions = ({ label, options }: { label: string; options?: string[] }) => (
   <p className="text-xs leading-relaxed text-muted-foreground">
     <span className="font-semibold text-foreground">{label}:</span>{' '}
-    {options.length ? options.join(', ') : 'Sin opciones'}
+    {options?.length ? options.join(', ') : 'Sin opciones'}
   </p>
 );
 
@@ -89,9 +89,12 @@ export function RegisteredMenuList({
           </div>
 
           <div className="space-y-1 border-t pt-2">
+            {menu.entradas?.length ? <MenuOptions label="Entradas" options={menu.entradas} /> : null}
             <MenuOptions label="Sopas" options={menu.sopas} />
-            <MenuOptions label="Segundos" options={menu.segundos} />
-            <MenuOptions label="Guarniciones" options={menu.guarniciones} />
+            <MenuOptions label="Platos fuertes" options={menu.segundos} />
+            {menu.postres?.length ? <MenuOptions label="Postres" options={menu.postres} /> : null}
+            {menu.bebidas?.length ? <MenuOptions label="Bebidas" options={menu.bebidas} /> : null}
+            {menu.guarniciones?.length ? <MenuOptions label="Guarniciones" options={menu.guarniciones} /> : null}
           </div>
 
           <div className="flex gap-2">

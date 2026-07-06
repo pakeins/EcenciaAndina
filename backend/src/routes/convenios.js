@@ -44,6 +44,7 @@ const formatConvenio = (conv) => ({
   fecha_caducidad: conv.fecha_caducidad,
   activo: conv.esta_activo,
   cupo_maximo: conv.cupo_maximo || 0,
+  tipos_almuerzo_permitidos: conv.tipos_almuerzo_permitidos || [],
   totalColaboradores: conv.clientes_convenios?.[0]?.count || 0,
   consumoMensual: 0,
   archivo_firmado: conv.archivo_firmado ? `http://localhost:3001/uploads/convenios/${conv.archivo_firmado}` : null,
@@ -193,7 +194,7 @@ router.delete('/:id/clientes/:clienteId', adminOnly, async (req, res) => {
 
 // CREAR NUEVO CONVENIO
 router.post('/', adminOnly, async (req, res) => {
-  const { ruc, nombre_empresa, representante, telefono, email, fecha_inicio, fecha_caducidad, cupo_maximo } = req.body;
+  const { ruc, nombre_empresa, representante, telefono, email, fecha_inicio, fecha_caducidad, cupo_maximo, tipos_almuerzo_permitidos } = req.body;
   
   if (cupo_maximo !== undefined && cupo_maximo < 0) {
     return res.status(400).json({ error: 'El cupo máximo no puede ser menor a 0.' });
@@ -203,7 +204,7 @@ router.post('/', adminOnly, async (req, res) => {
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
       .from('convenios')
-      .insert([{ ruc, nombre_empresa, representante, telefono, email, fecha_inicio, fecha_caducidad, cupo_maximo, created_by: req.user.id }])
+      .insert([{ ruc, nombre_empresa, representante, telefono, email, fecha_inicio, fecha_caducidad, cupo_maximo, tipos_almuerzo_permitidos: tipos_almuerzo_permitidos || null, created_by: req.user.id }])
       .select('*, clientes_convenios(count)')
       .single();
     if (error) throw error;
@@ -216,7 +217,7 @@ router.post('/', adminOnly, async (req, res) => {
 // ACTUALIZAR CONVENIO (Y manejar historial si es renovación)
 router.put('/:id', adminOnly, async (req, res) => {
   const { id } = req.params;
-  const { activo, ruc, nombre_empresa, fecha_inicio, fecha_caducidad, ...rest } = req.body;
+  const { activo, ruc, nombre_empresa, fecha_inicio, fecha_caducidad, tipos_almuerzo_permitidos, ...rest } = req.body;
   const actualizacion = { ...rest, updated_by: req.user.id };
   
   if (activo !== undefined) actualizacion.esta_activo = activo;
@@ -224,6 +225,7 @@ router.put('/:id', adminOnly, async (req, res) => {
   if (nombre_empresa) actualizacion.nombre_empresa = nombre_empresa;
   if (fecha_inicio) actualizacion.fecha_inicio = fecha_inicio;
   if (fecha_caducidad) actualizacion.fecha_caducidad = fecha_caducidad;
+  if (tipos_almuerzo_permitidos !== undefined) actualizacion.tipos_almuerzo_permitidos = tipos_almuerzo_permitidos;
   
   if (req.body.cupo_maximo !== undefined) {
     if (req.body.cupo_maximo < 0) return res.status(400).json({ error: 'El cupo máximo no puede ser menor a 0.' });

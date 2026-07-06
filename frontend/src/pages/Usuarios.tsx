@@ -93,6 +93,19 @@ export default function Usuarios() {
     );
   };
 
+  const generatePassword = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+';
+    let pwd = '';
+    pwd += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
+    pwd += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
+    pwd += '0123456789'[Math.floor(Math.random() * 10)];
+    pwd += '!@#$%^&*()_+'[Math.floor(Math.random() * 12)];
+    for (let i = 0; i < 6; i++) {
+      pwd += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return pwd.split('').sort(() => 0.5 - Math.random()).join('');
+  };
+
   useEffect(() => {
     fetchEmpleados();
   }, []);
@@ -376,7 +389,19 @@ export default function Usuarios() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Contraseña de Acceso Temporal *</Label>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 px-2 text-xs text-cafe hover:text-terracota" 
+                    onClick={() => setCreateFormData({ ...createFormData, password: generatePassword() })}
+                  >
+                    <KeyRound className="h-3 w-3 mr-1" />
+                    Auto-generar
+                  </Button>
+                </div>
                 <PasswordInput
                   id="password"
                   value={createFormData.password}
@@ -622,7 +647,22 @@ export default function Usuarios() {
                   ) : (
                     <div className="space-y-4 border-t border-border/50 pt-2">
                       <div className="space-y-2">
-                        <Label htmlFor="new-password">Nueva Contraseña</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="new-password">Nueva Contraseña</Label>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 px-2 text-xs text-cafe hover:text-terracota" 
+                            onClick={() => {
+                              const pwd = generatePassword();
+                              setPasswordData({ password: pwd, confirmPassword: pwd });
+                            }}
+                          >
+                            <KeyRound className="h-3 w-3 mr-1" />
+                            Auto-generar
+                          </Button>
+                        </div>
                         <PasswordInput
                           id="new-password"
                           value={passwordData.password}

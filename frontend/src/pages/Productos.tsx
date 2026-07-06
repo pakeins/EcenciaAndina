@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Pencil, Package, Search, Tag, Layers, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Package, Search, Tag, Layers, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import {
@@ -50,6 +50,8 @@ interface Category {
   nombre_categoria: string;
 }
 
+type SortField = 'nombre' | 'categoria_nombre' | 'precio' | 'activo';
+
 export default function Productos() {
   const { user } = useAuth();
   const isAdministrador = user?.rol === 'administrador';
@@ -57,8 +59,21 @@ export default function Productos() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('products');
+  
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
+
+  // Sorting Products
+  const [sortField, setSortField] = useState<SortField>('categoria_nombre');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Sorting Categories
+  type CategorySortField = 'nombre_categoria' | 'productos_count';
+  const [categorySortField, setCategorySortField] = useState<CategorySortField>('nombre_categoria');
+  const [categorySortDirection, setCategorySortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Dialogs
   const [productDialogOpen, setProductDialogOpen] = useState(false);
@@ -122,6 +137,22 @@ export default function Productos() {
       });
     }
     setProductDialogOpen(true);
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este producto?')) return;
+    try {
+      const res = await apiFetch(`/productos/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Producto eliminado');
+        fetchProducts();
+      } else {
+        toast.error(data.error || 'No se pudo eliminar el producto');
+      }
+    } catch (e) {
+      toast.error('Error de conexión');
+    }
   };
 
   const saveProduct = async () => {
@@ -200,15 +231,66 @@ export default function Productos() {
     } finally { setIsSaving(false); }
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="ml-2 h-4 w-4 opacity-30" />;
+    return sortDirection === 'asc' ? <ArrowUp className="ml-2 h-4 w-4 text-cafe" /> : <ArrowDown className="ml-2 h-4 w-4 text-cafe" />;
+  };
+
   const filteredProducts = products.filter(p => 
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.categoria_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+    (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))) &&
+    (categoryFilter === 'all' || p.id_categoria.toString() === categoryFilter)
+  ).sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'nombre') cmp = a.nombre.localeCompare(b.nombre);
+    else if (sortField === 'categoria_nombre') cmp = a.categoria_nombre.localeCompare(b.categoria_nombre);
+    else if (sortField === 'precio') cmp = a.precio - b.precio;
+    else if (sortField === 'activo') cmp = (a.activo === b.activo) ? 0 : a.activo ? -1 : 1;
+    return sortDirection === 'asc' ? cmp : -cmp;
+  });
+
+  const handleCategorySort = (field: CategorySortField) => {
+    if (categorySortField === field) {
+      setCategorySortDirection(categorySortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setCategorySortField(field);
+      setCategorySortDirection('asc');
+    }
+  };
+
+  const CategorySortIcon = ({ field }: { field: CategorySortField }) => {
+    if (categorySortField !== field) return <ArrowUpDown className="ml-2 h-4 w-4 opacity-30" />;
+    return categorySortDirection === 'asc' ? <ArrowUp className="ml-2 h-4 w-4 text-cafe" /> : <ArrowDown className="ml-2 h-4 w-4 text-cafe" />;
+  };
+
+  const handleViewCategoryProducts = (id_categoria: number) => {
+    setCategoryFilter(id_categoria.toString());
+    setActiveTab('products');
+  };
 
   const filteredCategories = categories.filter(c =>
     c.nombre_categoria.toLowerCase().includes(categorySearchTerm.toLowerCase())
-  );
+  ).sort((a, b) => {
+    let cmp = 0;
+    if (categorySortField === 'nombre_categoria') {
+      cmp = a.nombre_categoria.localeCompare(b.nombre_categoria);
+    } else if (categorySortField === 'productos_count') {
+      const countA = products.filter(p => p.id_categoria === a.id_categoria).length;
+      const countB = products.filter(p => p.id_categoria === b.id_categoria).length;
+      cmp = countA - countB;
+    }
+    return categorySortDirection === 'asc' ? cmp : -cmp;
+  });
 
   return (
     <div className="space-y-6">
@@ -219,17 +301,30 @@ export default function Productos() {
         <p className="text-muted-foreground text-lg">Gestione los productos y categorías de Ecencia Andina</p>
       </div>
 
-      <Tabs defaultValue="products" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
           <TabsTrigger value="products" className="gap-2"><Package className="h-4 w-4" /> Productos</TabsTrigger>
           <TabsTrigger value="categories" className="gap-2"><Layers className="h-4 w-4" /> Categorías</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="space-y-4 pt-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Buscar producto..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex w-full max-w-2xl gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="Buscar producto..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las categorías</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c.id_categoria} value={c.id_categoria.toString()}>{c.nombre_categoria}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {isAdministrador && (
               <Button onClick={() => handleOpenProduct()} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-11 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
@@ -245,10 +340,30 @@ export default function Productos() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/10 hover:bg-secondary/10">
-                    <TableHead className="text-cafe font-bold">Producto</TableHead>
-                    <TableHead className="text-cafe font-bold">Categoría</TableHead>
-                    <TableHead className="text-cafe font-bold">Precio</TableHead>
-                    <TableHead className="text-cafe font-bold">Estado</TableHead>
+                    <TableHead 
+                      className="text-cafe font-bold cursor-pointer hover:bg-secondary/20" 
+                      onClick={() => handleSort('nombre')}
+                    >
+                      <div className="flex items-center">Producto <SortIcon field="nombre" /></div>
+                    </TableHead>
+                    <TableHead 
+                      className="text-cafe font-bold cursor-pointer hover:bg-secondary/20"
+                      onClick={() => handleSort('categoria_nombre')}
+                    >
+                      <div className="flex items-center">Categoría <SortIcon field="categoria_nombre" /></div>
+                    </TableHead>
+                    <TableHead 
+                      className="text-cafe font-bold cursor-pointer hover:bg-secondary/20"
+                      onClick={() => handleSort('precio')}
+                    >
+                      <div className="flex items-center">Precio <SortIcon field="precio" /></div>
+                    </TableHead>
+                    <TableHead 
+                      className="text-cafe font-bold cursor-pointer hover:bg-secondary/20"
+                      onClick={() => handleSort('activo')}
+                    >
+                      <div className="flex items-center">Estado <SortIcon field="activo" /></div>
+                    </TableHead>
                     {isAdministrador && <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -322,8 +437,18 @@ export default function Productos() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-secondary/10 hover:bg-secondary/10">
-                      <TableHead className="text-cafe font-bold">Nombre de la Categoría</TableHead>
-                      <TableHead className="text-cafe font-bold">Productos Vinculados</TableHead>
+                      <TableHead 
+                        className="text-cafe font-bold cursor-pointer hover:bg-secondary/20"
+                        onClick={() => handleCategorySort('nombre_categoria')}
+                      >
+                        <div className="flex items-center">Nombre de la Categoría <CategorySortIcon field="nombre_categoria" /></div>
+                      </TableHead>
+                      <TableHead 
+                        className="text-cafe font-bold cursor-pointer hover:bg-secondary/20"
+                        onClick={() => handleCategorySort('productos_count')}
+                      >
+                        <div className="flex items-center">Productos Vinculados <CategorySortIcon field="productos_count" /></div>
+                      </TableHead>
                       {isAdministrador && <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>}
                     </TableRow>
                   </TableHeader>
@@ -341,7 +466,12 @@ export default function Productos() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">
+                          <Badge 
+                            variant="secondary"
+                            className="cursor-pointer hover:bg-secondary/80 transition-colors"
+                            onClick={() => handleViewCategoryProducts(c.id_categoria)}
+                            title="Ver productos de esta categoría"
+                          >
                             {products.filter(p => p.id_categoria === c.id_categoria).length} productos
                           </Badge>
                         </TableCell>

@@ -23,6 +23,7 @@ import { CategoryManager } from '@/components/menu/CategoryManager';
 import { ProductManager } from '@/components/menu/ProductManager';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import type { DailyMenu } from '@/components/menu/RegisteredMenuList';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { buildTelegramMenuImage } from '@/lib/menuImage';
 import type { Alimento } from '@/types';
@@ -99,17 +100,106 @@ interface CategoryWithCode extends MenuCategory {
 
 export default function Menu() {
   const { categoryOptions, image } = useMenu();
+  const queryClient = useQueryClient();
   const [isSending, setIsSending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isActivating, setIsActivating] = useState<string | null>(null);
-  const [categories, setCategories] = useState<CategoryWithCode[]>([]);
-  const [allAlimentos, setAllAlimentos] = useState<Alimento[]>([]);
-  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [menus, setMenus] = useState<DailyMenu[]>([]);
-  const [isLoadingMenus, setIsLoadingMenus] = useState(true);
-  const [menuLoadError, setMenuLoadError] = useState<string | null>(null);
   const [selectedMenuDate, setSelectedMenuDate] = useState<string | null>(null);
+  const [hasAppliedActiveMenu, setHasAppliedActiveMenu] = useState(false);
+
+  const { data: categories = [], isLoading: isLoadingCatalog, error: catError } = useQuery<CategoryWithCode[]>({
+    queryKey: ['categorias_menu'],
+    queryFn: async () => {
+      const res = await apiFetch('/alimentos/categorias');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudieron cargar las categorias');
+      return sortCategories(Array.isArray(data) ? data : []);
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+  const catalogError = catError instanceof Error ? catError.message : null;
+
+  const { data: allAlimentos = [] } = useQuery<Alimento[]>({
+    queryKey: ['alimentos'],
+    queryFn: async () => {
+      const res = await apiFetch('/alimentos');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los alimentos');
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  interface Product {
+    id: string;
+    nombre: string;
+    precio: number;
+    activo: boolean;
+    id_categoria: number;
+    descripcion?: string;
+  }
+
+  const { data: productos = [] } = useQuery<Product[]>({
+    queryKey: ['productos'],
+    queryFn: async () => {
+      const res = await apiFetch('/productos');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los productos');
+      return Array.isArray(data) ? data : (data.productos || []);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: menus = [], isLoading: isLoadingMenus, error: menuErr } = useQuery<DailyMenu[]>({
+    queryKey: ['menus_registrados'],
+    queryFn: async () => {
+      const res = await apiFetch('/menu');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los menus registrados');
+      return Array.isArray(data) ? data : (Array.isArray(data.menus) ? data.menus : []);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const menuLoadError = menuErr instanceof Error ? menuErr.message : null;
+
+  // Inicializar store de categorías
+  useEffect(() => {
+    if (categories.length > 0) {
+      categories.forEach(cat => {
+        if (!(cat.id_categoria_menu in categoryOptions)) {
+          menuStore.setCategoryOptions(cat.id_categoria_menu, ['']);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
+
+  // Aplicar menu activo inicial
+  useEffect(() => {
+    if (menus.length > 0 && !hasAppliedActiveMenu) {
+      const active = menus.find(m => m.estado === 'activo') || menus[0];
+      if (active) {
+        if (active.opciones) {
+          for (const [catId, options] of Object.entries(active.opciones)) {
+            menuStore.setCategoryOptions(Number(catId), options.length ? options : ['']);
+          }
+        }
+        menuStore.setDailyImage(active.imagen_url);
+        setSelectedMenuDate(active.fecha);
+      }
+      setHasAppliedActiveMenu(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menus, hasAppliedActiveMenu]);
+
+  const buildOpcionesPayload = () => {
+    const opciones: Record<string, string[]> = {};
+    for (const cat of categories) {
+      const opts = cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []);
+      if (opts.length) opciones[String(cat.id_categoria_menu)] = opts;
+    }
+    return opciones;
+  };
 
   const getCatOptions = useCallback(
     (catId: number) => categoryOptions[catId] ?? [''],
@@ -132,19 +222,51 @@ export default function Menu() {
 
   const buildSections = useCallback(() => {
     return categories
-      .filter(cat => cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []).length > 0)
-      .map(cat => ({
-        title: cat.nombre_categoria,
-        items: cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []),
-        accent: getImageAccent(cat.nombre_categoria),
-      }));
+      .map(cat => {
+        const name = cat.nombre_categoria.toLowerCase();
+        const isSopaOrSegundo = name.includes('sopa') || name.includes('segundo') || name.includes('plato');
+        let items = cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []);
+        
+        if (items.length === 0 && isSopaOrSegundo) {
+          items = ['Por definir'];
+        }
+        
+        return {
+          title: cat.nombre_categoria,
+          items,
+          accent: getImageAccent(cat.nombre_categoria),
+        };
+      })
+      .filter(sec => sec.items.length > 0);
   }, [categories, categoryOptions]);
+
+  const combosMenuImage = useMemo(() => {
+    return productos
+      .filter((p) => p.id_categoria === 1 && p.activo)
+      .map((p) => {
+        let shortName = p.nombre.replace(/^Almuerzo\s+/i, '');
+        shortName = shortName.charAt(0).toUpperCase() + shortName.slice(1);
+        // Determine an icon based on words in name
+        let icon = "🍴";
+        if (shortName.toLowerCase().includes("dia") && !shortName.toLowerCase().includes("simple")) icon = "🥙";
+        if (shortName.toLowerCase().includes("dia simple")) icon = "🍴";
+        if (shortName.toLowerCase().includes("simple")) icon = "🥗";
+        if (shortName.toLowerCase().includes("completo")) icon = "🍴";
+        if (shortName.toLowerCase().includes("sin sopa")) icon = "🍛";
+
+        return {
+          icon,
+          name: `${shortName} $${Number(p.precio).toFixed(2)}:`,
+          desc: p.descripcion || 'sopa, plato fuerte, bebida',
+        };
+      });
+  }, [productos]);
 
   const generatedMenuImage = useMemo(() => {
     const sections = buildSections();
     if (!sections.length) return '';
-    return buildTelegramMenuImage({ sections });
-  }, [buildSections]);
+    return buildTelegramMenuImage({ sections, combos: combosMenuImage });
+  }, [buildSections, combosMenuImage]);
 
   const applyMenu = (menu: DailyMenu) => {
     if (menu.opciones) {
@@ -154,79 +276,6 @@ export default function Menu() {
     }
     menuStore.setDailyImage(menu.imagen_url);
     setSelectedMenuDate(menu.fecha);
-  };
-
-  const fetchMenus = async (applyActive = false) => {
-    setIsLoadingMenus(true);
-    setMenuLoadError(null);
-    try {
-      const response = await apiFetch('/menu');
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || 'No se pudieron cargar los menus registrados.');
-      }
-      const loadedMenus: DailyMenu[] = Array.isArray(data.menus) ? data.menus : [];
-      setMenus(loadedMenus);
-
-      if (applyActive && loadedMenus.length) {
-        const active = loadedMenus.find(menu => menu.estado === 'activo') || loadedMenus[0];
-        applyMenu(active);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudieron cargar los menus registrados.';
-      setMenuLoadError(message);
-      toast.error('No se pudieron cargar los menus registrados');
-    } finally {
-      setIsLoadingMenus(false);
-    }
-  };
-
-  const fetchCatalogs = useCallback(async () => {
-    setIsLoadingCatalog(true);
-    setCatalogError(null);
-    try {
-      const [catRes, alimRes] = await Promise.all([
-        apiFetch('/alimentos/categorias'),
-        apiFetch('/alimentos')
-      ]);
-
-      const categoryData = await catRes.json().catch(() => ({}));
-      const foodData = await alimRes.json().catch(() => ({}));
-      if (!catRes.ok) throw new Error(categoryData.error || 'No se pudieron cargar las categorías del menú.');
-      if (!alimRes.ok) throw new Error(foodData.error || 'No se pudieron cargar los alimentos.');
-
-      const loadedCats: CategoryWithCode[] = Array.isArray(categoryData) ? categoryData : [];
-      setCategories(sortCategories(loadedCats));
-      setAllAlimentos(Array.isArray(foodData) ? foodData : []);
-
-      // Initialize store with empty arrays for all categories
-      for (const cat of loadedCats) {
-        if (!(cat.id_categoria_menu in categoryOptions)) {
-          menuStore.setCategoryOptions(cat.id_categoria_menu, ['']);
-        }
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo cargar el catálogo del menú.';
-      setCatalogError(message);
-      toast.error('No se pudo cargar el catálogo del menú', { description: message });
-    } finally {
-      setIsLoadingCatalog(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCatalogs();
-    fetchMenus(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const buildOpcionesPayload = () => {
-    const opciones: Record<string, string[]> = {};
-    for (const cat of categories) {
-      const opts = cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []);
-      if (opts.length) opciones[String(cat.id_categoria_menu)] = opts;
-    }
-    return opciones;
   };
 
   const handleSendMenu = async () => {
@@ -249,11 +298,11 @@ export default function Menu() {
     setIsSending(true);
     try {
       const sections = buildSections();
-      const response = await apiFetch('/menu/enviar', {
+        const response = await apiFetch('/menu/enviar', {
         method: 'POST',
         body: JSON.stringify({
           opciones,
-          image: sections.length ? buildTelegramMenuImage({ sections }) : undefined,
+          image: sections.length ? buildTelegramMenuImage({ sections, combos: combosMenuImage }) : undefined,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -265,7 +314,7 @@ export default function Menu() {
       toast.success('Menu enviado a n8n correctamente', {
         description: data.mensaje || 'Telegram enviara el menu a los chats vinculados.'
       });
-      fetchMenus(false);
+      queryClient.invalidateQueries({ queryKey: ['menus_registrados'] });
     } catch (error) {
       toast.error('No se pudo enviar el menu', {
         description: error instanceof Error ? error.message : 'Revisa n8n y vuelve a intentarlo.'
@@ -300,7 +349,7 @@ export default function Menu() {
         method: 'PUT',
         body: JSON.stringify({
           opciones,
-          image: sections.length ? buildTelegramMenuImage({ sections }) : undefined,
+          image: sections.length ? buildTelegramMenuImage({ sections, combos: combosMenuImage }) : undefined,
           confirmarEdicion: force,
         }),
       });
@@ -316,7 +365,7 @@ export default function Menu() {
 
       toast.success('Menu guardado correctamente');
       setSelectedMenuDate(fecha);
-      fetchMenus(false);
+      queryClient.invalidateQueries({ queryKey: ['menus_registrados'] });
     } catch (error) {
       toast.error('No se pudo guardar el menu', {
         description: error instanceof Error ? error.message : 'Revisa los datos e intenta otra vez.'
@@ -334,7 +383,7 @@ export default function Menu() {
       if (!response.ok) throw new Error(data.error || 'No se pudo activar el menu');
       toast.success('Menu activado correctamente');
       setSelectedMenuDate(menu.fecha);
-      fetchMenus(false);
+      queryClient.invalidateQueries({ queryKey: ['menus_registrados'] });
     } catch (error) {
       toast.error('No se pudo activar el menu', {
         description: error instanceof Error ? error.message : 'Intenta otra vez.'
@@ -345,7 +394,7 @@ export default function Menu() {
   };
 
   const handleFoodCreated = (food: Alimento) => {
-    setAllAlimentos((current) => {
+    queryClient.setQueryData<Alimento[]>(['alimentos'], (current = []) => {
       if (current.some(item => item.id === food.id)) return current;
       return [...current, food];
     });
@@ -376,7 +425,7 @@ export default function Menu() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-200 pb-12">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
@@ -409,8 +458,8 @@ export default function Menu() {
       )}
 
       <div className="flex flex-wrap justify-end gap-2 mb-4">
-        <CategoryManager onCategoriesChanged={fetchCatalogs} />
-        <ProductManager onProductsChanged={fetchCatalogs} />
+        <CategoryManager onCategoriesChanged={() => queryClient.invalidateQueries({ queryKey: ['categorias_menu'] })} />
+        <ProductManager onProductsChanged={() => queryClient.invalidateQueries({ queryKey: ['alimentos'] })} />
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline" className="border-cafe text-cafe hover:bg-cafe/10 font-semibold shadow-sm">

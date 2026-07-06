@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,12 @@ import {
   Soup,
   Sparkles,
   PackagePlus,
+  MessageSquare,
+  ClipboardList,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  UserSquare2,
 } from 'lucide-react';
 import {
   BarChart,
@@ -43,45 +50,9 @@ import {
 const CHART_COLORS = ['#2F4D49', '#BF5D30', '#C2803A', '#61603C', '#7A402E'];
 
 export default function Dashboard() {
-  const [metricsData, setMetricsData] = useState<{
-    almuerzosHoy: number;
-    almuerzosHoyTitle?: string;
-    almuerzosHoyDesc?: string;
-    almuerzosMes: number;
-    almuerzosMesTitle?: string;
-    almuerzosMesDesc?: string;
-    conveniosActivos: number;
-    clientesFrecuentes: number;
-    ejecutivoCompleto?: number;
-    ejecutivoSinSopa?: number;
-    ejecutivoSimple?: number;
-    almuerzoDia?: number;
-    almuerzoDiaSimple?: number;
-    otrosAlmuerzos?: number;
-    segundosAlmuerzos?: number;
-    vegetarianos?: number;
-    especiales?: number;
-    almuerzosConExtras?: number;
-    extrasCantidad?: number;
-    valorExtras?: number;
-  } | null>(null);
-  const [consumosPorDia, setConsumosPorDia] = useState<{ name: string; value: number }[]>([]);
-  const [consumosPorConvenio, setConsumosPorConvenio] = useState<{ name: string; value: number }[]>([]);
-  const [actividadReciente, setActividadReciente] = useState<{
-    id: string;
-    fecha: string;
-    cliente: string;
-    descripcion: string;
-    metodo_pago: string;
-    estado: string;
-  }[]>([]);
-  const [topProducts, setTopProducts] = useState<{ name: string; value: number }[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const [periodo, setPeriodo] = useState('general');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getPeriodoDates = (p: string) => {
     const today = new Date();
@@ -113,164 +84,101 @@ export default function Dashboard() {
     return { inicio: '', fin: '' };
   };
 
-  const fetchDashboardData = async (inicio?: string, fin?: string, showRefreshingSpinner = false) => {
-    if (showRefreshingSpinner) setIsRefreshing(true);
-    try {
+  const { data, isLoading: loading, isFetching: isRefreshing, refetch } = useQuery({
+    queryKey: ['dashboard', periodo, fechaInicio, fechaFin],
+    queryFn: async () => {
+      let inicio: string | undefined = undefined;
+      let fin: string | undefined = undefined;
+
+      if (periodo === 'personalizado') {
+        if (!fechaInicio || !fechaFin || new Date(fechaFin) < new Date(fechaInicio)) {
+          return null; // Fechas invalidas, no buscar o devolver nulo
+        }
+        inicio = fechaInicio;
+        fin = fechaFin;
+      } else if (periodo !== 'general') {
+        const dates = getPeriodoDates(periodo);
+        inicio = dates.inicio;
+        fin = dates.fin;
+      }
+
       let url = '/reportes/dashboard';
       if (inicio && fin) {
         url += `?fecha_inicio=${inicio}&fecha_fin=${fin}`;
       }
       const response = await apiFetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        setMetricsData(data.metrics);
-        setConsumosPorDia(data.consumosPorDia);
-        setConsumosPorConvenio(data.consumosPorConvenio);
-        setActividadReciente(data.actividadReciente || []);
-        setTopProducts(data.topProducts || []);
-      } else {
-        toast.error('Error al cargar datos del dashboard');
+      if (!response.ok) {
+        throw new Error('Error al cargar datos del dashboard');
       }
-    } catch (error) {
-      console.error('Error fetching dashboard metrics:', error);
-      toast.error('Error de conexión con el servidor');
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  };
+      return response.json();
+    },
+    refetchInterval: 30000,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
 
-  // Fetch when period or dates change
-  useEffect(() => {
-    if (periodo === 'general') {
-      fetchDashboardData();
-    } else if (periodo === 'personalizado') {
-      if (fechaInicio && fechaFin) {
-        if (new Date(fechaFin) < new Date(fechaInicio)) {
-          toast.error('La fecha final no puede ser anterior a la inicial');
-          return;
-        }
-        fetchDashboardData(fechaInicio, fechaFin);
-      }
-    } else {
-      const dates = getPeriodoDates(periodo);
-      fetchDashboardData(dates.inicio, dates.fin);
-    }
-  }, [periodo, fechaInicio, fechaFin]);
-
-  // Periodic Auto-refresh (every 30 seconds)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (periodo === 'general') {
-        fetchDashboardData(undefined, undefined, false);
-      } else if (periodo === 'personalizado') {
-        if (fechaInicio && fechaFin && new Date(fechaFin) >= new Date(fechaInicio)) {
-          fetchDashboardData(fechaInicio, fechaFin, false);
-        }
-      } else {
-        const dates = getPeriodoDates(periodo);
-        fetchDashboardData(dates.inicio, dates.fin, false);
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [periodo, fechaInicio, fechaFin]);
+  const metricsData = data?.metrics || null;
+  const consumosPorDia = data?.consumosPorDia || [];
+  const consumosPorConvenio = data?.consumosPorConvenio || [];
+  const actividadReciente = data?.actividadReciente || [];
+  const topProducts = data?.topProducts || [];
 
   const handlePeriodoChange = (newPeriodo: string) => {
     setPeriodo(newPeriodo);
     if (newPeriodo === 'general') {
       setFechaInicio('');
       setFechaFin('');
-      setLoading(true);
     } else if (newPeriodo !== 'personalizado') {
       const dates = getPeriodoDates(newPeriodo);
       setFechaInicio(dates.inicio);
       setFechaFin(dates.fin);
-      setLoading(true);
     } else {
       // Default to current week for custom filter inputs
       const dates = getPeriodoDates('semana');
       setFechaInicio(dates.inicio);
       setFechaFin(dates.fin);
-      setLoading(true);
     }
   };
 
   const handleManualRefresh = () => {
-    if (periodo === 'general') {
-      fetchDashboardData(undefined, undefined, true);
-    } else if (periodo === 'personalizado') {
-      if (fechaInicio && fechaFin) {
-        fetchDashboardData(fechaInicio, fechaFin, true);
-      }
-    } else {
-      const dates = getPeriodoDates(periodo);
-      fetchDashboardData(dates.inicio, dates.fin, true);
-    }
+    refetch();
   };
 
   const metrics = [
     {
-      title: metricsData?.almuerzosHoyTitle ?? 'Almuerzos Hoy',
-      value: metricsData?.almuerzosHoy ?? 0,
-      icon: UtensilsCrossed,
-      description: metricsData?.almuerzosHoyDesc ?? 'Consumidos el día de hoy',
+      title: 'Total Registrados Hoy',
+      value: metricsData?.totalHoy ?? 0,
+      icon: ClipboardList,
+      description: 'Total de almuerzos del día',
     },
     {
-      title: metricsData?.almuerzosMesTitle ?? 'Almuerzos del Mes',
-      value: typeof metricsData?.almuerzosMes === 'number' && metricsData?.almuerzosMesTitle?.includes('Ingresos')
-        ? `$${metricsData.almuerzosMes.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : (metricsData?.almuerzosMes ?? 0),
-      icon: CalendarDays,
-      description: metricsData?.almuerzosMesDesc ?? 'Total acumulado mensual',
+      title: 'Consumidos',
+      value: metricsData?.consumidosHoy ?? 0,
+      icon: CheckCircle2,
+      description: 'Entregados exitosamente',
     },
     {
-      title: 'Convenios Activos',
-      value: metricsData?.conveniosActivos ?? 0,
+      title: 'Pendientes',
+      value: metricsData?.pendientesHoy ?? 0,
+      icon: Clock,
+      description: 'En espera de ser retirados',
+    },
+    {
+      title: 'Cancelados',
+      value: metricsData?.canceladosHoy ?? 0,
+      icon: XCircle,
+      description: 'Pedidos dados de baja',
+    },
+    {
+      title: 'De Convenios',
+      value: metricsData?.conveniosHoy ?? 0,
       icon: Building2,
-      description: 'Empresas con convenio',
+      description: 'Empresas corporativas',
     },
     {
-      title: 'Clientes',
-      value: metricsData?.clientesFrecuentes ?? 0,
-      icon: Users,
-      description: 'Clientes registrados',
-    },
-    {
-      title: 'Ejecutivo Completo',
-      value: metricsData?.ejecutivoCompleto ?? 0,
-      icon: ListPlus,
-      description: 'Entrada, sopa, plato fuerte, postre y bebida',
-    },
-    {
-      title: 'Ejecutivo Sin Sopa',
-      value: metricsData?.ejecutivoSinSopa ?? 0,
-      icon: Leaf,
-      description: 'Entrada, plato fuerte, postre y bebida',
-    },
-    {
-      title: 'Ejecutivo Simple',
-      value: metricsData?.ejecutivoSimple ?? 0,
-      icon: ChefHat,
-      description: 'Plato fuerte, postre y bebida',
-    },
-    {
-      title: 'Almuerzo Dia',
-      value: metricsData?.almuerzoDia ?? 0,
-      icon: Soup,
-      description: 'Sopa, plato fuerte y bebida',
-    },
-    {
-      title: 'Dia Simple',
-      value: metricsData?.almuerzoDiaSimple ?? 0,
-      icon: Sparkles,
-      description: 'Plato fuerte y bebida',
-    },
-    {
-      title: 'Extras',
-      value: `$${(metricsData?.valorExtras ?? 0).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      icon: PackagePlus,
-      description: `${metricsData?.extrasCantidad ?? 0} extras registrados`,
+      title: 'De Frecuentes',
+      value: metricsData?.frecuentesHoy ?? 0,
+      icon: UserSquare2,
+      description: 'Clientes independientes',
     },
   ];
 
@@ -344,11 +252,11 @@ export default function Dashboard() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
         {metrics.map((metric, index) => {
-          const colors = ['border-l-primary', 'border-l-terracota', 'border-l-oro', 'border-l-secondary', 'border-l-cafe'];
-          const bgColors = ['bg-primary/5', 'bg-terracota/5', 'bg-oro/5', 'bg-secondary/5', 'bg-cafe/5'];
-          const iconColors = ['text-primary', 'text-terracota', 'text-oro', 'text-secondary', 'text-cafe'];
+          const colors = ['border-l-primary', 'border-l-terracota', 'border-l-oro', 'border-l-secondary', 'border-l-emerald-500', 'border-l-cafe'];
+          const bgColors = ['bg-primary/5', 'bg-terracota/5', 'bg-oro/5', 'bg-secondary/5', 'bg-emerald-500/5', 'bg-cafe/5'];
+          const iconColors = ['text-primary', 'text-terracota', 'text-oro', 'text-secondary', 'text-emerald-500', 'text-cafe'];
           
           return (
             <Card 
@@ -360,21 +268,21 @@ export default function Dashboard() {
                 index === 0 && "shadow-md ring-1 ring-primary/20" // Resaltar Cuadrante I (Hoy)
               )}
             >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-bold text-cafe uppercase tracking-wider">{metric.title}</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between pb-1 px-3 pt-3">
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  <CardTitle className="text-[11px] font-bold text-cafe uppercase tracking-wider truncate" title={metric.title}>{metric.title}</CardTitle>
                   {index === 0 && (
-                    <span className="flex h-2 w-2 relative">
+                    <span className="flex h-1.5 w-1.5 relative shrink-0">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                     </span>
                   )}
                 </div>
-                <metric.icon className={cn("h-5 w-5", iconColors[index % iconColors.length])} />
+                <metric.icon className={cn("h-4 w-4 shrink-0", iconColors[index % iconColors.length])} />
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-black text-foreground">{metric.value}</div>
-                <p className="text-xs text-muted-foreground font-medium">{metric.description}</p>
+              <CardContent className="px-3 pb-3">
+                <div className="text-2xl font-black text-foreground">{metric.value}</div>
+                <p className="text-[10px] text-muted-foreground font-medium truncate" title={metric.description}>{metric.description}</p>
               </CardContent>
             </Card>
           );

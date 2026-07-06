@@ -24,6 +24,12 @@ export default function TrazabilidadTelegram() {
   const [outcome, setOutcome] = useState<'all' | TraceOutcome>('all');
   const [chatId, setChatId] = useState('');
   const [appliedChatId, setAppliedChatId] = useState('');
+  
+  const today = new Date().toISOString().split('T')[0];
+  const [fechaInicio, setFechaInicio] = useState(today);
+  const [fechaFin, setFechaFin] = useState(today);
+  const [appliedFechaInicio, setAppliedFechaInicio] = useState(today);
+  const [appliedFechaFin, setAppliedFechaFin] = useState(today);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -38,6 +44,8 @@ export default function TrazabilidadTelegram() {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (outcome !== 'all') params.set('outcome', outcome);
       if (appliedChatId) params.set('chat_id', appliedChatId);
+      if (appliedFechaInicio) params.set('fecha_inicio', appliedFechaInicio);
+      if (appliedFechaFin) params.set('fecha_fin', appliedFechaFin);
 
       const response = await apiFetch(`/ordenes/telegram/trazabilidad?${params.toString()}`);
       const data = await response.json().catch(() => ({}));
@@ -52,7 +60,7 @@ export default function TrazabilidadTelegram() {
     } finally {
       setIsLoading(false);
     }
-  }, [appliedChatId, outcome, page]);
+  }, [appliedChatId, appliedFechaInicio, appliedFechaFin, outcome, page]);
 
   useEffect(() => {
     loadTraces();
@@ -61,6 +69,8 @@ export default function TrazabilidadTelegram() {
   const applySearch = () => {
     setPage(1);
     setAppliedChatId(chatId.trim());
+    setAppliedFechaInicio(fechaInicio);
+    setAppliedFechaFin(fechaFin);
   };
 
   return (
@@ -82,6 +92,24 @@ export default function TrazabilidadTelegram() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 md:flex-row md:items-end">
+            <div className="w-full space-y-1.5 md:max-w-[140px]">
+              <Label>Desde</Label>
+              <Input
+                type="date"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+              />
+            </div>
+            
+            <div className="w-full space-y-1.5 md:max-w-[140px]">
+              <Label>Hasta</Label>
+              <Input
+                type="date"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+              />
+            </div>
+
             <div className="w-full space-y-1.5 md:max-w-xs">
               <Label htmlFor="trace-chat">Chat de Telegram</Label>
               <Input
