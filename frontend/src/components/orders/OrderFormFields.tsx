@@ -24,9 +24,7 @@ export interface OrderItem {
   nombre: string;
   precio: number;
   cantidad: number;
-  sopa?: string;
-  segundo?: string;
-  guarnicion?: string;
+  opciones?: Record<string, string>;
   id_categoria: number;
 }
 
@@ -61,19 +59,18 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Local state for the item currently being configured
   const [currentCategory, setCurrentCategory] = useState<string>('');
   const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
-  const [currentSopa, setCurrentSopa] = useState('');
-  const [currentSegundo, setCurrentSegundo] = useState('');
-  const [currentGuarnicion, setCurrentGuarnicion] = useState('');
   const [currentCantidad, setCurrentCantidad] = useState(1);
-  const [isCustomSopa, setIsCustomSopa] = useState(false);
-  const [isCustomSegundo, setIsCustomSegundo] = useState(false);
-  const [isCustomGuarnicion, setIsCustomGuarnicion] = useState(false);
-  const [menuSopas, setMenuSopas] = useState<string[]>([]);
-  const [menuSegundos, setMenuSegundos] = useState<string[]>([]);
-  const [menuGuarniciones, setMenuGuarniciones] = useState<string[]>([]);
+  const [currentOpciones, setCurrentOpciones] = useState<Record<string, string>>({});
+  const [isCustomOpcion, setIsCustomOpcion] = useState<Record<string, boolean>>({});
+
+  interface MenuCategoryData {
+    id_categoria_menu: number;
+    nombre_categoria: string;
+    opciones: string[];
+  }
+  const [activeMenuCategories, setActiveMenuCategories] = useState<MenuCategoryData[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -92,22 +89,22 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
           const catMenuData = await catMenuRes.json();
           
           const menus = Array.isArray(menuData) ? menuData : (menuData.menus || []);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const active = menus.find((m: any) => m.estado === 'activo') || menus[0];
           
           if (active && active.opciones) {
-            const findCatId = (keyword: string) => {
-              const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-              const found = catMenuData.find((c: any) => norm(c.nombre_categoria).includes(keyword));
-              return found ? found.id_categoria_menu : null;
-            };
-            
-            const idSopa = findCatId('sopa');
-            const idSegundo = findCatId('segundo') || findCatId('plato');
-            const idGuarnicion = findCatId('guarnicion') || findCatId('arroz');
-
-            setMenuSopas(idSopa && active.opciones[idSopa] ? active.opciones[idSopa] : []);
-            setMenuSegundos(idSegundo && active.opciones[idSegundo] ? active.opciones[idSegundo] : []);
-            setMenuGuarniciones(idGuarnicion && active.opciones[idGuarnicion] ? active.opciones[idGuarnicion] : []);
+            const parsedCategories: MenuCategoryData[] = [];
+            for (const cat of catMenuData) {
+              const opts = active.opciones[cat.id_categoria_menu] || [];
+              if (opts.length > 0) {
+                parsedCategories.push({
+                  id_categoria_menu: cat.id_categoria_menu,
+                  nombre_categoria: cat.nombre_categoria,
+                  opciones: opts.filter((o: string) => o.trim() !== '')
+                });
+              }
+            }
+            setActiveMenuCategories(parsedCategories);
           }
         }
       } catch (err) {
@@ -119,10 +116,6 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
     fetchData();
   }, []);
 
-  const validSopas = useMemo(() => menuSopas.filter((s: string) => s.trim() !== ''), [menuSopas]);
-  const validSegundos = useMemo(() => menuSegundos.filter((s: string) => s.trim() !== ''), [menuSegundos]);
-  const validGuarniciones = useMemo(() => menuGuarniciones.filter((s: string) => s.trim() !== ''), [menuGuarniciones]);
-
   const filteredProducts = useMemo(() => {
     let prods = allProducts.filter(p => p.id_categoria.toString() === currentCategory);
     if (availableBalances !== null) {
@@ -132,12 +125,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
   }, [allProducts, currentCategory, availableBalances]);
 
   const filteredCategories = useMemo(() => {
-    let cats = categories;
-    
-    // Si es frecuente, solo mostrar almuerzos
-    if (isFrecuente) {
-      cats = cats.filter(c => c.nombre_categoria.toLowerCase().includes('almuerzo'));
-    }
+    const cats = categories;
 
     if (availableBalances === null) return cats;
     
@@ -148,7 +136,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
       }
     });
     return cats.filter(c => validCategoryIds.has(c.id_categoria));
-  }, [categories, allProducts, availableBalances, isFrecuente]);
+  }, [categories, allProducts, availableBalances]);
 
   const handleAddItem = () => {
     if (!currentProduct) {
@@ -156,28 +144,56 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
       return;
     }
 
-    const isAlmuerzo = currentProduct.categoria_nombre.toLowerCase().includes('almuerzo');
-    const productNameLower = currentProduct.nombre.toLowerCase();
-    const isCompleto = productNameLower.includes('completo');
-    const isSinSopa = productNameLower.includes('sin sopa') || productNameLower.includes('solo segundo') || (productNameLower.includes('segundo') && !productNameLower.includes('sopa') && !isCompleto);
-    const isSoloSopa = !isSinSopa && (productNameLower.includes('solo sopa') || (productNameLower.includes('sopa') && !productNameLower.includes('segundo') && !isCompleto));
-    const requireSopa = isAlmuerzo && !isSinSopa;
-    const requireSegundo = isAlmuerzo && !isSoloSopa;
+    const normName = currentProduct.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const isAlmuerzo = normName.includes('almuerzo') || normName.includes('del dia') || normName.includes('ejecutivo');
     
-    if (requireSopa && !currentSopa.trim()) {
-      toast.error('Por favor especifique la sopa');
-      return;
+    const visibleMenuCategories = activeMenuCategories.filter(cat => {
+      if (!isAlmuerzo) return false;
+      const catName = cat.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      
+      const isEntrada = catName.includes('entrada');
+      const isSopa = catName.includes('sopa');
+      const isPlatoFuerte = catName.includes('segundo') || catName.includes('fuerte') || catName.includes('guarnicion') || catName.includes('arroz');
+      const isBebida = catName.includes('bebida') || catName.includes('jugo');
+      const isPostre = catName.includes('postre');
+      
+      if (normName.includes('ejecutivo completo')) {
+        return isEntrada || isSopa || isPlatoFuerte || isBebida || isPostre;
+      }
+      if (normName.includes('ejecutivo sin sopa')) {
+        return isEntrada || isPlatoFuerte || isBebida || isPostre;
+      }
+      if (normName.includes('ejecutivo simple')) {
+        return isPlatoFuerte || isBebida || isPostre;
+      }
+      if (normName.includes('del dia simple') || normName.includes('solo segundo')) {
+        return isPlatoFuerte || isBebida;
+      }
+      if (normName.includes('del dia')) {
+        return isSopa || isPlatoFuerte || isBebida;
+      }
+      
+      // Fallback generico
+      if (isSopa && (normName.includes('sin sopa') || normName.includes('solo segundo'))) return false;
+      if (isPlatoFuerte && (normName.includes('solo sopa') || normName.includes('sin segundo'))) return false;
+      
+      return true;
+    });
+
+    for (const cat of visibleMenuCategories) {
+      const val = currentOpciones[cat.nombre_categoria] || '';
+      if (!val.trim()) {
+        toast.error(`Por favor especifique: ${cat.nombre_categoria}`);
+        return;
+      }
+      if (val.trim().length > FIELD_LIMITS.menuOption) {
+        toast.error(`Cada opcion de menu debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
+        return;
+      }
     }
-    if (requireSegundo && !currentSegundo.trim()) {
-      toast.error('Por favor especifique el segundo');
-      return;
-    }
+
     if (currentCantidad < 1 || currentCantidad > 20) {
       toast.error('La cantidad debe estar entre 1 y 20');
-      return;
-    }
-    if ([currentSopa, currentSegundo, currentGuarnicion].some((value) => value.trim().length > FIELD_LIMITS.menuOption)) {
-      toast.error(`Cada opcion de menu debe tener maximo ${FIELD_LIMITS.menuOption} caracteres`);
       return;
     }
 
@@ -191,15 +207,18 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
       }
     }
 
+    const opcionesParaGuardar: Record<string, string> = {};
+    for (const cat of visibleMenuCategories) {
+      opcionesParaGuardar[cat.nombre_categoria] = currentOpciones[cat.nombre_categoria];
+    }
+
     const newItem: OrderItem = {
       id_producto: currentProduct.id,
       nombre: currentProduct.nombre,
       precio: currentProduct.precio,
       cantidad: currentCantidad,
       id_categoria: currentProduct.id_categoria,
-      ...(requireSopa ? { sopa: currentSopa } : {}),
-      ...(requireSegundo ? { segundo: currentSegundo } : {}),
-      ...(requireSegundo ? { guarnicion: currentGuarnicion } : {})
+      opciones: Object.keys(opcionesParaGuardar).length > 0 ? opcionesParaGuardar : undefined
     };
 
     onChange({
@@ -210,13 +229,9 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
     // Reset local form
     setCurrentCategory('');
     setCurrentProduct(null);
-    setCurrentSopa('');
-    setCurrentSegundo('');
-    setCurrentGuarnicion('');
+    setCurrentOpciones({});
     setCurrentCantidad(1);
-    setIsCustomSopa(false);
-    setIsCustomSegundo(false);
-    setIsCustomGuarnicion(false);
+    setIsCustomOpcion({});
     toast.success(`${newItem.nombre} agregado al pedido`);
   };
 
@@ -278,138 +293,92 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
           </div>
 
           {(() => {
-            const isAlmuerzo = currentProduct?.categoria_nombre.toLowerCase().includes('almuerzo');
-            const productNameLower = currentProduct?.nombre.toLowerCase() || '';
-            const isCompleto = productNameLower.includes('completo');
-            const isSinSopa = productNameLower.includes('sin sopa') || productNameLower.includes('solo segundo') || (productNameLower.includes('segundo') && !productNameLower.includes('sopa') && !isCompleto);
-            const isSoloSopa = !isSinSopa && (productNameLower.includes('solo sopa') || (productNameLower.includes('sopa') && !productNameLower.includes('segundo') && !isCompleto));
-            const showSopaField = isAlmuerzo && !isSinSopa;
-            const showSegundoField = isAlmuerzo && !isSoloSopa;
+            const normName = currentProduct?.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
+            const isAlmuerzo = normName.includes('almuerzo') || normName.includes('del dia') || normName.includes('ejecutivo');
+            
+            const visibleMenuCategories = activeMenuCategories.filter(cat => {
+              if (!isAlmuerzo) return false;
+              const catName = cat.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              
+              const isEntrada = catName.includes('entrada');
+              const isSopa = catName.includes('sopa');
+              const isPlatoFuerte = catName.includes('segundo') || catName.includes('fuerte') || catName.includes('guarnicion') || catName.includes('arroz');
+              const isBebida = catName.includes('bebida') || catName.includes('jugo');
+              const isPostre = catName.includes('postre');
+              
+              if (normName.includes('ejecutivo completo')) {
+                return isEntrada || isSopa || isPlatoFuerte || isBebida || isPostre;
+              }
+              if (normName.includes('ejecutivo sin sopa')) {
+                return isEntrada || isPlatoFuerte || isBebida || isPostre;
+              }
+              if (normName.includes('ejecutivo simple')) {
+                return isPlatoFuerte || isBebida || isPostre;
+              }
+              if (normName.includes('del dia simple') || normName.includes('solo segundo')) {
+                return isPlatoFuerte || isBebida;
+              }
+              if (normName.includes('del dia')) {
+                return isSopa || isPlatoFuerte || isBebida;
+              }
+              
+              // Fallback generico
+              if (isSopa && (normName.includes('sin sopa') || normName.includes('solo segundo'))) return false;
+              if (isPlatoFuerte && (normName.includes('solo sopa') || normName.includes('sin segundo'))) return false;
+              
+              return true;
+            });
 
-            if (!isAlmuerzo || (!showSopaField && !showSegundoField)) return null;
+            if (!isAlmuerzo || visibleMenuCategories.length === 0) return null;
 
             return (
-              <div className={`grid gap-4 ${showSopaField && showSegundoField ? 'md:grid-cols-2' : 'md:grid-cols-1'} p-4 bg-primary/5 rounded-xl border border-primary/10 animate-in slide-in-from-top-2 duration-300`}>
-                {showSopaField && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-cafe/70">¿Qué sopa desea?</Label>
-                      {isCustomSopa && validSopas.length > 0 && (
-                        <button type="button" onClick={() => setIsCustomSopa(false)} className="text-[10px] text-primary hover:underline">
-                          Ver menú
-                        </button>
+              <div className={`grid gap-4 ${visibleMenuCategories.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1'} p-4 bg-primary/5 rounded-xl border border-primary/10 animate-in slide-in-from-top-2 duration-300`}>
+                {visibleMenuCategories.map(cat => {
+                  const catName = cat.nombre_categoria;
+                  const isCustom = isCustomOpcion[catName] || false;
+                  const val = currentOpciones[catName] || '';
+                  
+                  return (
+                    <div key={cat.id_categoria_menu} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-cafe/70">¿Qué {catName.toLowerCase()} desea?</Label>
+                        {isCustom && cat.opciones.length > 0 && (
+                          <button type="button" onClick={() => setIsCustomOpcion({...isCustomOpcion, [catName]: false})} className="text-[10px] text-primary hover:underline">
+                            Ver menú
+                          </button>
+                        )}
+                      </div>
+                      {(!isCustom && cat.opciones.length > 0) ? (
+                        <Select value={val} onValueChange={(v) => {
+                          if (v === 'custom') {
+                            setIsCustomOpcion({...isCustomOpcion, [catName]: true});
+                            setCurrentOpciones({...currentOpciones, [catName]: ''});
+                          } else {
+                            setCurrentOpciones({...currentOpciones, [catName]: v});
+                          }
+                        }}>
+                          <SelectTrigger className="bg-background text-cafe">
+                            <SelectValue placeholder="Elegir del menú..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white">
+                            {cat.opciones.map((opt, idx) => (
+                              <SelectItem key={`opt-${cat.id_categoria_menu}-${idx}`} value={opt}>{opt}</SelectItem>
+                            ))}
+                            <SelectItem value="custom" className="font-bold text-primary">Otra opción...</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input 
+                          value={val} 
+                          onChange={(e) => setCurrentOpciones({...currentOpciones, [catName]: e.target.value})} 
+                          placeholder={`Escriba su ${catName.toLowerCase()}`}
+                          className="bg-background"
+                          maxLength={FIELD_LIMITS.menuOption}
+                        />
                       )}
                     </div>
-                    {(!isCustomSopa && validSopas.length > 0) ? (
-                      <Select value={currentSopa} onValueChange={(v) => {
-                        if (v === 'custom') {
-                          setIsCustomSopa(true);
-                          setCurrentSopa('');
-                        } else {
-                          setCurrentSopa(v);
-                        }
-                      }}>
-                        <SelectTrigger className="bg-background text-cafe">
-                          <SelectValue placeholder="Elegir del menú..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white">
-                          {validSopas.map((s, idx) => (
-                            <SelectItem key={`sopa-${idx}`} value={s}>{s}</SelectItem>
-                          ))}
-                          <SelectItem value="custom" className="font-bold text-primary">Otra opción...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input 
-                        placeholder="Ej: Crema de Zapallo" 
-                        value={currentSopa} 
-                        onChange={e => setCurrentSopa(e.target.value)}
-                        className="bg-background"
-                        maxLength={FIELD_LIMITS.menuOption}
-                      />
-                    )}
-                  </div>
-                )}
-                {showSegundoField && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-cafe/70">¿Qué segundo desea?</Label>
-                      {isCustomSegundo && validSegundos.length > 0 && (
-                        <button type="button" onClick={() => setIsCustomSegundo(false)} className="text-[10px] text-primary hover:underline">
-                          Ver menú
-                        </button>
-                      )}
-                    </div>
-                    {(!isCustomSegundo && validSegundos.length > 0) ? (
-                      <Select value={currentSegundo} onValueChange={(v) => {
-                        if (v === 'custom') {
-                          setIsCustomSegundo(true);
-                          setCurrentSegundo('');
-                        } else {
-                          setCurrentSegundo(v);
-                        }
-                      }}>
-                        <SelectTrigger className="bg-background text-cafe">
-                          <SelectValue placeholder="Elegir del menú..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white">
-                          {validSegundos.map((s, idx) => (
-                            <SelectItem key={`seg-${idx}`} value={s}>{s}</SelectItem>
-                          ))}
-                          <SelectItem value="custom" className="font-bold text-primary">Otra opción...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input 
-                        placeholder="Ej: Pollo al Horno" 
-                        value={currentSegundo} 
-                        onChange={e => setCurrentSegundo(e.target.value)}
-                        className="bg-background"
-                        maxLength={FIELD_LIMITS.menuOption}
-                      />
-                    )}
-                  </div>
-                )}
-                {showSegundoField && (
-                  <div className="space-y-1.5 md:col-span-2 lg:col-span-1">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-cafe/70">¿Qué guarnición desea?</Label>
-                      {isCustomGuarnicion && validGuarniciones.length > 0 && (
-                        <button type="button" onClick={() => setIsCustomGuarnicion(false)} className="text-[10px] text-primary hover:underline">
-                          Ver menú
-                        </button>
-                      )}
-                    </div>
-                    {(!isCustomGuarnicion && validGuarniciones.length > 0) ? (
-                      <Select value={currentGuarnicion} onValueChange={(v) => {
-                        if (v === 'custom') {
-                          setIsCustomGuarnicion(true);
-                          setCurrentGuarnicion('');
-                        } else {
-                          setCurrentGuarnicion(v);
-                        }
-                      }}>
-                        <SelectTrigger className="bg-background text-cafe">
-                          <SelectValue placeholder="Elegir del menú..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white">
-                          {validGuarniciones.map((s, idx) => (
-                            <SelectItem key={`guarn-${idx}`} value={s}>{s}</SelectItem>
-                          ))}
-                          <SelectItem value="custom" className="font-bold text-primary">Otra opción...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input 
-                        placeholder="Ej: Porción de Arroz" 
-                        value={currentGuarnicion} 
-                        onChange={e => setCurrentGuarnicion(e.target.value)}
-                        className="bg-background"
-                        maxLength={FIELD_LIMITS.menuOption}
-                      />
-                    )}
-                  </div>
-                )}
+                  );
+                })}
               </div>
             );
           })()}
@@ -471,10 +440,13 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
                         <span className="font-bold text-primary">{item.cantidad}x</span>
                         <p className="font-semibold text-foreground truncate">{item.nombre}</p>
                       </div>
-                      {(item.sopa || item.segundo) && (
+                      {(item.opciones && Object.keys(item.opciones).length > 0) && (
                         <div className="mt-1 flex flex-wrap gap-2">
-                          {item.sopa && <span className="text-xs font-medium bg-accent/60 px-2.5 py-0.5 rounded-full text-foreground border">Sopa: {item.sopa}</span>}
-                          {item.segundo && <span className="text-xs font-medium bg-accent/60 px-2.5 py-0.5 rounded-full text-foreground border">Segundo: {item.segundo}</span>}
+                          {Object.entries(item.opciones).map(([k, v]) => (
+                            <span key={k} className="text-xs font-medium bg-accent/60 px-2.5 py-0.5 rounded-full text-foreground border capitalize">
+                              {k}: {v}
+                            </span>
+                          ))}
                         </div>
                       )}
                     </div>

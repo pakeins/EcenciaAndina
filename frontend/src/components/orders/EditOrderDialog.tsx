@@ -39,8 +39,7 @@ export function EditOrderDialog({ order, open, onOpenChange, onSave }: EditOrder
           nombre: det.productos?.nombre_producto || 'Desconocido',
           precio: det.precio_aplicado,
           cantidad: det.cantidad,
-          sopa: det.opciones?.sopa || '',
-          segundo: det.opciones?.segundo || '',
+          opciones: det.opciones || {},
           id_categoria: 0, // Not strictly needed for deleting/adding locally
         })) || [],
         observaciones: order.observaciones || '',
@@ -65,14 +64,11 @@ export function EditOrderDialog({ order, open, onOpenChange, onSave }: EditOrder
         body: JSON.stringify({
           observaciones: state.observaciones,
           detalles: state.items.map(item => {
-            const opciones: Record<string, string> = {};
-            if (item.sopa) opciones.sopa = item.sopa;
-            if (item.segundo) opciones.segundo = item.segundo;
             return {
               id_producto: item.id_producto,
               cantidad: item.cantidad,
               precio_aplicado: item.precio,
-              opciones
+              opciones: item.opciones || {}
             };
           })
         })

@@ -204,15 +204,11 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
           metodo_pago: (clientMode === 'existing' && (!selectedClient?.convenio && selectedClient?.id_tipo_cliente === 2)) || (clientMode === 'new' && tipoCliente === 'cliente') ? 'Saldo Prepago' : 'Convenio Empresa',
           observaciones: state.observaciones,
           detalles: state.items.map(item => {
-            const opciones: Record<string, string> = {};
-            if (item.sopa) opciones.sopa = item.sopa;
-            if (item.segundo) opciones.segundo = item.segundo;
-            if (item.guarnicion) opciones.guarnicion = item.guarnicion;
             return {
               id_producto: item.id_producto,
               cantidad: item.cantidad,
               precio_aplicado: item.precio,
-              opciones
+              opciones: item.opciones || {}
             };
           })
         })
