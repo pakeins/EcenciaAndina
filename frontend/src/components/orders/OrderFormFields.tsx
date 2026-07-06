@@ -145,11 +145,15 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
     }
 
     const normName = currentProduct.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const isAlmuerzo = normName.includes('almuerzo') || normName.includes('del dia') || normName.includes('ejecutivo');
+    const isAlmuerzo = currentProduct.categoria_nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('almuerzo');
     
     const visibleMenuCategories = activeMenuCategories.filter(cat => {
-      if (!isAlmuerzo) return false;
       const catName = cat.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      
+      if (!isAlmuerzo) {
+        const productCat = currentProduct.categoria_nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return catName === productCat || catName.includes(productCat) || productCat.includes(catName);
+      }
       
       const isEntrada = catName.includes('entrada');
       const isSopa = catName.includes('sopa');
@@ -294,11 +298,15 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
 
           {(() => {
             const normName = currentProduct?.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
-            const isAlmuerzo = normName.includes('almuerzo') || normName.includes('del dia') || normName.includes('ejecutivo');
+            const isAlmuerzo = currentProduct?.categoria_nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('almuerzo');
             
             const visibleMenuCategories = activeMenuCategories.filter(cat => {
-              if (!isAlmuerzo) return false;
               const catName = cat.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              
+              if (!isAlmuerzo) {
+                const productCat = currentProduct?.categoria_nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
+                return catName === productCat || catName.includes(productCat) || productCat.includes(catName);
+              }
               
               const isEntrada = catName.includes('entrada');
               const isSopa = catName.includes('sopa');
@@ -329,7 +337,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
               return true;
             });
 
-            if (!isAlmuerzo || visibleMenuCategories.length === 0) return null;
+            if (visibleMenuCategories.length === 0) return null;
 
             return (
               <div className={`grid gap-4 ${visibleMenuCategories.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1'} p-4 bg-primary/5 rounded-xl border border-primary/10 animate-in slide-in-from-top-2 duration-300`}>
