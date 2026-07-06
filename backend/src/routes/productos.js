@@ -123,7 +123,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Validar si el producto esta siendo usado en otra tabla (ej: menú, pedidos) se atrapará como error de FK.
-    const { data, error } = await supabase
+    const { error } = await getAdminClient()
       .from('productos')
       .delete()
       .eq('id_producto', id);

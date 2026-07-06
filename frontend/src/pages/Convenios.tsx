@@ -117,11 +117,14 @@ export default function Convenios() {
       if (res.ok) {
         const productList = Array.isArray(data) ? data : (data.productos || []);
         const lunchTypes = productList
-          .filter((p: any) => p.id_categoria === 1 && p.activo)
-          .map((p: any) => ({
-            code: p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_'),
-            label: p.nombre
-          }));
+          .filter((p: Record<string, unknown>) => p.id_categoria === 1 && (p.activo || p.esta_activo))
+          .map((p: Record<string, unknown>) => {
+            const nombre = String(p.nombre || p.nombre_producto || '');
+            return {
+              code: nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_'),
+              label: nombre
+            };
+          });
         setTiposAlmuerzoOptions(lunchTypes);
       }
     } catch (e) {

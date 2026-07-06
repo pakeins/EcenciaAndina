@@ -152,7 +152,7 @@ export default function Clientes() {
     refetchInterval: 30000,
   });
 
-  const pendingPrivacyCount = privacyRequests.filter((r: any) => ['pending', 'in_review'].includes(r.status)).length;
+  const pendingPrivacyCount = privacyRequests.filter((r: { status: string }) => ['pending', 'in_review'].includes(r.status)).length;
 
   const error = clientsError ? (clientsError as Error).message : null;
 

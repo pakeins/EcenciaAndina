@@ -1600,6 +1600,11 @@ const parseTextOrder = (text, session) => {
 };
 
 // Obtenemos los tipos de almuerzo de DB dinámicamente y los exportamos como un getter async
+const getTiposAlmuerzoFromDB = async () => {
+  const { data } = await getAdminClient().from('tipos_almuerzo').select('*');
+  return data || [];
+};
+
 const getTelegramLunchTypeById = async (id) => {
   const tipos = await getTiposAlmuerzoFromDB();
   return tipos.find(t => t.id === id);

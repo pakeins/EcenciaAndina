@@ -38,7 +38,7 @@ const wipeData = async () => {
     console.log('Database wipe completed successfully!');
   } catch (error) {
     console.error('Error wiping database:', error);
-    try { await client.query('ROLLBACK;'); } catch (e) {}
+    try { await client.query('ROLLBACK;'); } catch (e) { console.error('Rollback error', e); }
   } finally {
     await client.end();
   }
