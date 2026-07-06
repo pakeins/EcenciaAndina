@@ -69,10 +69,14 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
   const [currentGuarnicion, setCurrentGuarnicion] = useState('');
   const [currentCantidad, setCurrentCantidad] = useState(1);
 
-  const { sopas: menuSopas, segundos: menuSegundos, guarniciones: menuGuarniciones } = useMenu();
-  const validSopas = useMemo(() => menuSopas.filter(s => s.trim() !== ''), [menuSopas]);
-  const validSegundos = useMemo(() => menuSegundos.filter(s => s.trim() !== ''), [menuSegundos]);
-  const validGuarniciones = useMemo(() => menuGuarniciones.filter(s => s.trim() !== ''), [menuGuarniciones]);
+  const menuState = useMenu();
+  const menuSopas = (menuState as any).sopas || [];
+  const menuSegundos = (menuState as any).segundos || [];
+  const menuGuarniciones = (menuState as any).guarniciones || [];
+
+  const validSopas = useMemo(() => menuSopas.filter((s: string) => s.trim() !== ''), [menuSopas]);
+  const validSegundos = useMemo(() => menuSegundos.filter((s: string) => s.trim() !== ''), [menuSegundos]);
+  const validGuarniciones = useMemo(() => menuGuarniciones.filter((s: string) => s.trim() !== ''), [menuGuarniciones]);
 
   const [isCustomSopa, setIsCustomSopa] = useState(false);
   const [isCustomSegundo, setIsCustomSegundo] = useState(false);
