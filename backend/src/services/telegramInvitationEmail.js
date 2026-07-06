@@ -45,8 +45,8 @@ const createTransporter = () => {
 
   cachedTransporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
     pool: true,
     maxConnections: 5,
     maxMessages: 100,
