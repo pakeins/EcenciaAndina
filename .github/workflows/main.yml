@@ -218,6 +218,18 @@ jobs:
             git fetch --all
             git reset --hard origin/main
             
+            # Generar archivo .env dinamico con los secretos de GitHub
+            echo "PORT=3001" > backend/.env
+            echo "NODE_ENV=production" >> backend/.env
+            echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> backend/.env
+            echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> backend/.env
+            echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> backend/.env
+            echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> backend/.env
+            echo "TELEGRAM_WEBHOOK_SECRET=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}" >> backend/.env
+            echo "TELEGRAM_INVITE_TOKEN_SECRET=${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET }}" >> backend/.env
+            echo "GMAIL_USER=${{ secrets.GMAIL_USER }}" >> backend/.env
+            echo "GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}" >> backend/.env
+            
             # Levantar contenedores actualizados (incluye telegram_bot)
             docker compose build
             docker compose up -d
