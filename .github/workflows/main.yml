@@ -2,7 +2,7 @@ name: CI/CD DevSecOps
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     types: [opened, synchronize, reopened]
   push:
     branches: [main, develop]
@@ -24,7 +24,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
       SUPABASE_ANON_KEY: "dummy-key"
       JWT_SECRET: "dummy-secret"
-      PORT: 3000
+      PORT: 3001
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -189,7 +189,7 @@ jobs:
           name: frontend-dist
           path: frontend-dist
 
-      - name: Copy Frontend to Azure VM
+      - name: Copy Frontend to Azure VM (Apache)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.AZURE_HOST }}
@@ -199,15 +199,28 @@ jobs:
           target: "/var/www/html/"
           strip_components: 1
 
-      - name: Update Backend & n8n on Azure VM
+      - name: Deploy Backend & Bot on Azure VM
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AZURE_HOST }}
           username: ${{ secrets.AZURE_USER }}
           key: ${{ secrets.AZURE_SSH_KEY }}
           script: |
-            cd /home/${{ secrets.AZURE_USER }}/ECenciaAPP
-            git pull origin main
+            # Crear directorio base del proyecto si no existe
+            if [ ! -d "/home/${{ secrets.AZURE_USER }}/EcenciaAPP" ]; then
+              echo "Cloning EcenciaAPP for the first time..."
+              git clone https://github.com/Packeins/EcenciaAndinaAPP.git /home/${{ secrets.AZURE_USER }}/EcenciaAPP
+            fi
+            
+            cd /home/${{ secrets.AZURE_USER }}/EcenciaAPP
+            
+            # Limpiar cambios locales y hacer pull del ultimo main
+            git fetch --all
+            git reset --hard origin/main
+            
+            # Levantar contenedores actualizados (incluye telegram_bot)
             docker compose build
             docker compose up -d
-            docker system prune -f
+            
+            # Limpiar imagenes huerfanas viejas para liberar espacio
+            docker image prune -af
