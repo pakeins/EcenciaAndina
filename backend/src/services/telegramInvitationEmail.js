@@ -86,21 +86,33 @@ const buildInvitationEmail = async ({ client, onboarding }) => {
       `El enlace vence ${expiresLabel || 'en 7 dias'} y solo puede reclamarse una vez.\n` +
       'No reenvies este correo. Si no solicitaste el registro, contacta a Eciencia Andina.',
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#3b2417">
-        <h1 style="font-size:24px">Activa tus reservas por Telegram</h1>
-        <p>Hola <strong>${safeName}</strong>.</p>
-        <p>Usa el boton o escanea el QR para abrir el bot de Eciencia Andina. El enlace es privado y solo puede reclamarse una vez.</p>
-        <p style="margin:28px 0">
-          <a href="${safeUrl}" style="background:#2f4d49;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">
-            Abrir Telegram
-          </a>
-        </p>
-        <div style="text-align:center;margin:24px 0">
-          <img src="cid:telegram-activation-qr" width="260" height="260" alt="QR de activacion de Telegram" />
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;background-color:#1c1c1c;color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
+        <div style="background-color:#d35400;padding:20px;text-align:center;">
+          <h2 style="margin:0;color:#ffffff;font-size:18px;">¡Bienvenido a Ecencia Andina, ${safeName}!</h2>
         </div>
-        <p style="font-size:13px;color:#61603c">Vigencia: ${escapeHtml(expiresLabel || '7 dias')}.</p>
-        <p style="font-size:12px;color:#6b7280">No reenvies este correo. Tambien puedes copiar este enlace:</p>
-        <p style="font-size:12px;word-break:break-all">${safeUrl}</p>
+        <div style="padding:30px 20px;">
+          <p style="margin:0 0 16px;line-height:1.5;">Estamos emocionados de tenerte con nosotros. Tu cuenta ha sido creada exitosamente en nuestro sistema.</p>
+          <p style="margin:0 0 20px;line-height:1.5;">Desde ahora podrás pedir tus almuerzos, ver el menú diario y gestionar tus reservas directamente desde tu celular.</p>
+          <p style="margin:0 0 24px;font-weight:bold;">Da clic en el siguiente botón para empezar:</p>
+          <div style="text-align:center;margin-bottom:30px;">
+            <a href="${safeUrl}" style="display:inline-block;background-color:#0088cc;color:#ffffff;padding:14px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;">
+              Iniciar registro en Telegram
+            </a>
+          </div>
+          <p style="margin:0 0 8px;font-size:14px;color:#a0a0a0;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+          <p style="margin:0 0 24px;font-size:14px;word-break:break-all;"><a href="${safeUrl}" style="color:#0088cc;">${safeUrl}</a></p>
+          
+          <div style="text-align:center;margin:30px 0;">
+            <p style="margin:0 0 12px;font-size:14px;color:#a0a0a0;">También puedes escanear este código QR:</p>
+            <img src="cid:telegram-activation-qr" width="220" height="220" alt="QR de activacion de Telegram" style="border-radius:8px;border:4px solid #ffffff;" />
+          </div>
+          
+          <p style="font-size:12px;color:#888888;text-align:center;">Vigencia del enlace: ${escapeHtml(expiresLabel || '7 dias')}.</p>
+        </div>
+        <div style="background-color:#121212;padding:20px;text-align:center;border-top:1px solid #333333;">
+          <p style="margin:0 0 8px;font-size:12px;color:#888888;">Ecencia Andina © 2026</p>
+          <p style="margin:0;font-size:12px;color:#888888;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+        </div>
       </div>
     `,
     qrBuffer,
