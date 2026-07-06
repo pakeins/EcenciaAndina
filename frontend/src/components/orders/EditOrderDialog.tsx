@@ -95,38 +95,38 @@ export function EditOrderDialog({ order, open, onOpenChange, onSave }: EditOrder
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-foreground">Editar Pedido</DialogTitle>
-          <DialogDescription>
-            Añade, elimina o modifica los productos del pedido de {order.clientes?.nombre} {order.clientes?.apellido}
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:rounded-2xl">
+        <DialogHeader className="sm:text-center space-y-1.5">
+          <DialogTitle className="text-2xl font-black text-foreground">Editar Pedido</DialogTitle>
+          <DialogDescription className="text-base">
+            Modificando pedido de <strong className="text-foreground">{order.clientes?.nombre} {order.clientes?.apellido}</strong>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6 py-2">
           {/* Client Info */}
-          <div className="rounded-lg bg-accent p-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label className="text-xs text-muted-foreground">Cliente</Label>
-                <p className="font-medium text-foreground">{order.clientes?.nombre} {order.clientes?.apellido}</p>
+          <div className="rounded-xl border border-border bg-card shadow-sm p-5">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground">Cliente</Label>
+                <p className="font-semibold text-foreground text-base">{order.clientes?.nombre} {order.clientes?.apellido}</p>
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">App de Mensajería</Label>
-                <p className="font-medium text-foreground">{order.clientes?.telefono || 'N/A'}</p>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground">App de Mensajería</Label>
+                <p className="font-semibold text-foreground text-base">{order.clientes?.telefono || 'N/A'}</p>
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Tipo de Cliente</Label>
-                <div className="mt-1">
-                  <Badge variant="outline" className="w-fit bg-primary/5">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground">Tipo de Cliente</Label>
+                <div>
+                  <Badge variant="outline" className="w-fit border-primary/20 bg-primary/5 text-primary text-xs">
                     {order.clientes?.tipos_cliente?.nombre_tipo || 'Cliente'}
                   </Badge>
                 </div>
               </div>
               {isConvenio && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">Detalle Convenio</Label>
-                  <p className="font-medium text-foreground">{order.clientes?.tipos_cliente?.nombre_tipo}</p>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground">Detalle Convenio</Label>
+                  <p className="font-semibold text-foreground text-base">{order.clientes?.tipos_cliente?.nombre_tipo}</p>
                 </div>
               )}
             </div>
@@ -135,11 +135,11 @@ export function EditOrderDialog({ order, open, onOpenChange, onSave }: EditOrder
           <OrderFormFields state={state} onChange={setState} showProductos={true} />
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+        <DialogFooter className="gap-2 sm:gap-0 mt-4 border-t border-border pt-4">
+          <Button variant="outline" className="rounded-xl h-11 font-bold" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} className="rounded-xl h-11 font-bold bg-cafe hover:bg-cafe/90 shadow-md shadow-cafe/20 transition-all hover:scale-[1.02]" disabled={isSaving}>
             {isSaving ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </DialogFooter>
