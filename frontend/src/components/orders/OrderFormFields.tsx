@@ -164,8 +164,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
       const catName = cat.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       
       if (!isAlmuerzo) {
-        const productCat = currentProduct.categoria_nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return catName === productCat || catName.includes(productCat) || productCat.includes(catName);
+        return false;
       }
       
       const isEntrada = catName.includes('entrada');
@@ -346,8 +345,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
               const catName = cat.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
               
               if (!isAlmuerzo) {
-                const productCat = currentProduct?.categoria_nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
-                return catName === productCat || catName.includes(productCat) || productCat.includes(catName);
+                return false;
               }
               
               const isEntrada = catName.includes('entrada');
