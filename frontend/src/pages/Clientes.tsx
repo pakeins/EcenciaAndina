@@ -255,16 +255,16 @@ export default function Clientes() {
       return;
     }
 
-    if (!isValidEcDocument(formData.cedula)) {
-      toast.error('Ingrese una cedula o RUC ecuatoriano valido');
+    if (formData.cedula.length !== 10 || !isValidEcDocument(formData.cedula)) {
+      toast.error('Ingrese una cedula valida de 10 digitos');
       return;
     }
     if (formData.nombre.trim().length > FIELD_LIMITS.nombre || formData.apellido.trim().length > FIELD_LIMITS.nombre) {
       toast.error(`Nombre y apellido no pueden superar ${FIELD_LIMITS.nombre} caracteres`);
       return;
     }
-    if (!isValidPhone(formData.telefono)) {
-      toast.error('El telefono debe tener entre 8 y 15 digitos');
+    if (formData.telefono && formData.telefono.length !== 10) {
+      toast.error('El telefono debe tener exactamente 10 digitos');
       return;
     }
     if (!isValidEmail(formData.correo)) {
@@ -725,7 +725,7 @@ export default function Clientes() {
                 value={formData.cedula}
                 onChange={(e) => setFormData({ ...formData, cedula: e.target.value.replace(/\D/g, '') })}
                 placeholder="Ej: 1712345678"
-                maxLength={13}
+                maxLength={10}
                 inputMode="numeric"
               />
             </div>
@@ -770,8 +770,8 @@ export default function Clientes() {
                   id="telefono"
                   value={formData.telefono}
                   onChange={(e) => setFormData({ ...formData, telefono: e.target.value.replace(/\D/g, '') })}
-                  placeholder="+593 999999999"
-                  maxLength={16}
+                  placeholder="Ej: 0999999999"
+                  maxLength={10}
                   inputMode="tel"
                 />
               </div>
