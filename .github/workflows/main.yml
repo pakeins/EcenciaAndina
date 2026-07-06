@@ -251,17 +251,34 @@ jobs:
             git fetch --all
             git reset --hard origin/main
             
-            # Generar archivo .env dinamico con los secretos de GitHub
-            echo "PORT=3001" > backend/.env
-            echo "NODE_ENV=production" >> backend/.env
-            echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> backend/.env
-            echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> backend/.env
-            echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> backend/.env
-            echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> backend/.env
-            echo "TELEGRAM_WEBHOOK_SECRET=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}" >> backend/.env
-            echo "TELEGRAM_INVITE_TOKEN_SECRET=${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET }}" >> backend/.env
-            echo "GMAIL_USER=${{ secrets.GMAIL_USER }}" >> backend/.env
-            echo "GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}" >> backend/.env
+            # Restaurar el .env base (CORS, URLs, etc) del despliegue anterior
+            if [ -f "/home/${{ secrets.AZURE_USER }}/ECenciaAPP/backend/.env" ]; then
+              cp /home/${{ secrets.AZURE_USER }}/ECenciaAPP/backend/.env backend/.env
+            else
+              touch backend/.env
+            fi
+            
+            # Funcion para inyectar/actualizar secretos de GitHub sin borrar el resto
+            set_env() {
+              local key=$1
+              local val=$2
+              if grep -q "^${key}=" backend/.env; then
+                # Escapar slashes para sed
+                local escaped_val=$(echo "$val" | sed 's/\//\\\//g')
+                sed -i "s|^${key}=.*|${key}=${escaped_val}|" backend/.env
+              else
+                echo "${key}=${val}" >> backend/.env
+              fi
+            }
+            
+            set_env "SUPABASE_URL" "${{ secrets.SUPABASE_URL }}"
+            set_env "SUPABASE_ANON_KEY" "${{ secrets.SUPABASE_ANON_KEY }}"
+            set_env "SUPABASE_SERVICE_ROLE_KEY" "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+            set_env "TELEGRAM_BOT_TOKEN" "${{ secrets.TELEGRAM_BOT_TOKEN }}"
+            set_env "TELEGRAM_WEBHOOK_SECRET" "${{ secrets.TELEGRAM_WEBHOOK_SECRET }}"
+            set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET }}"
+            set_env "GMAIL_USER" "${{ secrets.GMAIL_USER }}"
+            set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD }}"
             
             # Levantar contenedores actualizados (incluye telegram_bot)
             docker compose build
