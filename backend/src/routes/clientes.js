@@ -37,28 +37,11 @@ const CLIENT_SELECT = `
     last_menu_sent_at,
     revoked_at,
     deletion_requested_at
-  ),
-  telegram_invitations(
-    id,
-    expires_at,
-    consumed_at,
-    revoked_at,
-    created_at,
-    email_delivery_status,
-    email_recipient,
-    email_provider_id,
-    email_attempted_at,
-    email_sent_at
-  ),
-  telegram_privacy_requests(
-    id,
-    request_type,
-    status,
-    requested_at
   )
 `;
 
 const handleRouteError = (res, error) => {
+  console.error('[ROUTE ERROR]', error);
   if (sendValidationError(res, error)) return;
   const status = Number(error?.status || 500);
   res.status(status >= 400 && status < 600 ? status : 500).json({

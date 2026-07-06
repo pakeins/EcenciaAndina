@@ -43,8 +43,15 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
       const response = await apiFetch('/productos');
       if (response.ok) {
         const data = await response.json();
-        const almuerzos = data.filter((p: Alimento) =>
-          p.categoria_nombre?.toLowerCase().includes('almuerzo')
+        const OFFICIAL_LUNCHES = [
+          'Almuerzo Ejecutivo Completo',
+          'Almuerzo Ejecutivo Sin Sopa',
+          'Almuerzo Ejecutivo Simple',
+          'Almuerzo del Dia',
+          'Almuerzo del Dia Simple'
+        ];
+        const almuerzos = data.filter((p: any) =>
+          OFFICIAL_LUNCHES.includes(p.nombre)
         );
         setProducts(almuerzos);
       }

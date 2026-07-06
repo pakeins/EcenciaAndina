@@ -254,11 +254,6 @@ export default function Clientes() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'No se pudo reinvitar al cliente.');
-      showTelegramOnboarding(
-        data.telegram_onboarding,
-        `${client.nombre} ${client.apellido}`,
-        client.id,
-      );
       await fetchClientes();
       toast.success(
         data.telegram_onboarding?.status === 'sent'
@@ -295,13 +290,8 @@ export default function Clientes() {
       toast.error('Ingrese un correo electronico valido');
       return;
     }
-    if (
-      formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT &&
-      !formData.id_convenio
-    ) {
-      toast.error('Seleccione el convenio del cliente');
-      return;
-    }
+    // Se permite crear un cliente de tipo convenio sin asignarle uno todavía
+    // ya que la opción "Sin convenio asignado" es válida.
     setIsSaving(true);
     try {
       const payload = {

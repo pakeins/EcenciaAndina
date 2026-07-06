@@ -1,6 +1,6 @@
 const CLIENT_TYPE = Object.freeze({
-  DIRECT: 1,
-  AGREEMENT: 2,
+  AGREEMENT: 1,
+  DIRECT: 2,
 });
 
 const ORDER_STATE = Object.freeze({

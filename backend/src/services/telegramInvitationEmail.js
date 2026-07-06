@@ -1,5 +1,5 @@
 const QRCode = require('qrcode');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 const { getAdminClient } = require('../config/supabase');
 
 const DELIVERY_STATUS = Object.freeze({
@@ -36,6 +36,16 @@ const updateInvitationDelivery = async (
     .update(values)
     .eq('id', invitationId);
   if (error) throw error;
+};
+
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com',
+      pass: process.env.GMAIL_APP_PASSWORD || '',
+    },
+  });
 };
 
 const buildInvitationEmail = async ({ client, onboarding }) => {
@@ -84,28 +94,29 @@ const buildInvitationEmail = async ({ client, onboarding }) => {
         <p style="font-size:12px;word-break:break-all">${safeUrl}</p>
       </div>
     `,
-    qrBase64: qrBuffer.toString('base64'),
+    qrBuffer,
   };
 };
 
 const sendTelegramReactivationEmail = async (
-  { client },
-  { createResend = (apiKey) => new Resend(apiKey) } = {},
+  { client }
 ) => {
   const recipient = normalizeEmail(client?.correo);
-  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
-  const from = String(process.env.INVITATION_FROM_EMAIL || '').trim();
+  const user = String(process.env.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com').trim();
+  const pass = String(process.env.GMAIL_APP_PASSWORD || '').trim();
   const replyTo = String(process.env.INVITATION_REPLY_TO || '').trim();
+
   if (!recipient) return deliverySummary(DELIVERY_STATUS.FAILED, recipient);
-  if (!apiKey || !from) {
+  if (!user || !pass) {
     return deliverySummary(DELIVERY_STATUS.NOT_CONFIGURED, recipient);
   }
 
   const clientName = `${client.nombre || ''} ${client.apellido || ''}`.trim();
   try {
-    const { data, error } = await createResend(apiKey).emails.send({
-      from,
-      to: [recipient],
+    const transporter = createTransporter();
+    const info = await transporter.sendMail({
+      from: `"Eciencia Andina" <${user}>`,
+      to: recipient,
       replyTo: replyTo || undefined,
       subject: 'Reactivacion de Telegram en Eciencia Andina',
       text:
@@ -121,8 +132,7 @@ const sendTelegramReactivationEmail = async (
         </div>
       `,
     });
-    if (error) throw new Error(error.message || 'Resend rechazo el correo.');
-    return deliverySummary(DELIVERY_STATUS.SENT, recipient, data?.id || null);
+    return deliverySummary(DELIVERY_STATUS.SENT, recipient, info.messageId || null);
   } catch (error) {
     console.error('No se pudo enviar la notificacion de reactivacion:', error.message);
     return deliverySummary(DELIVERY_STATUS.FAILED, recipient);
@@ -131,15 +141,12 @@ const sendTelegramReactivationEmail = async (
 
 const sendTelegramInvitationEmail = async (
   { client, onboarding },
-  {
-    createClient = getAdminClient,
-    createResend = (apiKey) => new Resend(apiKey),
-  } = {},
+  { createClient = getAdminClient, getTransporter = createTransporter } = {},
 ) => {
   const recipient = normalizeEmail(client?.correo);
   const invitationId = onboarding?.invitationId;
-  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
-  const from = String(process.env.INVITATION_FROM_EMAIL || '').trim();
+  const user = String(process.env.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com').trim();
+  const pass = String(process.env.GMAIL_APP_PASSWORD || '').trim();
   const replyTo = String(process.env.INVITATION_REPLY_TO || '').trim();
   const attemptedAt = new Date().toISOString();
 
@@ -147,7 +154,7 @@ const sendTelegramInvitationEmail = async (
     return deliverySummary(DELIVERY_STATUS.FAILED, recipient);
   }
 
-  if (!apiKey || !from) {
+  if (!user || !pass) {
     await updateInvitationDelivery(
       invitationId,
       {
@@ -176,24 +183,25 @@ const sendTelegramInvitationEmail = async (
 
   try {
     const content = await buildInvitationEmail({ client, onboarding });
-    const { data, error } = await createResend(apiKey).emails.send({
-      from,
-      to: [recipient],
+    const transporter = getTransporter();
+    
+    const info = await transporter.sendMail({
+      from: `"Eciencia Andina" <${user}>`,
+      to: recipient,
       replyTo: replyTo || undefined,
       subject: content.subject,
       text: content.text,
       html: content.html,
       attachments: [
         {
-          content: content.qrBase64,
           filename: 'activacion-telegram.png',
-          contentId: 'telegram-activation-qr',
+          content: content.qrBuffer,
+          cid: 'telegram-activation-qr',
         },
       ],
     });
-    if (error) throw new Error(error.message || 'Resend rechazo el correo.');
 
-    const providerId = data?.id || null;
+    const providerId = info.messageId || null;
     await updateInvitationDelivery(
       invitationId,
       {

@@ -1,6 +1,6 @@
 export const CLIENT_TYPE = {
-  DIRECT: 1,
-  AGREEMENT: 2,
+  AGREEMENT: 1,
+  DIRECT: 2,
 } as const;
 
 export const ORDER_STATE = {

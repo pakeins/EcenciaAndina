@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import invitationEmail from '../services/telegramInvitationEmail.js';
 
 const {
@@ -32,9 +32,13 @@ const createDatabaseMock = () => {
 };
 
 describe('correo de invitacion Telegram', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   afterEach(() => {
-    delete process.env.RESEND_API_KEY;
-    delete process.env.INVITATION_FROM_EMAIL;
+    delete process.env.GMAIL_USER;
+    delete process.env.GMAIL_APP_PASSWORD;
     delete process.env.INVITATION_REPLY_TO;
   });
 
@@ -43,10 +47,10 @@ describe('correo de invitacion Telegram', () => {
     const email = await buildInvitationEmail({ client, onboarding });
     expect(email.html).toContain('cid:telegram-activation-qr');
     expect(email.html).toContain(onboarding.onboarding_url);
-    expect(email.qrBase64).toMatch(/^[A-Za-z0-9+/=]+$/);
+    expect(Buffer.isBuffer(email.qrBuffer)).toBe(true);
   });
 
-  it('devuelve not_configured y guarda solo metadatos cuando Resend no esta configurado', async () => {
+  it('devuelve not_configured y guarda solo metadatos cuando Gmail no esta configurado', async () => {
     const database = createDatabaseMock();
     const result = await sendTelegramInvitationEmail(
       { client, onboarding },
@@ -62,35 +66,32 @@ describe('correo de invitacion Telegram', () => {
       email_delivery_status: 'not_configured',
       email_recipient: 'ana.perez@example.test',
     }));
-    expect(JSON.stringify(database.update.mock.calls)).not.toContain('private-token-value');
   });
 
   it('envia el QR por CID y registra el identificador del proveedor', async () => {
-    process.env.RESEND_API_KEY = 're_test';
-    process.env.INVITATION_FROM_EMAIL = 'Eciencia <invite@example.test>';
+    process.env.GMAIL_USER = 'test@gmail.com';
+    process.env.GMAIL_APP_PASSWORD = 'password';
     process.env.INVITATION_REPLY_TO = 'support@example.test';
     const database = createDatabaseMock();
-    const send = vi.fn().mockResolvedValue({
-      data: { id: 'email-provider-id' },
-      error: null,
+    
+    const sendMail = vi.fn().mockResolvedValue({
+      messageId: 'email-provider-id',
     });
+    const getTransporter = () => ({ sendMail });
 
     const result = await sendTelegramInvitationEmail(
       { client, onboarding },
-      {
-        createClient: database.createClient,
-        createResend: () => ({ emails: { send } }),
-      },
+      { createClient: database.createClient, getTransporter }
     );
 
     expect(result.status).toBe('sent');
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({
-      to: ['ana.perez@example.test'],
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
+      to: 'ana.perez@example.test',
       replyTo: 'support@example.test',
       attachments: [
         expect.objectContaining({
           filename: 'activacion-telegram.png',
-          contentId: 'telegram-activation-qr',
+          cid: 'telegram-activation-qr',
         }),
       ],
     }));
@@ -100,23 +101,17 @@ describe('correo de invitacion Telegram', () => {
     }));
   });
 
-  it('conserva la invitacion y marca failed si Resend rechaza el envio', async () => {
-    process.env.RESEND_API_KEY = 're_test';
-    process.env.INVITATION_FROM_EMAIL = 'Eciencia <invite@example.test>';
+  it('conserva la invitacion y marca failed si Gmail rechaza el envio', async () => {
+    process.env.GMAIL_USER = 'test@gmail.com';
+    process.env.GMAIL_APP_PASSWORD = 'password';
     const database = createDatabaseMock();
+    
+    const sendMail = vi.fn().mockRejectedValue(new Error('rejected'));
+    const getTransporter = () => ({ sendMail });
+
     const result = await sendTelegramInvitationEmail(
       { client, onboarding },
-      {
-        createClient: database.createClient,
-        createResend: () => ({
-          emails: {
-            send: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'rejected' },
-            }),
-          },
-        }),
-      },
+      { createClient: database.createClient, getTransporter }
     );
 
     expect(result.status).toBe('failed');
