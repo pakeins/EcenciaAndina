@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const secret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
-const localWebhookUrl = 'http://localhost:3001/api/telegram/webhook';
+const localWebhookUrl = process.env.LOCAL_WEBHOOK_URL || 'http://localhost:3001/api/telegram/webhook';
 let offset = 0;
 let isPolling = false;
 

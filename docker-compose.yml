@@ -21,6 +21,8 @@ services:
     container_name: ecencia-telegram-bot
     restart: always
     command: node poll_telegram.js
+    environment:
+      - LOCAL_WEBHOOK_URL=http://backend:3001/api/telegram/webhook
     env_file:
       - ./backend/.env
 
