@@ -68,29 +68,48 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
   const [currentSegundo, setCurrentSegundo] = useState('');
   const [currentGuarnicion, setCurrentGuarnicion] = useState('');
   const [currentCantidad, setCurrentCantidad] = useState(1);
-
-  const menuState = useMenu();
-  const menuSopas = (menuState as any).sopas || [];
-  const menuSegundos = (menuState as any).segundos || [];
-  const menuGuarniciones = (menuState as any).guarniciones || [];
-
-  const validSopas = useMemo(() => menuSopas.filter((s: string) => s.trim() !== ''), [menuSopas]);
-  const validSegundos = useMemo(() => menuSegundos.filter((s: string) => s.trim() !== ''), [menuSegundos]);
-  const validGuarniciones = useMemo(() => menuGuarniciones.filter((s: string) => s.trim() !== ''), [menuGuarniciones]);
-
   const [isCustomSopa, setIsCustomSopa] = useState(false);
   const [isCustomSegundo, setIsCustomSegundo] = useState(false);
   const [isCustomGuarnicion, setIsCustomGuarnicion] = useState(false);
+  const [menuSopas, setMenuSopas] = useState<string[]>([]);
+  const [menuSegundos, setMenuSegundos] = useState<string[]>([]);
+  const [menuGuarniciones, setMenuGuarniciones] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [catRes, prodRes] = await Promise.all([
+        const [catRes, prodRes, menuRes, catMenuRes] = await Promise.all([
           apiFetch('/categorias'),
-          apiFetch('/productos')
+          apiFetch('/productos'),
+          apiFetch('/menu'),
+          apiFetch('/alimentos/categorias')
         ]);
         if (catRes.ok) setCategories(await catRes.json());
         if (prodRes.ok) setAllProducts(await prodRes.json());
+        
+        if (menuRes.ok && catMenuRes.ok) {
+          const menuData = await menuRes.json();
+          const catMenuData = await catMenuRes.json();
+          
+          const menus = Array.isArray(menuData) ? menuData : (menuData.menus || []);
+          const active = menus.find((m: any) => m.estado === 'activo') || menus[0];
+          
+          if (active && active.opciones) {
+            const findCatId = (keyword: string) => {
+              const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              const found = catMenuData.find((c: any) => norm(c.nombre_categoria).includes(keyword));
+              return found ? found.id_categoria_menu : null;
+            };
+            
+            const idSopa = findCatId('sopa');
+            const idSegundo = findCatId('segundo') || findCatId('plato');
+            const idGuarnicion = findCatId('guarnicion') || findCatId('arroz');
+
+            setMenuSopas(idSopa && active.opciones[idSopa] ? active.opciones[idSopa] : []);
+            setMenuSegundos(idSegundo && active.opciones[idSegundo] ? active.opciones[idSegundo] : []);
+            setMenuGuarniciones(idGuarnicion && active.opciones[idGuarnicion] ? active.opciones[idGuarnicion] : []);
+          }
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -99,6 +118,10 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
     };
     fetchData();
   }, []);
+
+  const validSopas = useMemo(() => menuSopas.filter((s: string) => s.trim() !== ''), [menuSopas]);
+  const validSegundos = useMemo(() => menuSegundos.filter((s: string) => s.trim() !== ''), [menuSegundos]);
+  const validGuarniciones = useMemo(() => menuGuarniciones.filter((s: string) => s.trim() !== ''), [menuGuarniciones]);
 
   const filteredProducts = useMemo(() => {
     let prods = allProducts.filter(p => p.id_categoria.toString() === currentCategory);
