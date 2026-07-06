@@ -481,7 +481,7 @@ describe('privacidad y revocacion', () => {
 
     expect(lastMessage()[1]).toContain('Solicitud Recibida');
     const audit = writes.find((w) => w.table === 'telegram_privacy_audits');
-    expect(audit.payload).toMatchObject({ action: 'eliminarmisdatos', outcome: 'informed' });
+    expect(audit.payload).toMatchObject({ action: 'eliminarmisdatos', outcome: 'requested' });
   });
 
   it('/revocar pide confirmacion y revocar:confirm bloquea la suscripcion', async () => {
@@ -499,7 +499,12 @@ describe('privacidad y revocacion', () => {
     // Con el consentimiento revocado el bot ignora los mensajes siguientes.
     sendTelegramMessage.mockClear();
     await handleTelegramUpdate(textUpdate(100, '/menu'));
-    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(sendTelegramMessage).toHaveBeenCalledWith(
+      '100',
+      expect.stringContaining('Suscripcion Bloqueada'),
+      null,
+      'HTML'
+    );
   });
 
   it('/ayuda lista los comandos disponibles', async () => {

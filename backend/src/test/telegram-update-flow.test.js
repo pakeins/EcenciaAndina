@@ -195,6 +195,7 @@ describe('handleTelegramUpdate — consentimiento y comandos', () => {
       expect.objectContaining({
         keyboard: expect.any(Array),
       }),
+      'HTML'
     );
   });
 

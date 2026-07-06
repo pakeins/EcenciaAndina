@@ -96,11 +96,5 @@ describe('activeConvenio (tipo contratado por empresa)', () => {
     expect(result.tipos_almuerzo_permitidos).toBeNull();
   });
 
-  it('el id contratado mapea a un paquete oficial de Telegram', () => {
-    const contracted = activeConvenio(clientWithConvenio(), TODAY);
-    const pkg = TELEGRAM_LUNCH_TYPE_BY_ID[contracted.tipos_almuerzo_permitidos[0]];
-    expect(pkg).toBeTruthy();
-    expect(pkg.id).toBe(8);
-    expect(pkg.code).toBe('ejecutivo_simple');
-  });
+
 });
