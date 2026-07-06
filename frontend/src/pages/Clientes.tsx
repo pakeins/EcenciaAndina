@@ -182,7 +182,7 @@ export default function Clientes() {
     if (!confirm('¿Estás seguro de que deseas eliminar este cliente? Solo se podrá eliminar si no tiene órdenes ni saldo asociado.')) return;
     
     try {
-      const response = await apiFetch(`/api/clientes/${id}`, { method: 'DELETE' });
+      const response = await apiFetch(`/clientes/${id}`, { method: 'DELETE' });
       const data = await response.json();
       if (!response.ok) {
         toast.error(data.error || 'Error al eliminar cliente');

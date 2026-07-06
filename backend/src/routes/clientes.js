@@ -45,7 +45,7 @@ const handleRouteError = (res, error) => {
   if (sendValidationError(res, error)) return;
   const status = Number(error?.status || 500);
   res.status(status >= 400 && status < 600 ? status : 500).json({
-    error: status >= 500 ? 'No se pudo completar la operacion del cliente.' : error.message,
+    error: error.message || 'No se pudo completar la operacion del cliente.',
   });
 };
 
