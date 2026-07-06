@@ -64,6 +64,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
   const [currentCantidad, setCurrentCantidad] = useState(1);
   const [currentOpciones, setCurrentOpciones] = useState<Record<string, string>>({});
   const [isCustomOpcion, setIsCustomOpcion] = useState<Record<string, boolean>>({});
+  const [formMode, setFormMode] = useState<'almuerzo' | 'extra'>('almuerzo');
 
   interface MenuCategoryData {
     id_categoria_menu: number;
@@ -125,7 +126,13 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
   }, [allProducts, currentCategory, availableBalances]);
 
   const filteredCategories = useMemo(() => {
-    const cats = categories;
+    let cats = categories;
+
+    if (formMode === 'almuerzo') {
+      cats = cats.filter(c => c.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('almuerzo'));
+    } else {
+      cats = cats.filter(c => !c.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('almuerzo'));
+    }
 
     if (availableBalances === null) return cats;
     
@@ -136,7 +143,13 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
       }
     });
     return cats.filter(c => validCategoryIds.has(c.id_categoria));
-  }, [categories, allProducts, availableBalances]);
+  }, [categories, allProducts, availableBalances, formMode]);
+
+  useEffect(() => {
+    if (formMode === 'almuerzo' && filteredCategories.length > 0 && !currentCategory) {
+      setCurrentCategory(filteredCategories[0].id_categoria.toString());
+    }
+  }, [formMode, filteredCategories, currentCategory]);
 
   const handleAddItem = () => {
     if (!currentProduct) {
@@ -254,28 +267,53 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
         <CardContent className="p-4 space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <Plus className="h-4 w-4 text-primary" />
-            <span className="text-sm font-bold text-foreground uppercase tracking-wider">Agregar al Pedido</span>
+            <span className="text-sm font-bold text-foreground uppercase tracking-wider">
+              {formMode === 'almuerzo' ? 'Agregar Almuerzo' : 'Agregar Adicionales'}
+            </span>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-cafe/70">Categoría</Label>
-              <Select value={currentCategory} onValueChange={(v) => {
-                setCurrentCategory(v);
-                setCurrentProduct(null);
-              }}>
-                <SelectTrigger className="bg-background text-cafe">
-                  <SelectValue placeholder="Elija categoría" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-border shadow-xl">
-                  {filteredCategories.map((c) => (
-                    <SelectItem key={c.id_categoria} value={c.id_categoria.toString()}>
-                      {c.nombre_categoria}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {state.items.length > 0 && (
+            <div className="flex gap-2 mb-4 animate-in fade-in">
+              <Button 
+                type="button" 
+                variant={formMode === 'almuerzo' ? 'default' : 'outline'} 
+                onClick={() => { setFormMode('almuerzo'); setCurrentCategory(''); setCurrentProduct(null); }}
+                className={formMode === 'almuerzo' ? 'bg-cafe hover:bg-cafe/90 flex-1 text-xs' : 'flex-1 text-xs'}
+              >
+                🍽️ Agregar otro almuerzo
+              </Button>
+              <Button 
+                type="button" 
+                variant={formMode === 'extra' ? 'default' : 'outline'} 
+                onClick={() => { setFormMode('extra'); setCurrentCategory(''); setCurrentProduct(null); }}
+                className={formMode === 'extra' ? 'bg-cafe hover:bg-cafe/90 flex-1 text-xs' : 'flex-1 text-xs'}
+              >
+                🥤 Añadir adicionales
+              </Button>
             </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {formMode !== 'almuerzo' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-cafe/70">Categoría</Label>
+                <Select value={currentCategory} onValueChange={(v) => {
+                  setCurrentCategory(v);
+                  setCurrentProduct(null);
+                }}>
+                  <SelectTrigger className="bg-background text-cafe">
+                    <SelectValue placeholder="Elija categoría" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-border shadow-xl">
+                    {filteredCategories.map((c) => (
+                      <SelectItem key={c.id_categoria} value={c.id_categoria.toString()}>
+                        {c.nombre_categoria}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label className="text-xs text-cafe/70">Producto</Label>
@@ -339,9 +377,23 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
 
             if (visibleMenuCategories.length === 0) return null;
 
+            const categoryOrder = ['entrada', 'sopa', 'segundo', 'fuerte', 'bebida', 'jugo', 'postre'];
+            const sortedCategories = [...visibleMenuCategories].sort((a, b) => {
+              const nameA = a.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              const nameB = b.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              
+              const idxA = categoryOrder.findIndex(c => nameA.includes(c));
+              const idxB = categoryOrder.findIndex(c => nameB.includes(c));
+              
+              const finalA = idxA === -1 ? 999 : idxA;
+              const finalB = idxB === -1 ? 999 : idxB;
+              
+              return finalA - finalB;
+            });
+
             return (
-              <div className={`grid gap-4 ${visibleMenuCategories.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1'} p-4 bg-primary/5 rounded-xl border border-primary/10 animate-in slide-in-from-top-2 duration-300`}>
-                {visibleMenuCategories.map(cat => {
+              <div className={`grid gap-4 ${sortedCategories.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1'} p-4 bg-primary/5 rounded-xl border border-primary/10 animate-in slide-in-from-top-2 duration-300`}>
+                {sortedCategories.map(cat => {
                   const catName = cat.nombre_categoria;
                   const isCustom = isCustomOpcion[catName] || false;
                   const val = currentOpciones[catName] || '';
