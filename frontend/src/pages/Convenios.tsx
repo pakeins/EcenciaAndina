@@ -88,7 +88,7 @@ export default function Convenios() {
     fecha_inicio: '',
     fecha_caducidad: '',
     cupo_maximo: '',
-    tipos_almuerzo_permitidos: ['ejecutivo_completo', 'ejecutivo_simple', 'ejecutivo_sin_sopa', 'almuerzo_dia', 'almuerzo_dia_simple'] as string[],
+    tipos_almuerzo_permitidos: [] as string[],
   });
 
   // --- GESTIÓN DE COLABORADORES ---
@@ -156,7 +156,7 @@ export default function Convenios() {
 
   const handleOpenNew = () => {
     setEditingConvenio(null);
-    setFormData({ ruc: '', nombre_empresa: '', representante: '', telefono: '', email: '', fecha_inicio: '', fecha_caducidad: '', cupo_maximo: '', tipos_almuerzo_permitidos: ['ejecutivo_completo', 'ejecutivo_simple', 'ejecutivo_sin_sopa', 'almuerzo_dia', 'almuerzo_dia_simple'] });
+    setFormData({ ruc: '', nombre_empresa: '', representante: '', telefono: '', email: '', fecha_inicio: '', fecha_caducidad: '', cupo_maximo: '', tipos_almuerzo_permitidos: [] });
     setAssociatedClients([]);
     setDialogOpen(true);
     setShowCreateForm(false);
@@ -173,7 +173,7 @@ export default function Convenios() {
       fecha_inicio: convenio.fecha_inicio,
       fecha_caducidad: convenio.fecha_caducidad,
       cupo_maximo: convenio.cupo_maximo,
-      tipos_almuerzo_permitidos: convenio.tipos_almuerzo_permitidos || ['ejecutivo_completo', 'ejecutivo_simple', 'ejecutivo_sin_sopa', 'almuerzo_dia', 'almuerzo_dia_simple'],
+      tipos_almuerzo_permitidos: (convenio.tipos_almuerzo_permitidos || []).filter(code => tiposAlmuerzoOptions.some(opt => opt.code === code)),
     });
     fetchAssociatedClients(convenio.id);
     fetchHistorial(convenio.id);
@@ -522,38 +522,262 @@ export default function Convenios() {
         if (años === 0) años = 1; // Mínimo 1 año para mostrar en contrato
       }
 
+      // Nombres amigables basados en los productos de la categoría almuerzos
+      const getLunchName = (code: string) => {
+        const option = tiposAlmuerzoOptions.find(opt => opt.code === code);
+        return option ? option.label : code.replace(/_/g, ' ');
+      };
+
+      const validLunchTypes = (convenio.tipos_almuerzo_permitidos || [])
+        .filter(tipo => tiposAlmuerzoOptions.some(opt => opt.code === tipo));
+
+      const lunchTypesHtml = validLunchTypes
+        .map(tipo => `<li>${getLunchName(tipo)}</li>`)
+        .join('');
+
       const contenido = `
-        <html>
+        <!DOCTYPE html>
+        <html lang="es">
           <head>
-            <title>Contrato ${convenio.nombre_empresa}</title>
+            <meta charset="UTF-8">
+            <title>Contrato de Servicio - ${convenio.nombre_empresa}</title>
             <style>
-              body { font-family: 'Times New Roman', serif; padding: 40px 60px; line-height: 1.6; text-align: justify; }
-              .header { text-align: center; border-bottom: 2px solid #000; margin-bottom: 30px; padding-bottom: 10px; }
-              .titulo { text-align: center; font-weight: bold; text-decoration: underline; margin-bottom: 30px; }
-              .firma { margin-top: 60px; display: flex; justify-content: space-between; }
-              .linea { border-top: 1px solid #000; width: 200px; text-align: center; padding-top: 5px; }
-              .dato { font-weight: bold; border-bottom: 1px solid #ccc; }
+              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+              
+              :root {
+                --primary: #8B4513; /* Café */
+                --secondary: #D2691E; /* Terracota */
+                --text-main: #1f2937;
+                --text-muted: #4b5563;
+                --border-color: #e5e7eb;
+                --bg-light: #f9fafb;
+              }
+
+              @page {
+                margin: 1.5cm;
+                size: A4 portrait;
+              }
+
+              body { 
+                font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+                padding: 40px; 
+                margin: 0 auto;
+                max-width: 800px;
+                line-height: 1.5; 
+                color: var(--text-main);
+                font-size: 13px;
+                background-color: white;
+              }
+
+              /* Encabezado */
+              .header { 
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                text-align: center; 
+                border-bottom: 3px solid var(--primary); 
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+              }
+              .header h1 { 
+                margin: 0; 
+                color: var(--primary);
+                font-size: 22px;
+                font-weight: 800;
+                letter-spacing: 0.5px;
+              }
+              .header p { 
+                margin: 3px 0 0 0; 
+                font-size: 11px; 
+                color: var(--secondary);
+                font-weight: 600;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+              }
+
+              .titulo-doc { 
+                text-align: center; 
+                font-size: 16px;
+                font-weight: 700; 
+                color: var(--text-main);
+                margin-bottom: 15px;
+                text-transform: uppercase;
+                text-decoration: underline;
+                text-underline-offset: 4px;
+              }
+              
+              /* Texto principal */
+              .intro-text {
+                margin-bottom: 15px;
+                text-align: justify;
+                color: var(--text-muted);
+              }
+              
+              .dato-highlight {
+                font-weight: 700;
+                color: var(--text-main);
+              }
+
+              /* Tablas de Información */
+              .info-section {
+                margin-bottom: 15px;
+              }
+              
+              .info-section h3 {
+                font-size: 14px;
+                color: var(--primary);
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 5px;
+                margin-bottom: 10px;
+              }
+
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 10px;
+                background-color: #fff;
+              }
+              
+              th, td {
+                padding: 8px 12px;
+                border: 1px solid var(--border-color);
+                text-align: left;
+                font-size: 12px;
+              }
+              
+              th {
+                background-color: var(--bg-light);
+                font-weight: 600;
+                color: var(--text-muted);
+                width: 35%;
+              }
+
+              td {
+                font-weight: 500;
+                color: var(--text-main);
+              }
+
+              /* Tipos de Almuerzo */
+              .lunch-list {
+                margin: 0;
+                padding-left: 20px;
+                color: var(--text-main);
+                font-size: 12px;
+              }
+              .lunch-list li {
+                margin-bottom: 2px;
+              }
+
+              /* Firmas */
+              .firma-section { 
+                margin-top: 80px; 
+                display: flex; 
+                justify-content: space-around; 
+                page-break-inside: avoid;
+              }
+              .firma-box {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 40%;
+              }
+              .linea-firma { 
+                border-top: 1px solid var(--text-main); 
+                width: 100%; 
+                margin-bottom: 8px;
+              }
+              .firma-titulo {
+                font-weight: 700;
+                font-size: 12px;
+                color: var(--primary);
+                text-align: center;
+              }
+              .firma-subtitulo {
+                font-size: 11px;
+                color: var(--text-muted);
+                text-align: center;
+                margin-top: 2px;
+              }
+
+              @media print {
+                body {
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                  padding: 0;
+                  max-width: none;
+                }
+              }
             </style>
           </head>
           <body>
             <div class="header">
-              <h2 style="margin:0">ECENCIA ANDINA</h2>
-              <p style="margin:0; font-size:12px">CONVENIOS DE ALIMENTACIÓN</p>
+              <h1>ECENCIA ANDINA</h1>
+              <p>Convenios Corporativos de Alimentación</p>
             </div>
-            <div class="titulo">CONTRATO DE SERVICIO DE ALIMENTACIÓN</div>
             
-            <p>Se celebra el presente convenio con fecha <span class="dato">${new Date().toLocaleDateString()}</span> para brindar servicios de almuerzos a la empresa <span class="dato">${convenio.nombre_empresa}</span> con RUC <span class="dato">${convenio.ruc}</span>.</p>
+            <div class="titulo-doc">CONTRATO DE PRESTACIÓN DE SERVICIOS</div>
             
-            <p>El convenio contempla un máximo de <span class="dato">${convenio.cupo_maximo}</span> colaboradores debidamente registrados en el sistema.</p>
-            
-            <p>La duración del contrato será de <span class="dato">${años} año(s)</span>, iniciando el día <span class="dato">${inicio}</span> y finalizando el día <span class="dato">${fin}</span>.</p>
-            
-            <p>Representante legal: <span class="dato">${convenio.representante || '________________'}</span><br>
-               Contacto: <span class="dato">${convenio.email || convenio.telefono || '________________'}</span></p>
+            <div class="intro-text">
+              Por medio del presente documento, y con fecha de emisión <span class="dato-highlight">${new Date().toLocaleDateString('es-EC')}</span>, se formaliza el acuerdo de prestación de servicios de alimentación corporativa, sujeto a las condiciones que se detallan a continuación.
+            </div>
 
-            <div class="firma">
-              <div class="linea">Por ECencia Andina</div>
-              <div class="linea">Por ${convenio.nombre_empresa}</div>
+            <div class="info-section">
+              <h3>1. Datos de la Empresa Contratante</h3>
+              <table>
+                <tr>
+                  <th>Razón Social</th>
+                  <td>${convenio.nombre_empresa}</td>
+                </tr>
+                <tr>
+                  <th>RUC</th>
+                  <td>${convenio.ruc}</td>
+                </tr>
+                <tr>
+                  <th>Representante Legal</th>
+                  <td>${convenio.representante || 'No especificado'}</td>
+                </tr>
+                <tr>
+                  <th>Contacto (Tel/Email)</th>
+                  <td>${convenio.telefono || '—'} / ${convenio.email || '—'}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="info-section">
+              <h3>2. Condiciones del Servicio</h3>
+              <table>
+                <tr>
+                  <th>Cupo Máximo Autorizado</th>
+                  <td><strong>${convenio.cupo_maximo}</strong> colaboradores</td>
+                </tr>
+                <tr>
+                  <th>Vigencia del Contrato</th>
+                  <td><strong>${años} año(s)</strong> (Desde: ${inicio || '—'} - Hasta: ${fin || '—'})</td>
+                </tr>
+                <tr>
+                  <th>Tipos de Almuerzo Permitidos</th>
+                  <td>
+                    ${lunchTypesHtml ? `<ul class="lunch-list">${lunchTypesHtml}</ul>` : '<em>Todos los tipos básicos autorizados</em>'}
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="intro-text" style="font-size: 11px; margin-top: 20px;">
+              Este documento establece los parámetros generales del servicio y habilita a la empresa contratante a gestionar los consumos diarios de sus colaboradores a través de la plataforma tecnológica de Ecencia Andina.
+            </div>
+
+            <div class="firma-section">
+              <div class="firma-box">
+                <div class="linea-firma"></div>
+                <div class="firma-titulo">ECENCIA ANDINA</div>
+                <div class="firma-subtitulo">Prestador de Servicio</div>
+              </div>
+              <div class="firma-box">
+                <div class="linea-firma"></div>
+                <div class="firma-titulo">${convenio.nombre_empresa.toUpperCase()}</div>
+                <div class="firma-subtitulo">Empresa Contratante<br>Representante Legal</div>
+              </div>
             </div>
           </body>
         </html>
@@ -565,7 +789,7 @@ export default function Convenios() {
       setTimeout(() => {
         printWindow.focus();
         printWindow.print();
-      }, 300);
+      }, 500);
     } catch (err) {
       console.error(err);
       toast.error('Error al generar el documento');
