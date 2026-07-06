@@ -104,6 +104,40 @@
         -360,
         -220
       ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "59 23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger-expirar-menu",
+      "name": "Expirar menu activo 23:59",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function cfg(name, fallback = '') {\n  const vars = typeof $vars === 'undefined' ? {} : $vars;\n  const env = typeof process === 'undefined' ? {} : process.env;\n  return env[name] || vars[name] || fallback;\n}\n\nconst backendUrl = (cfg('N8N_ECIENCIA_BACKEND_URL') || cfg('PUBLIC_BACKEND_URL')).replace(/\\/$/, '');\nconst cleanupSecret = cfg('N8N_MENU_WEBHOOK_SECRET');\n\nif (!backendUrl || !cleanupSecret) {\n  throw new Error('Faltan N8N_ECIENCIA_BACKEND_URL y N8N_MENU_WEBHOOK_SECRET.');\n}\n\nconst result = await helpers.httpRequest({\n  method: 'POST',\n  url: backendUrl + '/api/menu/system/expirar-activo',\n  headers: {\n    'X-Eciencia-Webhook-Secret': cleanupSecret,\n  },\n  body: {},\n  json: true,\n});\n\nreturn [\n  {\n    json: {\n      ...result,\n      executedAt: new Date().toISOString(),\n    },\n  },\n];"
+      },
+      "id": "code-expirar-menu",
+      "name": "Expirar menu en backend",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        180
+      ]
     }
   ],
   "connections": {
@@ -145,6 +179,17 @@
         [
           {
             "node": "Telegram - enviar foto menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expirar menu activo 23:59": {
+      "main": [
+        [
+          {
+            "node": "Expirar menu en backend",
             "type": "main",
             "index": 0
           }
