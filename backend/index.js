@@ -158,8 +158,10 @@ if (require.main === module) {
   if (process.env.NODE_ENV === 'production') {
     validateTelegramEnvironment();
   }
-  // --- INICIO DEL SERVIDOR ---
   const PORT = process.env.PORT || 3001;
+  const { startCronJobs } = require('./src/services/cronService');
+  startCronJobs();
+  
   const server = app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
     console.log(`Rutas de autenticacion listas en http://localhost:${PORT}/api/auth/login`);
