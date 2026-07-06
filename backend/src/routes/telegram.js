@@ -1140,15 +1140,32 @@ const handleStartInvitation = async (parsed, token) => {
     await sendMessage(parsed.chatId, invitationFailureText(claimed.reason));
     return;
   }
-
   const relation = claimed.invitation.clientes;
   const client = Array.isArray(relation) ? relation[0] : relation;
+
+  let subscription = await getSubscriptionByChat(parsed.chatId);
+  if (!subscription) {
+    const { data: inserted, error: insertError } = await getAdminClient()
+      .from('telegram_subscriptions')
+      .insert({
+        id_cliente: client ? client.id_cliente : null,
+        chat_id: String(parsed.chatId),
+        consent_status: 'pending',
+        is_active: false,
+      })
+      .select()
+      .single();
+    if (insertError) {
+      throw insertError;
+    }
+    subscription = inserted;
+  }
+
   if (!client?.id_cliente) {
     await sendMessage(parsed.chatId, invitationFailureText('invalid'));
     return;
   }
 
-  await deleteMessage(parsed.chatId, parsed.messageId);
   await beginConsent({
     idCliente: client.id_cliente,
     chatId: parsed.chatId,
@@ -1369,7 +1386,8 @@ router.post('/webhook', async (req, res) => {
     res.sendStatus(204);
   } catch (error) {
     console.error('Error procesando webhook Telegram:', error);
-    res.status(200).json({ ok: false });
+    console.error('Payload causante:', JSON.stringify(req.body));
+    res.status(500).json({ ok: false });
   }
 });
 
