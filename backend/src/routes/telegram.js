@@ -399,7 +399,7 @@ const getProduct = async () => {
 
 const getActiveMenu = async () => {
   const state = await getState('latest-menu:active');
-  if (!state?.menu?.sopas?.length || !state?.menu?.segundos?.length || !state?.menu?.guarniciones?.length) return null;
+  if (!state || !state.menu) return null;
   return state;
 };
 
