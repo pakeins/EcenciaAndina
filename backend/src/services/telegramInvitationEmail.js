@@ -86,32 +86,50 @@ const buildInvitationEmail = async ({ client, onboarding }) => {
       `El enlace vence ${expiresLabel || 'en 7 dias'} y solo puede reclamarse una vez.\n` +
       'No reenvies este correo. Si no solicitaste el registro, contacta a Eciencia Andina.',
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;background-color:#1c1c1c;color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
-        <div style="background-color:#d35400;padding:20px;text-align:center;">
-          <h2 style="margin:0;color:#ffffff;font-size:18px;">¡Bienvenido a Ecencia Andina, ${safeName}!</h2>
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; color: #333333; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); border: 1px solid #eaeaea;">
+        <!-- Cabecera -->
+        <div style="background: linear-gradient(135deg, #d35400 0%, #e67e22 100%); padding: 32px 20px; text-align: center;">
+          <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: bold; letter-spacing: 0.5px;">¡Bienvenido a Ecencia Andina!</h1>
+          <p style="margin: 8px 0 0; color: #ffeaa7; font-size: 16px;">Hola, <strong>${safeName}</strong></p>
         </div>
-        <div style="padding:30px 20px;">
-          <p style="margin:0 0 16px;line-height:1.5;">Estamos emocionados de tenerte con nosotros. Tu cuenta ha sido creada exitosamente en nuestro sistema.</p>
-          <p style="margin:0 0 20px;line-height:1.5;">Desde ahora podrás pedir tus almuerzos, ver el menú diario y gestionar tus reservas directamente desde tu celular.</p>
-          <p style="margin:0 0 24px;font-weight:bold;">Da clic en el siguiente botón para empezar:</p>
-          <div style="text-align:center;margin-bottom:30px;">
-            <a href="${safeUrl}" style="display:inline-block;background-color:#0088cc;color:#ffffff;padding:14px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;">
+        
+        <!-- Cuerpo -->
+        <div style="padding: 40px 32px;">
+          <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #4a4a4a;">Estamos muy emocionados de tenerte con nosotros. Tu cuenta ha sido creada exitosamente y ya eres parte de la familia Ecencia.</p>
+          
+          <div style="background-color: #f8f9fa; border-left: 4px solid #2f4d49; padding: 16px; margin-bottom: 28px; border-radius: 0 8px 8px 0;">
+            <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #555555;">Desde ahora podrás pedir tus almuerzos, ver el menú diario y gestionar tus reservas <strong>directamente desde tu celular</strong>.</p>
+          </div>
+          
+          <p style="margin: 0 0 24px; font-size: 16px; font-weight: bold; text-align: center; color: #2c3e50;">Para empezar, activa tu cuenta de Telegram:</p>
+          
+          <!-- Botón de acción -->
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="${safeUrl}" style="display: inline-block; background-color: #2f4d49; color: #ffffff; padding: 16px 32px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(47, 77, 73, 0.3);">
               Iniciar registro en Telegram
             </a>
           </div>
-          <p style="margin:0 0 8px;font-size:14px;color:#a0a0a0;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
-          <p style="margin:0 0 24px;font-size:14px;word-break:break-all;"><a href="${safeUrl}" style="color:#0088cc;">${safeUrl}</a></p>
           
-          <div style="text-align:center;margin:30px 0;">
-            <p style="margin:0 0 12px;font-size:14px;color:#a0a0a0;">También puedes escanear este código QR:</p>
-            <img src="cid:telegram-activation-qr" width="220" height="220" alt="QR de activacion de Telegram" style="border-radius:8px;border:4px solid #ffffff;" />
+          <hr style="border: none; border-top: 1px solid #eeeeee; margin: 32px 0;" />
+          
+          <!-- Sección QR -->
+          <div style="text-align: center; margin-bottom: 24px;">
+            <p style="margin: 0 0 16px; font-size: 14px; color: #666666;">¿Estás en tu computadora? Escanea este código QR con la cámara de tu celular:</p>
+            <img src="cid:telegram-activation-qr" width="200" height="200" alt="QR de activación" style="border-radius: 12px; border: 1px solid #eeeeee; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);" />
           </div>
-          
-          <p style="font-size:12px;color:#888888;text-align:center;">Vigencia del enlace: ${escapeHtml(expiresLabel || '7 dias')}.</p>
+
+          <!-- Enlace alternativo -->
+          <div style="background-color: #f9f9f9; padding: 16px; border-radius: 8px; text-align: center;">
+            <p style="margin: 0 0 8px; font-size: 13px; color: #777777;">Si el botón no funciona, copia y pega este enlace:</p>
+            <p style="margin: 0; font-size: 12px; word-break: break-all;"><a href="${safeUrl}" style="color: #0088cc; text-decoration: none;">${safeUrl}</a></p>
+          </div>
         </div>
-        <div style="background-color:#121212;padding:20px;text-align:center;border-top:1px solid #333333;">
-          <p style="margin:0 0 8px;font-size:12px;color:#888888;">Ecencia Andina © 2026</p>
-          <p style="margin:0;font-size:12px;color:#888888;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+        
+        <!-- Pie de página -->
+        <div style="background-color: #f4f6f8; padding: 24px; text-align: center; border-top: 1px solid #eaeaea;">
+          <p style="margin: 0 0 8px; font-size: 13px; font-weight: bold; color: #95a5a6;">Vigencia del enlace: ${escapeHtml(expiresLabel || '7 dias')}</p>
+          <p style="margin: 0 0 8px; font-size: 12px; color: #a4b0be;">Ecencia Andina © 2026</p>
+          <p style="margin: 0; font-size: 11px; color: #b2bec3;">Este es un mensaje automático, por favor no respondas a este correo.</p>
         </div>
       </div>
     `,
