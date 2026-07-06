@@ -187,6 +187,10 @@ export default function Convenios() {
       toast.error('Campos obligatorios faltantes'); return;
     }
 
+    if (formData.ruc.length !== 13) {
+      toast.error('El RUC debe tener exactamente 13 dígitos numéricos'); return;
+    }
+
     if (new Date(formData.fecha_caducidad) < new Date(formData.fecha_inicio)) {
       toast.error('La fecha de caducidad no puede ser anterior a la fecha de inicio');
       return;
@@ -930,7 +934,7 @@ export default function Convenios() {
 
             <TabsContent value="info" className="space-y-4 py-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2"><Label>RUC *</Label><Input value={formData.ruc} onChange={e => setFormData({ ...formData, ruc: e.target.value })} /></div>
+                <div className="space-y-2"><Label>RUC *</Label><Input value={formData.ruc} onChange={e => setFormData({ ...formData, ruc: e.target.value.replace(/\D/g, '') })} maxLength={13} /></div>
                 <div className="space-y-2"><Label>Empresa *</Label><Input value={formData.nombre_empresa} onChange={e => setFormData({ ...formData, nombre_empresa: e.target.value })} /></div>
               </div>
               <div className="space-y-2"><Label>Representante</Label><Input value={formData.representante} onChange={e => setFormData({ ...formData, representante: e.target.value.replace(/[\d]/g, '') })} /></div>

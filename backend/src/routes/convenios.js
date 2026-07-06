@@ -200,6 +200,10 @@ router.post('/', adminOnly, async (req, res) => {
     return res.status(400).json({ error: 'El cupo máximo no puede ser menor a 0.' });
   }
 
+  if (ruc && (!/^\d+$/.test(ruc) || ruc.length !== 13)) {
+    return res.status(400).json({ error: 'El RUC debe tener exactamente 13 dígitos numéricos.' });
+  }
+
   try {
     const adminClient = getAdminClient();
     const { data, error } = await adminClient
@@ -221,7 +225,12 @@ router.put('/:id', adminOnly, async (req, res) => {
   const actualizacion = { ...rest, updated_by: req.user.id };
   
   if (activo !== undefined) actualizacion.esta_activo = activo;
-  if (ruc) actualizacion.ruc = ruc;
+  if (ruc) {
+    if (!/^\d+$/.test(ruc) || ruc.length !== 13) {
+      return res.status(400).json({ error: 'El RUC debe tener exactamente 13 dígitos numéricos.' });
+    }
+    actualizacion.ruc = ruc;
+  }
   if (nombre_empresa) actualizacion.nombre_empresa = nombre_empresa;
   if (fecha_inicio) actualizacion.fecha_inicio = fecha_inicio;
   if (fecha_caducidad) actualizacion.fecha_caducidad = fecha_caducidad;

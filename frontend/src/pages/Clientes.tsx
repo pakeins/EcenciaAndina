@@ -723,7 +723,7 @@ export default function Clientes() {
               <Input
                 id="cedula"
                 value={formData.cedula}
-                onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, cedula: e.target.value.replace(/\D/g, '') })}
                 placeholder="Ej: 1712345678"
                 maxLength={13}
                 inputMode="numeric"
@@ -747,7 +747,7 @@ export default function Clientes() {
                 <Input
                   id="nombre"
                   value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '') })}
                   placeholder="Nombre del cliente"
                   maxLength={FIELD_LIMITS.nombre}
                 />
@@ -757,7 +757,7 @@ export default function Clientes() {
                 <Input
                   id="apellido"
                   value={formData.apellido}
-                  onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, apellido: e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '') })}
                   placeholder="Apellido del cliente"
                   maxLength={FIELD_LIMITS.nombre}
                 />
@@ -769,7 +769,7 @@ export default function Clientes() {
                 <Input
                   id="telefono"
                   value={formData.telefono}
-                  onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, telefono: e.target.value.replace(/\D/g, '') })}
                   placeholder="+593 999999999"
                   maxLength={16}
                   inputMode="tel"
