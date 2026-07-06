@@ -293,7 +293,7 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
             </div>
           )}
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={`grid gap-4 ${formMode === 'almuerzo' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}>
             {formMode !== 'almuerzo' && (
               <div className="space-y-1.5">
                 <Label className="text-xs text-cafe/70">Categoría</Label>
@@ -316,14 +316,16 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-cafe/70">Producto</Label>
+              <Label className="text-xs text-cafe/70">
+                {formMode === 'almuerzo' ? 'Almuerzo' : 'Producto'}
+              </Label>
               <Select 
                 value={currentProduct?.id?.toString() || ''} 
                 onValueChange={(v) => setCurrentProduct(allProducts.find(p => p.id.toString() === v) || null)}
                 disabled={!currentCategory}
               >
                 <SelectTrigger className="bg-background text-cafe">
-                  <SelectValue placeholder="Elija producto" />
+                  <SelectValue placeholder={formMode === 'almuerzo' ? 'Seleccionar almuerzo' : 'Elija producto'} />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-border shadow-xl">
                   {filteredProducts.map((p) => (
@@ -335,8 +337,10 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
           </div>
 
           {(() => {
-            const normName = currentProduct?.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
-            const isAlmuerzo = currentProduct?.categoria_nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('almuerzo');
+            if (!currentProduct) return null;
+
+            const normName = currentProduct.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const isAlmuerzo = currentProduct.categoria_nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('almuerzo');
             
             const visibleMenuCategories = activeMenuCategories.filter(cat => {
               const catName = cat.nombre_categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
