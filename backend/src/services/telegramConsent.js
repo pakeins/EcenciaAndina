@@ -107,26 +107,26 @@ const createInvitation = async (idCliente, createdBy, createClient = getAdminCli
 
 const getInvitationByToken = async (token, createClient = getAdminClient) => {
   try {
-    fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Received token: ' + token + '\n');
+    console.log('Received token: ' + token);
     if (!/^[A-Za-z0-9_-]{32,128}$/.test(String(token || ''))) {
-      fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Regex failed\n');
+      console.log('Regex failed');
       return null;
     }
     const hmac = hmacHex(token);
-    fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'HMAC: ' + hmac + '\n');
+    console.log('HMAC: ' + hmac);
     const { data, error } = await createClient()
       .from('telegram_invitations')
       .select('*, clientes(id_cliente,nombre,apellido,telefono,esta_activo)')
       .eq('token_hmac', hmac)
       .maybeSingle();
     if (error) {
-      fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Error: ' + JSON.stringify(error) + '\n');
+      console.error('Error: ' + JSON.stringify(error));
       throw error;
     }
-    fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Found: ' + (data ? 'yes' : 'no') + '\n');
+    console.log('Found: ' + (data ? 'yes' : 'no'));
     return data || null;
   } catch (err) {
-    fs.appendFileSync(path.join(__dirname, '../../logs/invitation.log'), 'Exception: ' + err.message + '\n');
+    console.error('Exception: ' + err.message);
     throw err;
   }
 };
