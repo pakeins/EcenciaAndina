@@ -20,6 +20,7 @@ jobs:
     name: Quality, Audit, Coverage, Build
     runs-on: ubuntu-latest
     env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SUPABASE_URL: "https://example.supabase.co"
       SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
       SUPABASE_ANON_KEY: "dummy-key"
@@ -73,6 +74,12 @@ jobs:
       - name: Frontend build
         working-directory: frontend
         run: npm run build
+
+      - name: SonarQube Cloud scan
+        if: ${{ env.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@v8.2.0
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
 
       - name: Upload coverage reports
         if: always()
@@ -174,10 +181,36 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.zap.yml down --volumes --remove-orphans
 
+  migrate:
+    name: Apply DB migrations
+    runs-on: ubuntu-latest
+    needs: quality
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        if: ${{ env.SUPABASE_DB_URL != '' }}
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply migrations
+        if: ${{ env.SUPABASE_DB_URL != '' }}
+        working-directory: backend
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
+
+      - name: Skip notice
+        if: ${{ env.SUPABASE_DB_URL == '' }}
+        run: echo "::warning::SUPABASE_DB_URL no configurado; se omite la aplicacion de migraciones."
+
   deploy:
     name: Continuous Deployment (Azure VM)
     runs-on: ubuntu-latest
-    needs: [quality, zap]
+    needs: [quality, zap, migrate]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
@@ -236,3 +269,13 @@ jobs:
             
             # Limpiar imagenes huerfanas viejas para liberar espacio
             docker image prune -af
+            
+            # Smoke Tests Post-Despliegue
+            echo "Esperando 10 segundos para que los servicios inicialicen..."
+            sleep 10
+            if curl -fsS http://localhost:3001/api/check-db >/dev/null; then
+              echo "✅ Smoke Test Backend: EXITOSO"
+            else
+              echo "::error::❌ Smoke Test Backend: FALLO (El servidor no responde o la BD esta caida)"
+              exit 1
+            fi
