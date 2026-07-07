@@ -146,42 +146,40 @@ export default function Dashboard() {
 
   const metrics = [
     {
-      title: 'Almuerzos Efectivos',
-      value: metricsData?.lunchesPeriod ?? 0,
+      title: 'Almuerzos de Hoy',
+      value: metricsData?.consumidosHoy ?? 0,
       icon: CheckCircle2,
+      description: 'Total consumidos el día de hoy',
+    },
+    {
+      title: 'Almuerzos del Periodo',
+      value: metricsData?.lunchesPeriod ?? 0,
+      icon: CalendarDays,
       description: 'Total consumidos en el periodo',
     },
     {
-      title: metricsData?.secondaryKpiTitle || 'Ingresos Estimados',
-      value: metricsData?.secondaryKpiTitle?.includes('Ingresos') 
-        ? `$${metricsData?.secondaryKpiValue?.toFixed(2) || '0.00'}`
-        : metricsData?.secondaryKpiValue ?? 0,
-      icon: Sparkles,
-      description: metricsData?.secondaryKpiDesc || 'Rendimiento financiero',
-    },
-    {
-      title: 'Consumos Convenios',
+      title: 'Consumos de Convenio',
       value: metricsData?.conveniosHoy ?? 0,
       icon: Building2,
       description: 'Pedidos de cuentas corporativas',
     },
     {
-      title: 'Consumos Frecuentes',
+      title: 'Consumos de Particulares',
       value: metricsData?.frecuentesHoy ?? 0,
       icon: UserSquare2,
-      description: 'Pedidos de clientes particulares',
+      description: 'Pedidos de clientes sin convenio',
     },
     {
-      title: 'Empresas Afiliadas',
+      title: 'Convenios Activos',
       value: metricsData?.conveniosActivos ?? 0,
       icon: ClipboardList,
-      description: 'Convenios activos en el sistema',
+      description: 'Empresas afiliadas al sistema',
     },
     {
-      title: 'Clientes Registrados',
+      title: 'Clientes Activos',
       value: metricsData?.clientesFrecuentes ?? 0,
       icon: Users,
-      description: 'Total de usuarios activos',
+      description: 'Total de clientes registrados',
     },
   ];
 
