@@ -636,24 +636,24 @@ const getNextStep = (tipo, currentStep) => {
 const getMenuOptionsForStep = (menu, step) => {
   if (!menu) return [];
   switch (step) {
-    case 'entrada': return menu.entradas || [];
-    case 'sopa': return menu.sopas || [];
-    case 'segundo': return menu.segundos || [];
-    case 'bebida': return menu.bebidas || [];
-    case 'postre': return menu.postres || [];
-    default: return [];
+  case 'entrada': return menu.entradas || [];
+  case 'sopa': return menu.sopas || [];
+  case 'segundo': return menu.segundos || [];
+  case 'bebida': return menu.bebidas || [];
+  case 'postre': return menu.postres || [];
+  default: return [];
   }
 };
 
 const getPromptTextForStep = (tipo, step) => {
   const base = `Tipo: ${tipo?.shortLabel || 'Almuerzo'}\n`;
   switch (step) {
-    case 'entrada': return `${base}Ahora elige la entrada.`;
-    case 'sopa': return `${base}Ahora elige la sopa.`;
-    case 'segundo': return `${base}Ahora elige el plato fuerte.`;
-    case 'bebida': return `${base}Ahora elige la bebida.`;
-    case 'postre': return `${base}Ahora elige el postre.`;
-    default: return 'Elige una opcion.';
+  case 'entrada': return `${base}Ahora elige la entrada.`;
+  case 'sopa': return `${base}Ahora elige la sopa.`;
+  case 'segundo': return `${base}Ahora elige el plato fuerte.`;
+  case 'bebida': return `${base}Ahora elige la bebida.`;
+  case 'postre': return `${base}Ahora elige el postre.`;
+  default: return 'Elige una opcion.';
   }
 };
 
