@@ -146,40 +146,42 @@ export default function Dashboard() {
 
   const metrics = [
     {
-      title: 'Total Registrados Hoy',
-      value: metricsData?.totalHoy ?? 0,
-      icon: ClipboardList,
-      description: 'Total de almuerzos del día',
-    },
-    {
-      title: 'Consumidos',
-      value: metricsData?.consumidosHoy ?? 0,
+      title: 'Almuerzos Efectivos',
+      value: metricsData?.lunchesPeriod ?? 0,
       icon: CheckCircle2,
-      description: 'Entregados exitosamente',
+      description: 'Total consumidos en el periodo',
     },
     {
-      title: 'Pendientes',
-      value: metricsData?.pendientesHoy ?? 0,
-      icon: Clock,
-      description: 'En espera de ser retirados',
+      title: metricsData?.secondaryKpiTitle || 'Ingresos Estimados',
+      value: metricsData?.secondaryKpiTitle?.includes('Ingresos') 
+        ? `$${metricsData?.secondaryKpiValue?.toFixed(2) || '0.00'}`
+        : metricsData?.secondaryKpiValue ?? 0,
+      icon: Sparkles,
+      description: metricsData?.secondaryKpiDesc || 'Rendimiento financiero',
     },
     {
-      title: 'Cancelados',
-      value: metricsData?.canceladosHoy ?? 0,
-      icon: XCircle,
-      description: 'Pedidos dados de baja',
-    },
-    {
-      title: 'De Convenios',
+      title: 'Consumos Convenios',
       value: metricsData?.conveniosHoy ?? 0,
       icon: Building2,
-      description: 'Empresas corporativas',
+      description: 'Pedidos de cuentas corporativas',
     },
     {
-      title: 'De Frecuentes',
+      title: 'Consumos Frecuentes',
       value: metricsData?.frecuentesHoy ?? 0,
       icon: UserSquare2,
-      description: 'Clientes independientes',
+      description: 'Pedidos de clientes particulares',
+    },
+    {
+      title: 'Empresas Afiliadas',
+      value: metricsData?.conveniosActivos ?? 0,
+      icon: ClipboardList,
+      description: 'Convenios activos en el sistema',
+    },
+    {
+      title: 'Clientes Registrados',
+      value: metricsData?.clientesFrecuentes ?? 0,
+      icon: Users,
+      description: 'Total de usuarios activos',
     },
   ];
 
