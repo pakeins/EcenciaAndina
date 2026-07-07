@@ -1408,6 +1408,16 @@ const handleStartInvitation = async (parsed, token) => {
   const relation = claimed.invitation.clientes;
   const client = Array.isArray(relation) ? relation[0] : relation;
 
+  if (client && client.esta_activo === false) {
+    await sendMessage(
+      parsed.chatId, 
+      '🚫 <b>Cuenta Desactivada</b>\n\nTu cuenta en Ecencia Andina se encuentra desactivada. No puedes iniciar el registro ni realizar reservas. Si crees que es un error, por favor contacta a la administración.',
+      null,
+      'HTML'
+    );
+    return;
+  }
+
   let subscription = await getSubscriptionByChat(parsed.chatId);
   if (!subscription) {
     const { data: inserted, error: insertError } = await getAdminClient()
@@ -1485,6 +1495,19 @@ const handleTelegramUpdate = async (update) => {
   }
 
   if (start?.isStart) {
+    if (subscription?.id_cliente) {
+      const client = await getClientById(subscription.id_cliente);
+      if (client && client.esta_activo === false) {
+        await sendMessage(
+          parsed.chatId, 
+          '🚫 <b>Cuenta Desactivada</b>\n\nTu cuenta en Ecencia Andina se encuentra desactivada. No puedes iniciar el registro ni realizar reservas. Si crees que es un error, por favor contacta a la administración.',
+          null,
+          'HTML'
+        );
+        return;
+      }
+    }
+
     if (hasCurrentConsent(subscription)) {
       await sendMessage(
         parsed.chatId, 
