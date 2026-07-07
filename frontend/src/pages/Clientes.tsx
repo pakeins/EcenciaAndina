@@ -98,6 +98,10 @@ export default function Clientes() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [clientToToggle, setClientToToggle] = useState<Client | null>(null);
 
+  // Confirmación para eliminación
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+
   const [formData, setFormData] = useState({
     cedula: '',
     nombre: '',
@@ -193,11 +197,18 @@ export default function Clientes() {
   };
 
   // --- FORMULARIO: ELIMINAR CLIENTE ---
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este cliente? Solo se podrá eliminar si no tiene órdenes ni saldo asociado.')) return;
-    
+  const handleDeleteClick = (client: Client) => {
+    setClientToDelete(client);
+    setDeleteDialogOpen(true);
+  };
+
+  const executeDelete = async (force: boolean) => {
+    if (!clientToDelete) return;
+    setDeleteDialogOpen(false);
+
     try {
-      const response = await apiFetch(`/clientes/${id}`, { method: 'DELETE' });
+      const endpoint = force ? `/clientes/${clientToDelete.id}/hard-delete` : `/clientes/${clientToDelete.id}`;
+      const response = await apiFetch(endpoint, { method: 'DELETE' });
       const data = await response.json();
       if (!response.ok) {
         toast.error(data.error || 'Error al eliminar cliente');
@@ -208,6 +219,8 @@ export default function Clientes() {
     } catch (error) {
       console.error(error);
       toast.error('Error de red al intentar eliminar el cliente');
+    } finally {
+      setClientToDelete(null);
     }
   };
 
@@ -722,7 +735,7 @@ export default function Clientes() {
                               variant="ghost"
                               size="icon"
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleDelete(client.id)}
+                              onClick={() => handleDeleteClick(client)}
                               title="Eliminar Cliente"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -908,11 +921,51 @@ export default function Clientes() {
 
       {isAdmin && (
         <TelegramPrivacyRequestsDialog
-          open={privacyRequestsOpen}
-          onOpenChange={setPrivacyRequestsOpen}
-          onResolved={fetchClientes}
-        />
+        open={privacyRequestsOpen}
+        onOpenChange={setPrivacyRequestsOpen}
+        onResolved={fetchClientes}
+      />
       )}
+
+      {/* AlertDialog for Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Eliminar Cliente</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Seleccione el método de eliminación para <strong>{clientToDelete?.nombre} {clientToDelete?.apellido}</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="flex flex-col gap-4 py-4">
+            <div className="rounded-lg border border-border p-4">
+              <h4 className="font-semibold text-foreground mb-1">Eliminación Segura</h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                Comprueba si el cliente tiene órdenes o saldo. Si tiene, se bloqueará la eliminación para proteger el historial financiero.
+              </p>
+              <Button variant="outline" className="w-full" onClick={() => executeDelete(false)}>
+                Eliminar Normalmente
+              </Button>
+            </div>
+
+            {isAdmin && (
+              <div className="rounded-lg border border-red-200 bg-red-50/50 p-4">
+                <h4 className="font-semibold text-red-600 mb-1">Borrado Forzado (Destructivo)</h4>
+                <p className="text-sm text-red-600/80 mb-3">
+                  Elimina al cliente y absolutamente TODO su historial financiero, órdenes, saldo y trazabilidad. Úsalo solo para cuentas de prueba.
+                </p>
+                <Button variant="destructive" className="w-full" onClick={() => executeDelete(true)}>
+                  Borrado Forzado Permanentemente
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmación para desactivar */}
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>

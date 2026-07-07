@@ -838,4 +838,74 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// BORRADO FORZADO (HARD DELETE) - SOLO ADMINISTRADORES
+router.delete('/:id/hard-delete', adminOnly, async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { id } = req.params;
+
+    // 1. Obtener la suscripción para saber el chat_id y enviar el mensaje final
+    const { data: sub } = await adminClient
+      .from('telegram_subscriptions')
+      .select('chat_id')
+      .eq('id_cliente', id)
+      .maybeSingle();
+
+    // 2. Obtener todas las órdenes para borrar sus detalles
+    const { data: ordenes } = await adminClient
+      .from('ordenes')
+      .select('id_orden')
+      .eq('id_cliente', id);
+
+    const ordenesIds = ordenes?.map((o) => o.id_orden) || [];
+
+    if (ordenesIds.length > 0) {
+      // 3. Borrar detalles de las órdenes
+      await adminClient.from('detalle_orden').delete().in('id_orden', ordenesIds);
+    }
+
+    // 4. Borrar Órdenes
+    await adminClient.from('ordenes').delete().eq('id_cliente', id);
+
+    // 5. Borrar Recargas y Saldos
+    await adminClient.from('recargas_saldo').delete().eq('id_cliente', id);
+    await adminClient.from('saldos_servicio').delete().eq('id_cliente', id);
+
+    // 6. Borrar Trazabilidad e Invitaciones
+    await adminClient.from('telegram_order_traces').delete().eq('id_cliente', id);
+    await adminClient.from('telegram_privacy_requests').delete().eq('id_cliente', id);
+    await adminClient.from('telegram_invitations').delete().eq('id_cliente', id);
+
+    // 7. Borrar Estado del Bot si hay chat_id
+    if (sub?.chat_id) {
+      await adminClient.from('telegram_bot_state').delete().in('key', [`consent:${sub.chat_id}`, `session:${sub.chat_id}`]);
+    }
+
+    // 8. Borrar Suscripciones
+    await adminClient.from('telegram_subscriptions').delete().eq('id_cliente', id);
+
+    // 9. Borrar Convenios
+    await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+
+    // 10. Finalmente, Borrar Cliente
+    const { error: finalError } = await adminClient.from('clientes').delete().eq('id_cliente', id);
+    if (finalError) throw finalError;
+
+    // 11. Enviar mensaje de despedida si estaba suscrito
+    if (sub?.chat_id) {
+      await sendMessage(
+        sub.chat_id,
+        '🚫 <b>Cuenta Eliminada (Borrado Forzado)</b>\n\nTu cuenta ha sido eliminada completamente del sistema de Ecencia Andina junto con todos tus datos y registros financieros. Ya no tienes acceso al bot.\n\nGracias por utilizar nuestro servicio.',
+        { remove_keyboard: true },
+        'HTML'
+      ).catch((err) => console.error('No se pudo notificar eliminacion forzada por Telegram:', err));
+    }
+
+    res.json({ success: true, message: 'Cliente y todo su historial han sido eliminados de forma forzada.' });
+  } catch (error) {
+    console.error('Error en Borrado Forzado:', error);
+    res.status(500).json({ error: error.message || 'Error interno del servidor al realizar el borrado forzado.' });
+  }
+});
+
 module.exports = router;
