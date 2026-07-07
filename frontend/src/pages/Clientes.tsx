@@ -285,8 +285,11 @@ export default function Clientes() {
       toast.error('Ingrese un correo electronico valido');
       return;
     }
-    // Se permite crear un cliente de tipo convenio sin asignarle uno todavía
-    // ya que la opción "Sin convenio asignado" es válida.
+    if (formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT && !formData.id_convenio) {
+      toast.error('Debe seleccionar un convenio activo para un Cliente Convenio');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload = {
@@ -806,7 +809,7 @@ export default function Clientes() {
                       ...formData,
                       id_tipo_cliente: parseInt(value),
                       id_convenio: parseInt(value) === CLIENT_TYPE.AGREEMENT
-                        ? formData.id_convenio
+                        ? formData.id_convenio || (convenios.length > 0 ? convenios[0].id : '')
                         : '',
                     })
                   }
@@ -832,16 +835,15 @@ export default function Clientes() {
               <div className="space-y-2">
                 <Label htmlFor="convenio">Convenio</Label>
                 <Select
-                  value={formData.id_convenio || 'none'}
+                  value={formData.id_convenio || ''}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, id_convenio: value === 'none' ? '' : value })
+                    setFormData({ ...formData, id_convenio: value })
                   }
                 >
                   <SelectTrigger id="convenio">
-                    <SelectValue placeholder="Sin convenio asignado" />
+                    <SelectValue placeholder="Seleccione un convenio" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sin convenio asignado</SelectItem>
                     {convenios.map((convenio) => (
                       <SelectItem key={convenio.id} value={convenio.id}>
                         {convenio.nombre_empresa}
