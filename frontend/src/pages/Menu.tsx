@@ -593,7 +593,7 @@ export default function Menu() {
           <Button
             size="lg"
             className="w-full h-16 text-xl font-bold gap-4 shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all hover:-translate-y-1 active:translate-y-0.5 rounded-2xl bg-primary hover:bg-primary/90"
-            onClick={handleSendMenu}
+            onClick={() => handleSendMenu(false)}
             disabled={isSending}
           >
             {isSending ? (
