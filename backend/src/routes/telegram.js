@@ -957,6 +957,10 @@ const handlePedidoCallback = async (parsed, subscription) => {
   // pedido:can:orderId / pedido:can2:orderId / pedido:keep:orderId / pedido:mod:orderId
   if (parts[0] !== 'pedido') return false;
 
+  if (parsed.isCallback && parsed.messageId) {
+    await removeInlineKeyboard(chatId, parsed.messageId);
+  }
+
   const action = parts[1];
   const orderId = parts.slice(2).join(':');
 
