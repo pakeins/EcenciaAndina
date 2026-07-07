@@ -424,6 +424,14 @@ export default function Clientes() {
               )}
             </div>
           )}
+          {isAdmin && (
+            <Link to="/trazabilidad">
+              <Button variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/10 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+                <Activity className="h-5 w-5" />
+                Trazabilidad
+              </Button>
+            </Link>
+          )}
           <Button onClick={() => setRechargeOpen(true)} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 shadow-lg shadow-cafe/5 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
             <Banknote className="h-5 w-5" />
             Recargar Saldo

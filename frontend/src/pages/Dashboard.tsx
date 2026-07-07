@@ -151,10 +151,10 @@ export default function Dashboard() {
       description: 'Total consumidos el día de hoy',
     },
     {
-      title: 'Almuerzos del Periodo',
-      value: metricsData?.lunchesPeriod ?? 0,
+      title: 'Almuerzos del Mes',
+      value: metricsData?.almuerzosMes ?? 0,
       icon: CalendarDays,
-      description: 'Total consumidos en el periodo',
+      description: 'Total consumidos en el mes',
     },
     {
       title: 'Consumos de Convenio',
@@ -252,33 +252,20 @@ export default function Dashboard() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {metrics.map((metric, index) => {
-          const colors = ['border-l-primary', 'border-l-terracota', 'border-l-oro', 'border-l-secondary', 'border-l-emerald-500', 'border-l-cafe'];
-          const bgColors = ['bg-primary/5', 'bg-terracota/5', 'bg-oro/5', 'bg-secondary/5', 'bg-emerald-500/5', 'bg-cafe/5'];
-          const iconColors = ['text-primary', 'text-terracota', 'text-oro', 'text-secondary', 'text-emerald-500', 'text-cafe'];
-          
           return (
             <Card 
               key={metric.title} 
-              className={cn(
-                "border-border shadow-sm border-l-4 hover:scale-[1.02] hover:shadow-md transition-all duration-300 relative overflow-hidden",
-                colors[index % colors.length], 
-                bgColors[index % bgColors.length],
-                index === 0 && "shadow-md ring-1 ring-primary/20" // Resaltar Cuadrante I (Hoy)
-              )}
+              className="border-border shadow-sm border-l-4 border-l-terracota bg-card hover:scale-[1.02] hover:shadow-md transition-all duration-300 relative overflow-hidden"
             >
               <CardHeader className="flex flex-row items-center justify-between pb-1 px-3 pt-3">
                 <div className="flex items-center gap-1.5 overflow-hidden">
                   <CardTitle className="text-[11px] font-bold text-cafe uppercase tracking-wider truncate" title={metric.title}>{metric.title}</CardTitle>
-                  {index === 0 && (
-                    <span className="flex h-1.5 w-1.5 relative shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                    </span>
-                  )}
                 </div>
-                <metric.icon className={cn("h-4 w-4 shrink-0", iconColors[index % iconColors.length])} />
+                <div className="h-6 w-6 rounded-full bg-terracota/10 flex items-center justify-center shrink-0">
+                  <metric.icon className="h-3.5 w-3.5 text-terracota" />
+                </div>
               </CardHeader>
               <CardContent className="px-3 pb-3">
                 <div className="text-2xl font-black text-foreground">{metric.value}</div>
@@ -317,7 +304,7 @@ export default function Dashboard() {
                       borderRadius: '8px',
                     }}
                   />
-                  <Bar dataKey="value" fill="#2F4D49" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" fill="#BF5D30" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -464,7 +451,7 @@ export default function Dashboard() {
                     </div>
                     <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-terracota rounded-full transition-all duration-500 ease-out" 
+                        className="h-full bg-primary rounded-full transition-all duration-500 ease-out" 
                         style={{ width: `${pct}%` }}
                       />
                     </div>

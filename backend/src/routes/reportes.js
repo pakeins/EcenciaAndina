@@ -182,8 +182,10 @@ const buildConsumosPorSemana = (ordersChart) => {
 const buildConsumosPorConvenio = (ordersConvenio) => {
   const convenioMap = {};
   ordersConvenio.forEach((o) => {
-    const convenio = o.clientes?.clientes_convenios?.[0]?.convenios?.nombre_empresa || 'Clientes Frecuentes';
-    convenioMap[convenio] = (convenioMap[convenio] || 0) + summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
+    const convenio = o.clientes?.clientes_convenios?.[0]?.convenios?.nombre_empresa;
+    if (convenio) {
+      convenioMap[convenio] = (convenioMap[convenio] || 0) + summarizeOrderDetails(o.detalle_orden || []).almuerzosPrincipales;
+    }
   });
   return Object.keys(convenioMap).map((name) => ({ name, value: convenioMap[name] }));
 };
@@ -259,18 +261,10 @@ router.get('/dashboard', async (req, res) => {
     const kpiSummary = sumKpiSummaries(ordersKpi);
     const lunchesPeriod = kpiSummary.almuerzosPrincipales;
 
-    // 2. Almuerzos del Mes (o ingresos si hay filtro)
-    let secondaryKpiValue;
-    let secondaryKpiTitle = 'Almuerzos del Mes';
-    let secondaryKpiDesc = 'Total acumulado mensual';
-
-    if (useFilter) {
-      secondaryKpiTitle = 'Ingresos por Almuerzos';
-      secondaryKpiDesc = 'Ventas del periodo filtrado';
-      secondaryKpiValue = Number.parseFloat(kpiSummary.totalConsumo.toFixed(2));
-    } else {
-      secondaryKpiValue = await fetchMonthlyLunchCount(adminClient, monthRange);
-    }
+    // 2. Almuerzos del Mes
+    const secondaryKpiValue = await fetchMonthlyLunchCount(adminClient, monthRange);
+    const secondaryKpiTitle = 'Almuerzos del Mes';
+    const secondaryKpiDesc = 'Total acumulado mensual';
 
     // 3. Convenios Activos
     const { count: conveniosActivos, error: errConv } = await adminClient
