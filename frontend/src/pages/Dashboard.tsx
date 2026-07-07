@@ -398,36 +398,30 @@ export default function Dashboard() {
                   </div>
                 </div>
                 
-                <div className="h-[220px] w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: 'Consumidos', value: metricsData?.consumidosHoy || 0 },
-                          { name: 'Pendientes', value: metricsData?.pendientesHoy || 0 },
-                          { name: 'Cancelados', value: metricsData?.canceladosHoy || 0 },
-                        ].filter(d => d.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        <Cell fill="#10b981" /> {/* Consumidos - Emerald */}
-                        <Cell fill="#f59e0b" /> {/* Pendientes - Amber */}
-                        <Cell fill="#ef4444" /> {/* Cancelados - Red */}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                      />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="flex flex-col space-y-4 pt-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500"></span> Consumidos ({metricsData?.consumidosHoy || 0})</span>
+                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500"></span> Pendientes ({metricsData?.pendientesHoy || 0})</span>
+                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500"></span> Cancelados ({metricsData?.canceladosHoy || 0})</span>
+                  </div>
+                  
+                  <div className="h-4 w-full bg-muted rounded-full overflow-hidden flex shadow-inner">
+                    <div 
+                      className="bg-emerald-500 transition-all duration-500 hover:brightness-110" 
+                      style={{ width: `${((metricsData?.consumidosHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
+                      title={`Consumidos: ${metricsData?.consumidosHoy || 0}`}
+                    />
+                    <div 
+                      className="bg-amber-500 transition-all duration-500 hover:brightness-110" 
+                      style={{ width: `${((metricsData?.pendientesHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
+                      title={`Pendientes: ${metricsData?.pendientesHoy || 0}`}
+                    />
+                    <div 
+                      className="bg-red-500 transition-all duration-500 hover:brightness-110" 
+                      style={{ width: `${((metricsData?.canceladosHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
+                      title={`Cancelados: ${metricsData?.canceladosHoy || 0}`}
+                    />
+                  </div>
                 </div>
                 
                 <div className="bg-primary/5 rounded-lg p-3 border border-primary/10 text-center">
