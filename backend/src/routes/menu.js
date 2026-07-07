@@ -620,10 +620,13 @@ router.post('/enviar', async (req, res) => {
       .eq('fecha', today)
       .maybeSingle();
 
+    let isMenuDifferent = true;
     if (envioHoy) {
-      if (!payload.force && !process.env.ECIENCIA_MENU_EDIT_AFTER_SEND) {
+      isMenuDifferent = !menuPayloadEquals(payload, envioHoy.menu_payload);
+
+      if (isMenuDifferent && !payload.force && !process.env.ECIENCIA_MENU_EDIT_AFTER_SEND) {
         return res.status(409).json({
-          error: 'Ya se envio un menu hoy. ¿Deseas reenviarlo y cancelar los pedidos de Telegram actuales?',
+          error: 'Ya se envio un menu diferente hoy. ¿Deseas reenviarlo y cancelar los pedidos de Telegram actuales?',
           code: 'ALREADY_SENT_CONFIRM_REQUIRED',
           sentAt: envioHoy.last_sent_at,
         });
@@ -652,7 +655,7 @@ router.post('/enviar', async (req, res) => {
     };
 
     let cancelledChatIds = [];
-    if (isResend) {
+    if (isResend && isMenuDifferent) {
       const startOfDay = new Date(`${today}T00:00:00-05:00`).toISOString();
       const endOfDay = new Date(`${today}T23:59:59.999-05:00`).toISOString();
 
