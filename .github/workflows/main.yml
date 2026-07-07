@@ -303,6 +303,11 @@ jobs:
             docker compose build
             docker compose up -d
             
+            # Importar el flujo de n8n para garantizar CI/CD
+            echo "Importando workflow actualizado a n8n..."
+            sleep 10
+            docker exec ecencia-n8n n8n import:workflow --input=/workflows/eciencia_telegram_menu_reservas.workflow.json || true
+            
             # Limpiar imagenes huerfanas viejas para liberar espacio
             docker image prune -af
             
