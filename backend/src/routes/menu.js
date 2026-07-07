@@ -616,7 +616,7 @@ router.post('/enviar', async (req, res) => {
     const today = todayInTimezone();
     const { data: envioHoy } = await adminClient
       .from('menu_envios')
-      .select('fecha,last_sent_at,menu_payload')
+      .select('fecha,last_sent_at,menu_payload,send_count')
       .eq('fecha', today)
       .maybeSingle();
 
@@ -712,6 +712,21 @@ router.post('/enviar', async (req, res) => {
     const responseText = await response.text();
     if (!response.ok) {
       throw new Error(`n8n respondio ${response.status}: ${responseText}`);
+    }
+
+    // Registrar o actualizar el envío en menu_envios
+    const { error: upsertError } = await adminClient
+      .from('menu_envios')
+      .upsert({
+        fecha: today,
+        last_sent_at: new Date().toISOString(),
+        send_count: isResend ? (envioHoy.send_count || 1) + 1 : 1,
+        image_url: photoUrl,
+        menu_payload: menuPayload,
+      }, { onConflict: 'fecha' });
+
+    if (upsertError) {
+      console.error('Error al registrar envio en menu_envios:', upsertError);
     }
 
     res.status(202).json({
