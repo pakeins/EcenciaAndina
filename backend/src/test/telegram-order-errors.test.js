@@ -21,12 +21,12 @@ describe('flujo Telegram exclusivamente por botones', () => {
       { id_orden: 'order-1', duplicate: false },
     );
 
-    expect(message).toContain('Tu almuerzo quedo reservado');
-    expect(message).toContain('Cantidad: 2');
-    expect(message).toContain('Sopa: Locro');
-    expect(message).toContain('Plato fuerte: Seco de pollo');
-    expect(message).toContain('Guarnicion: Ensalada');
-    expect(message).toContain('Orden: order-1');
+    expect(message).toContain('registrada con éxito');
+    expect(message).toContain('Cantidad:</b> 2');
+    expect(message).toContain('Sopa:</b> Locro');
+    expect(message).toContain('Plato fuerte:</b> Seco de pollo');
+    expect(message).toContain('Guarnición:</b> Ensalada');
+    expect(message).toContain('Número de Orden:</b> <code>order-1</code>');
   });
 
   it('extrae el token de un deep link y rechaza texto ordinario como start', () => {

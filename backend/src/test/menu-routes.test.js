@@ -24,6 +24,8 @@ const makeClient = () => {
     delete() { this.op = 'delete'; return this; }
     eq(c, v) { this.f.push(['eq', c, v]); return this; }
     neq(c, v) { this.f.push(['neq', c, v]); return this; }
+    gte(c, v) { this.f.push(['gte', c, v]); return this; }
+    lte(c, v) { this.f.push(['lte', c, v]); return this; }
     ilike(c, v) { this.f.push(['ilike', c, v]); return this; }
     in(c, v) { this.f.push(['in', c, v]); return this; }
     order() { return this; }
@@ -35,6 +37,8 @@ const makeClient = () => {
         else if (op === 'neq') rows = rows.filter((r) => String(r[c]) !== String(v));
         else if (op === 'ilike') rows = rows.filter((r) => String(r[c] || '').toLowerCase() === String(v || '').toLowerCase());
         else if (op === 'in') rows = rows.filter((r) => v.map(String).includes(String(r[c])));
+        else if (op === 'gte') rows = rows.filter((r) => new Date(r[c]) >= new Date(v));
+        else if (op === 'lte') rows = rows.filter((r) => new Date(r[c]) <= new Date(v));
       }
       if (this.lim != null) rows = rows.slice(0, this.lim);
       return rows;

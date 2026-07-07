@@ -59,12 +59,29 @@ const tomorrowFromDate = (date) => {
 
 const inlineKeyboard = (rows) => ({ inline_keyboard: rows });
 
-const optionsKeyboard = (kind, options, sid) =>
-  inlineKeyboard(
-    options.map((option, index) => [
-      { text: String(option), callback_data: sid ? `${kind}:${index}:${sid}` : `${kind}:${index}` },
-    ]),
-  );
+const labelForStep = (kind) => {
+  switch (kind) {
+  case 'entrada': return 'Entrada';
+  case 'sopa': return 'Sopa';
+  case 'segundo': return 'Plato Fuerte';
+  case 'bebida': return 'Bebida';
+  case 'postre': return 'Postre';
+  default: return 'Opción';
+  }
+};
+
+const optionsKeyboard = (kind, options, sid) => {
+  const rows = options.map((option, index) => [
+    { text: String(option), callback_data: sid ? `${kind}:${index}:${sid}` : `${kind}:${index}` },
+  ]);
+  rows.push([
+    { text: `Sin ${labelForStep(kind)}`, callback_data: sid ? `${kind}:sin:${sid}` : `${kind}:sin` },
+  ]);
+  rows.push([
+    { text: '❌ Cancelar pedido', callback_data: 'confirm:cancel' },
+  ]);
+  return inlineKeyboard(rows);
+};
 
 const tipoAlmuerzoKeyboard = (sid) =>
   inlineKeyboard(
@@ -106,9 +123,32 @@ const quantityKeyboard = () =>
 
 const confirmacionKeyboard = (sid) =>
   inlineKeyboard([
-    [{ text: 'Confirmar reserva', callback_data: `confirmar:ok:${sid}` }],
-    [{ text: 'Cancelar', callback_data: 'confirm:cancel' }],
+    [{ text: 'Aceptar', callback_data: `confirmar:ok:${sid}` }],
+    [{ text: 'Modificar selección', callback_data: `confirmar:edit:${sid}` }],
+    [{ text: '❌ Cancelar pedido', callback_data: 'confirm:cancel' }],
   ]);
+
+const modificarPasosKeyboard = (session, sid) => {
+  const tipo = session.tipoAlmuerzo;
+  const rows = [];
+  if (tipo.requiresEntrada && session.opciones?.entrada) {
+    rows.push([{ text: `🥗 Entrada (${session.opciones.entrada})`, callback_data: `modstep:entrada:${sid}` }]);
+  }
+  if (tipo.requiresSopa && session.opciones?.sopa) {
+    rows.push([{ text: `🍜 Sopa (${session.opciones.sopa})`, callback_data: `modstep:sopa:${sid}` }]);
+  }
+  if (tipo.requiresSegundo && session.opciones?.segundo) {
+    rows.push([{ text: `🍽️ Plato Fuerte (${session.opciones.segundo})`, callback_data: `modstep:segundo:${sid}` }]);
+  }
+  if (tipo.requiresBebida && session.opciones?.bebida) {
+    rows.push([{ text: `🥤 Bebida (${session.opciones.bebida})`, callback_data: `modstep:bebida:${sid}` }]);
+  }
+  if (tipo.requiresPostre && session.opciones?.postre) {
+    rows.push([{ text: `🍰 Postre (${session.opciones.postre})`, callback_data: `modstep:postre:${sid}` }]);
+  }
+  rows.push([{ text: '⬅️ Volver a confirmar', callback_data: `confirmar:back:${sid}` }]);
+  return inlineKeyboard(rows);
+};
 
 const confirmationKeyboard = () =>
   inlineKeyboard([
@@ -130,8 +170,9 @@ const cancelConfirmKeyboard = (orderId) =>
   ]);
 
 const menuCaption = (today) =>
-  `Eciencia Andina - Menu del dia ${today}\n\n` +
-  'Realiza toda la reserva con los botones. Primero elige una sopa.';
+  `<b>🍱 Menú del día ${today}</b>\n\n` +
+  'Realiza tu pedido seleccionando las opciones con los botones de abajo.\n\n' +
+  '👉 <b>Paso 1:</b> Elige el tipo de almuerzo que deseas hoy:';
 
 const TIPOS_ALMUERZO = [
   { id: 6, code: 'ejecutivo_completo', label: 'Almuerzo Ejecutivo Completo', shortLabel: 'Ejecutivo Completo', nombreProducto: 'Almuerzo Ejecutivo Completo', requiresEntrada: true, requiresSopa: true, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
@@ -591,8 +632,12 @@ const optionFromCallback = (text, kind, options) => {
   const parts = String(text || '').split(':');
   const receivedKind = parts[0];
   const rawIndex = parts[1];
+  if (receivedKind !== kind) return '';
+  if (rawIndex === 'sin') {
+    return `Sin ${labelForStep(kind)}`;
+  }
   const index = Number(rawIndex);
-  if (receivedKind !== kind || !Number.isInteger(index) || index < 0 || index >= options.length) return '';
+  if (!Number.isInteger(index) || index < 0 || index >= options.length) return '';
   return options[index];
 };
 
@@ -607,14 +652,14 @@ const orderSummary = (session) => {
   const quantity = session.quantity;
   const tipoLabel = session.tipoAlmuerzo?.shortLabel;
   return (
-    (tipoLabel ? `Tipo: ${tipoLabel}\n` : '') +
-    (quantity ? `Cantidad: ${Number(quantity)}\n` : '') +
-    (entrada ? `Entrada: ${entrada}\n` : '') +
-    (sopa ? `Sopa: ${sopa}\n` : '') +
-    (segundo ? `Plato fuerte: ${segundo}\n` : '') +
-    (guarnicion ? `Guarnicion: ${guarnicion}\n` : '') +
-    (bebida ? `Bebida: ${bebida}\n` : '') +
-    (postre ? `Postre: ${postre}\n` : '')
+    (tipoLabel ? `📌 <b>Tipo:</b> ${tipoLabel}\n` : '') +
+    (quantity ? `🔢 <b>Cantidad:</b> ${Number(quantity)}\n` : '') +
+    (entrada ? `🥗 <b>Entrada:</b> ${entrada}\n` : '') +
+    (sopa ? `🍜 <b>Sopa:</b> ${sopa}\n` : '') +
+    (segundo ? `🍽️ <b>Plato fuerte:</b> ${segundo}\n` : '') +
+    (guarnicion ? `🧆 <b>Guarnición:</b> ${guarnicion}\n` : '') +
+    (bebida ? `🥤 <b>Bebida:</b> ${bebida}\n` : '') +
+    (postre ? `🍰 <b>Postre:</b> ${postre}\n` : '')
   );
 };
 
@@ -646,21 +691,21 @@ const getMenuOptionsForStep = (menu, step) => {
 };
 
 const getPromptTextForStep = (tipo, step) => {
-  const base = `Tipo: ${tipo?.shortLabel || 'Almuerzo'}\n`;
+  const base = `🍱 <b>Tipo de Almuerzo:</b> ${tipo?.shortLabel || 'Almuerzo'}\n\n`;
   switch (step) {
-  case 'entrada': return `${base}Ahora elige la entrada.`;
-  case 'sopa': return `${base}Ahora elige la sopa.`;
-  case 'segundo': return `${base}Ahora elige el plato fuerte.`;
-  case 'bebida': return `${base}Ahora elige la bebida.`;
-  case 'postre': return `${base}Ahora elige el postre.`;
-  default: return 'Elige una opcion.';
+  case 'entrada': return `${base}🥗 <b>Paso siguiente:</b> Elige tu entrada favorita:`;
+  case 'sopa': return `${base}🍜 <b>Paso siguiente:</b> Selecciona la sopa de hoy:`;
+  case 'segundo': return `${base}🍽️ <b>Paso siguiente:</b> Selecciona tu plato fuerte:`;
+  case 'bebida': return `${base}🥤 <b>Paso siguiente:</b> Elige tu bebida:`;
+  case 'postre': return `${base}🍰 <b>Paso siguiente:</b> Por último, elige tu postre:`;
+  default: return 'Selecciona una de las opciones:';
   }
 };
 
 const promptForStep = async (chatId, session, step) => {
   if (step === 'confirmar') {
-    const resumen = `${orderSummary(session)}\n\xbfConfirmas tu reserva?`;
-    await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid));
+    const resumen = `📝 <b>Resumen de tu Selección:</b>\n\n${orderSummary(session)}\n❓ <b>¿Confirmas tu reserva para hoy?</b>`;
+    await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid), 'HTML');
     return;
   }
   const options = getMenuOptionsForStep(session.menu, step);
@@ -671,25 +716,26 @@ const promptForStep = async (chatId, session, step) => {
     return promptForStep(chatId, session, nextStep);
   }
   const promptText = getPromptTextForStep(session.tipoAlmuerzo, step);
-  await sendMessage(chatId, promptText, optionsKeyboard(step, options, session.sid));
+  await sendMessage(chatId, promptText, optionsKeyboard(step, options, session.sid), 'HTML');
 };
 
 const orderConfirmation = (session, order) => {
   if (order.modified) {
     return (
-      'Tu reserva quedo actualizada:\n\n' +
-      orderSummary(session) +
-      `Orden: ${order.id_orden}`
+      '🔄 <b>¡Tu reserva ha sido modificada correctamente!</b>\n\n' +
+      `📝 <b>Detalle del Pedido:</b>\n${orderSummary(session)}` +
+      `🔢 <b>Número de Orden:</b> <code>${order.id_orden}</code>\n\n` +
+      '¡Que disfrutes tu comida! 🍽️✨'
     );
   }
   if (order.duplicate) {
-    // Se maneja por separado con buildOrderSummaryMessage
-    return 'Tu almuerzo quedo reservado.';
+    return 'Tu almuerzo quedó reservado.';
   }
   return (
-    'Tu almuerzo quedo reservado.\n\n' +
-    orderSummary(session) +
-    `Orden: ${order.id_orden}`
+    '✅ <b>¡Tu reserva ha sido registrada con éxito!</b> 🎉\n\n' +
+    `📝 <b>Detalle del Pedido:</b>\n${orderSummary(session)}` +
+    `🔢 <b>Número de Orden:</b> <code>${order.id_orden}</code>\n\n` +
+    '¡Que disfrutes tu comida! 🍽️✨'
   );
 };
 
@@ -748,6 +794,17 @@ const handleAcceptedSession = async (parsed, traceId) => {
     return;
   }
 
+  // ---- Modificación interactiva (modstep:category:sid) ----
+  if (String(text).startsWith('modstep:')) {
+    const parts = String(text).split(':');
+    const targetStep = parts[1];
+    session.step = targetStep;
+    session.modifying = true;
+    await setState(stateKey(chatId), session);
+    await promptForStep(chatId, session, targetStep);
+    return;
+  }
+
   // ---- Paso: eleccion de tipo de almuerzo ----
   if (session.step === 'tipo') {
     const parts = String(text).split(':');
@@ -775,9 +832,20 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const parts = String(text).split(':');
     const kind = parts[0];
     const action = parts[1];
+
+    if (kind === 'confirmar' && action === 'edit') {
+      await sendMessage(chatId, '¿Qué parte de tu almuerzo deseas modificar?', modificarPasosKeyboard(session, session.sid), 'HTML');
+      return;
+    }
+
+    if (kind === 'confirmar' && action === 'back') {
+      await promptForStep(chatId, session, 'confirmar');
+      return;
+    }
+
     if (kind !== 'confirmar' || action !== 'ok') {
-      const resumen = `${orderSummary(session)}\n\xbfConfirmas tu reserva?`;
-      await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid));
+      const resumen = `📝 <b>Resumen de tu Selección:</b>\n\n${orderSummary(session)}\n❓ <b>¿Confirmas tu reserva para hoy?</b>`;
+      await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid), 'HTML');
       return;
     }
 
@@ -798,17 +866,12 @@ const handleAcceptedSession = async (parsed, traceId) => {
     try {
       order = await insertOrder(session);
     } catch (error) {
-      await sendMessage(chatId, 'No pude registrar la reserva. Tus selecciones siguen disponibles.', confirmacionKeyboard(session.sid));
+      await sendMessage(chatId, 'No pude registrar la reserva. Tus selecciones siguen disponibles.', confirmacionKeyboard(session.sid), 'HTML');
       return;
     }
 
     await deleteState(stateKey(chatId));
-    if (session.mode === 'modify') {
-      await sendMessage(chatId, orderConfirmation(session, order));
-    } else {
-      await sendMessage(chatId,
-        `Tu almuerzo quedo reservado.\n\n${orderSummary(session)}Orden: ${order.id_orden}`);
-    }
+    await sendMessage(chatId, orderConfirmation(session, order), null, 'HTML');
     return;
   }
 
@@ -820,17 +883,25 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const options = getMenuOptionsForStep(session.menu, session.step);
     
     if (kind !== session.step) {
-      await sendMessage(chatId, `Por favor, elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options, session.sid));
+      await sendMessage(chatId, `Por favor, elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options, session.sid), 'HTML');
       return;
     }
     
     const chosen = optionFromCallback(text, session.step, options);
     if (!chosen) {
-      await sendMessage(chatId, `Opcion invalida. Elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options, session.sid));
+      await sendMessage(chatId, `Opcion invalida. Elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options, session.sid), 'HTML');
       return;
     }
     
     session.opciones = { ...(session.opciones || {}), [session.step]: chosen };
+    
+    if (session.modifying) {
+      delete session.modifying;
+      session.step = 'confirmar';
+      await setState(stateKey(chatId), session);
+      await promptForStep(chatId, session, 'confirmar');
+      return;
+    }
     
     const nextStep = getNextStep(session.tipoAlmuerzo, session.step);
     session.step = nextStep;
@@ -918,7 +989,7 @@ const promptMenu = async (chatId, client) => {
     await sendMessage(chatId, 'Aun no hay un menu activo. Recibiras el siguiente envio disponible.');
     return;
   }
-  await sendMessage(chatId, `Menu del dia ${session.date}:\n${menuCaption(session.date)}`, await tipoAlmuerzoKeyboard(session.sid));
+  await sendMessage(chatId, menuCaption(session.date), await tipoAlmuerzoKeyboard(session.sid), 'HTML');
 };
 
 const tracePatch = (session, step, extra = {}) => ({
@@ -1445,6 +1516,9 @@ const handleTelegramUpdate = async (update) => {
 
   if (command === '/cancelar' || parsed.text === 'confirm:cancel') {
     await deleteState(stateKey(parsed.chatId));
+    if (parsed.isCallback && parsed.messageId) {
+      await removeInlineKeyboard(parsed.chatId, parsed.messageId);
+    }
     if (hasCurrentConsent(subscription)) {
       await sendMessage(parsed.chatId, 'La seleccion fue cancelada. Usa /menu para comenzar de nuevo.');
     }

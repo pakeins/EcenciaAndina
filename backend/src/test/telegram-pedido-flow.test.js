@@ -300,7 +300,7 @@ describe('reserva duplicada: se muestra la orden real', () => {
     await handleTelegramUpdate(callbackUpdate(100, 'confirmar:ok:sid12345'));
 
     const [, message] = lastMessage();
-    expect(message).toContain('Tu almuerzo quedo reservado');
+    expect(message).toContain('registrada con éxito');
     expect(writes.some((w) => w.table === 'ordenes' && w.op === 'insert')).toBe(true);
     expect(writes.some((w) => w.table === 'detalle_orden' && w.op === 'insert')).toBe(true);
   });
@@ -361,7 +361,7 @@ describe('cancelacion de la reserva real', () => {
 
     await handleTelegramUpdate(textUpdate(100, '/menu'));
 
-    expect(lastMessage()[1]).toContain('Menu del dia');
+    expect(lastMessage()[1]).toContain('Menú del día');
     expect(writes.some((w) => w.table === 'telegram_bot_state' && w.op === 'upsert' && w.payload.key === 'session:100')).toBe(true);
   });
 
@@ -398,7 +398,7 @@ describe('cancelacion de la reserva real', () => {
     try {
       sendTelegramMessage.mockClear();
       await handleTelegramUpdate(textUpdate(100, '/menu'));
-      expect(lastMessage()[1]).toContain('Menu del dia');
+      expect(lastMessage()[1]).toContain('Menú del día');
     } finally {
       delete process.env.ECIENCIA_BUSINESS_DAYS_ONLY;
     }
@@ -422,9 +422,9 @@ describe('modificacion de la reserva real', () => {
     await handleTelegramUpdate(callbackUpdate(100, `confirmar:ok:${session.sid}`));
 
     const [, message] = lastMessage();
-    expect(message).toContain('Tu reserva quedo actualizada');
-    expect(message).toContain('Tipo: Almuerzo del Dia Simple');
-    expect(message).toContain('Orden: order-1');
+    expect(message).toContain('modificada correctamente');
+    expect(message).toContain('Tipo:</b> Almuerzo del Dia Simple');
+    expect(message).toContain('Número de Orden:</b> <code>order-1</code>');
 
     const detailUpdate = writes.find((w) => w.table === 'detalle_orden' && w.op === 'update');
     expect(detailUpdate.payload.id_tipo_almuerzo).toBe(10);
@@ -462,7 +462,7 @@ describe('callbacks versionados por sesion', () => {
 
     await handleTelegramUpdate(callbackUpdate(100, 'confirmar:ok'));
 
-    expect(lastMessage()[1]).toContain('Tu almuerzo quedo reservado');
+    expect(lastMessage()[1]).toContain('registrada con éxito');
   });
 });
 
