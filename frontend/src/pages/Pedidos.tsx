@@ -246,7 +246,7 @@ export default function Pedidos() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/10 hover:bg-secondary/10">
-                  <TableHead className="text-cafe font-bold">Código</TableHead>
+                  <TableHead className="text-cafe font-bold"># Orden</TableHead>
                   <TableHead className="text-cafe font-bold">Cliente</TableHead>
                   <TableHead className="text-cafe font-bold">Tipo de Cliente</TableHead>
                   <TableHead className="text-cafe font-bold">Detalle de Pedido</TableHead>

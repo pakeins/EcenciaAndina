@@ -105,7 +105,7 @@ export default function HistorialPedidos() {
       toast.error('No hay pedidos para exportar');
       return;
     }
-    const headers = ['Fecha', 'Hora', 'Cliente', 'App Mensajeria', 'Tipo', 'Cantidad', 'Total', 'Estado'];
+    const headers = ['# Orden', 'Fecha', 'Hora', 'Cliente', 'App Mensajeria', 'Tipo', 'Cantidad', 'Total', 'Estado'];
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = sortedOrders.map((order: any) => {
@@ -122,7 +122,10 @@ export default function HistorialPedidos() {
       
       const estado = order.estados_orden?.nombre_estado || 'reservado';
 
+      const numOrden = order.numero_orden || order.id_orden?.split('-')[0]?.substring(0, 5).toUpperCase();
+
       return [
+        `"#${numOrden}"`,
         dateStr,
         timeStr,
         `"${clientName}"`,
@@ -324,6 +327,7 @@ export default function HistorialPedidos() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/10 hover:bg-secondary/10">
+                  <TableHead className="text-cafe font-bold min-w-[100px]"># Orden</TableHead>
                   <TableHead className="text-cafe font-bold min-w-[150px]">Fecha</TableHead>
                   <TableHead className="text-cafe font-bold min-w-[200px]">Cliente</TableHead>
                   <TableHead className="text-cafe font-bold">Tipo</TableHead>
@@ -336,13 +340,13 @@ export default function HistorialPedidos() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       Buscando en el historial...
                     </TableCell>
                   </TableRow>
                 ) : sortedOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       No se encontraron pedidos en el rango seleccionado
                     </TableCell>
                   </TableRow>
@@ -359,12 +363,17 @@ export default function HistorialPedidos() {
                       <Fragment key={order.id_orden}>
                         {showDateSeparator && (
                           <TableRow className="bg-secondary/20 hover:bg-secondary/20">
-                            <TableCell colSpan={7} className="text-center font-bold text-cafe py-3 capitalize text-sm shadow-sm">
+                            <TableCell colSpan={8} className="text-center font-bold text-cafe py-3 capitalize text-sm shadow-sm">
                               {dateStr}
                             </TableCell>
                           </TableRow>
                         )}
                         <TableRow>
+                          <TableCell>
+                            <span className="font-mono text-lg font-bold text-cafe">
+                              #{order.numero_orden || order.id_orden?.split('-')[0]?.substring(0, 5).toUpperCase()}
+                            </span>
+                          </TableCell>
                           <TableCell className="font-bold text-foreground whitespace-nowrap">
                             {dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                           </TableCell>
