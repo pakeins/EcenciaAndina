@@ -40,6 +40,27 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const formatOrderOptions = (opciones: any) => {
+  if (!opciones) return '';
+  const techKeys = ['canal', 'menudate', 'tipoorigen', 'tipoalmuerzo', 'whatsappid', 'chatid', 'id_cliente', 'estado'];
+  
+  const entries = Object.entries(opciones).filter(([k]) => !techKeys.includes(k.toLowerCase()));
+  if (entries.length === 0) return '';
+
+  const orderList = ['sopa', 'entrada', 'segundo', 'bebida', 'postre'];
+  entries.sort(([k1], [k2]) => {
+    const idx1 = orderList.indexOf(k1.toLowerCase());
+    const idx2 = orderList.indexOf(k2.toLowerCase());
+    if (idx1 !== -1 && idx2 !== -1) return idx1 - idx2;
+    if (idx1 !== -1) return -1;
+    if (idx2 !== -1) return 1;
+    return k1.localeCompare(k2);
+  });
+
+  return entries.map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v}`).join(', ');
+};
+
 export default function Pedidos() {
   const { user } = useAuth();
   const isAdmin = user?.rol === 'administrador';
@@ -275,9 +296,9 @@ export default function Pedidos() {
                                 <span className="font-medium">
                                   {det.cantidad}x {det.productos?.nombre_producto} <span className="text-muted-foreground font-normal ml-1">(${(det.precio_aplicado || 0).toFixed(2)})</span>
                                 </span>
-                                {det.opciones && Object.keys(det.opciones).length > 0 && (
-                                  <span className="text-xs text-muted-foreground block">
-                                    ({Object.entries(det.opciones).map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v}`).join(', ')})
+                                {formatOrderOptions(det.opciones) && (
+                                  <span className="text-xs text-muted-foreground block mt-0.5">
+                                    ({formatOrderOptions(det.opciones)})
                                   </span>
                                 )}
                               </div>
