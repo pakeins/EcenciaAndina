@@ -136,6 +136,7 @@ export default function Menu() {
     precio: number;
     activo: boolean;
     id_categoria: number;
+    categoria_nombre?: string;
     descripcion?: string;
   }
 
@@ -242,7 +243,7 @@ export default function Menu() {
 
   const combosMenuImage = useMemo(() => {
     return productos
-      .filter((p) => p.id_categoria === 1 && p.activo)
+      .filter((p) => (p.categoria_nombre?.toLowerCase() === 'almuerzos' || p.id_categoria === 1) && p.activo)
       .map((p) => {
         let shortName = p.nombre.replace(/^Almuerzo\s+/i, '');
         shortName = shortName.charAt(0).toUpperCase() + shortName.slice(1);

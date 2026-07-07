@@ -182,11 +182,11 @@ function buttonRows(buttons) {
   };
 }
 
-function optionsKeyboard(kind, options) {
+function optionsKeyboard(kind, options, sid) {
   return buttonRows(
     options.map((option, index) => ({
       text: option,
-      callbackData: kind + ':' + index,
+      callbackData: kind + ':' + index + (sid ? ':' + sid : ''),
     }))
   );
 }

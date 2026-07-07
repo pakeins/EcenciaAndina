@@ -59,10 +59,10 @@ const tomorrowFromDate = (date) => {
 
 const inlineKeyboard = (rows) => ({ inline_keyboard: rows });
 
-const optionsKeyboard = (kind, options) =>
+const optionsKeyboard = (kind, options, sid) =>
   inlineKeyboard(
     options.map((option, index) => [
-      { text: String(option), callback_data: `${kind}:${index}` },
+      { text: String(option), callback_data: sid ? `${kind}:${index}:${sid}` : `${kind}:${index}` },
     ]),
   );
 
@@ -671,7 +671,7 @@ const promptForStep = async (chatId, session, step) => {
     return promptForStep(chatId, session, nextStep);
   }
   const promptText = getPromptTextForStep(session.tipoAlmuerzo, step);
-  await sendMessage(chatId, promptText, optionsKeyboard(step, options));
+  await sendMessage(chatId, promptText, optionsKeyboard(step, options, session.sid));
 };
 
 const orderConfirmation = (session, order) => {
@@ -820,13 +820,13 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const options = getMenuOptionsForStep(session.menu, session.step);
     
     if (kind !== session.step) {
-      await sendMessage(chatId, `Por favor, elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options));
+      await sendMessage(chatId, `Por favor, elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options, session.sid));
       return;
     }
     
     const chosen = optionFromCallback(text, session.step, options);
     if (!chosen) {
-      await sendMessage(chatId, `Opcion invalida. Elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options));
+      await sendMessage(chatId, `Opcion invalida. Elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options, session.sid));
       return;
     }
     
