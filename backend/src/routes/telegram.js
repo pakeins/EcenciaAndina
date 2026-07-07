@@ -546,6 +546,7 @@ const findTodayOrder = async (clientId, today) => {
     .select('id_orden,created_at')
     .eq('id_cliente', clientId)
     .eq('canal_origen', 'Telegram')
+    .neq('id_estado', 3) // Excluir cancelados
     .gte('created_at', `${today}T00:00:00Z`)
     .lt('created_at', `${tomorrowFromDate(today)}T00:00:00Z`)
     .limit(1)
