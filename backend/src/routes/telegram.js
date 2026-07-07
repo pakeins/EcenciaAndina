@@ -21,6 +21,7 @@ const {
 } = require('../services/telegramApi');
 
 const router = express.Router();
+const activeProcessing = new Set();
 
 const TIMEZONE = process.env.N8N_ECIENCIA_TIMEZONE || 'America/Bogota';
 const DEFAULT_PRODUCT_NAME = process.env.N8N_ECIENCIA_PRODUCTO_ALMUERZO_NOMBRE || 'Almuerzo';
@@ -1620,6 +1621,11 @@ const handleTelegramUpdate = async (update) => {
     clientId: subscription.id_cliente,
     subscriptionId: subscription.id,
   });
+  if (activeProcessing.has(parsed.chatId)) {
+    console.warn(`[Telegram] Ignorando callback concurrente (race condition) para chat ${parsed.chatId}`);
+    return;
+  }
+  activeProcessing.add(parsed.chatId);
   try {
     await handleAcceptedSession(parsed, traceId);
   } catch (error) {
@@ -1634,6 +1640,8 @@ const handleTelegramUpdate = async (update) => {
       error_message: error.message || 'Error inesperado al procesar el pedido',
     });
     throw error;
+  } finally {
+    activeProcessing.delete(parsed.chatId);
   }
 };
 

@@ -71,7 +71,7 @@ const authLimiter = rateLimit({
 
 const telegramLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: Number(process.env.TELEGRAM_WEBHOOK_RATE_LIMIT || 120),
+  limit: Number(process.env.TELEGRAM_WEBHOOK_RATE_LIMIT || 300),
   standardHeaders: true,
   legacyHeaders: false,
 });
