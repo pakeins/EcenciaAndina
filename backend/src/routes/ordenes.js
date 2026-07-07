@@ -6,6 +6,7 @@ const roleMiddleware = require('../middlewares/roleMiddleware');
 const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
 const { ORDER_STATE } = require('../constants/domain');
 const { zonedStartOfDay, getDateInTimeZone } = require('../services/reporting');
+const { sendMessage } = require('../services/telegramApi');
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
@@ -418,6 +419,34 @@ router.put('/:id/estado', async (req, res) => {
 
     if (error) throw error;
     res.json({ mensaje: 'Estado actualizado', orden: data });
+
+    // Notificar al usuario por Telegram asincrónicamente
+    (async () => {
+      try {
+        const { data: sub } = await adminClient
+          .from('telegram_subscriptions')
+          .select('chat_id, consent_status, is_active')
+          .eq('id_cliente', data.id_cliente)
+          .maybeSingle();
+
+        if (sub && sub.chat_id && sub.is_active !== false && sub.consent_status === 'accepted') {
+          let msg = null;
+          const numOrden = data.numero_orden || data.id_orden.split('-')[0].substring(0, 5).toUpperCase();
+          
+          if (id_estado === ORDER_STATE.CONSUMED) {
+            msg = `✅ <b>Pedido Consumido</b>\n\nTu pedido #<b>${numOrden}</b> ha sido marcado como consumido.\n¡Gracias por preferirnos y buen provecho!`;
+          } else if (id_estado === ORDER_STATE.CANCELLED) {
+            msg = `❌ <b>Pedido Cancelado</b>\n\nTu pedido #<b>${numOrden}</b> ha sido cancelado por el administrador.\nSi tienes dudas, por favor contáctanos.`;
+          }
+          
+          if (msg) {
+            await sendMessage(sub.chat_id, msg, null, 'HTML');
+          }
+        }
+      } catch (err) {
+        console.error('Error enviando notificación de estado a Telegram:', err.message);
+      }
+    })();
   } catch (error) {
     if (sendValidationError(res, error)) return;
     res.status(500).json({ error: error.message });
