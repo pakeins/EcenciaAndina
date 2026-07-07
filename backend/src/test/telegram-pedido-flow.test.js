@@ -418,6 +418,7 @@ describe('modificacion de la reserva real', () => {
 
     await handleTelegramUpdate(callbackUpdate(100, `tipo:almuerzo_dia_simple:${session.sid}`));
     await handleTelegramUpdate(callbackUpdate(100, `segundo:0:${session.sid}`));
+    await handleTelegramUpdate(callbackUpdate(100, `bebida:0:${session.sid}`));
     await handleTelegramUpdate(callbackUpdate(100, `confirmar:ok:${session.sid}`));
 
     const [, message] = lastMessage();
