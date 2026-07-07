@@ -21,7 +21,7 @@ import { FoodSelector } from '@/components/menu/FoodSelector';
 import { RegisteredMenuList } from '@/components/menu/RegisteredMenuList';
 import { CategoryManager } from '@/components/menu/CategoryManager';
 import { ProductManager } from '@/components/menu/ProductManager';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import type { DailyMenu } from '@/components/menu/RegisteredMenuList';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
@@ -106,6 +106,7 @@ export default function Menu() {
   const [isActivating, setIsActivating] = useState<string | null>(null);
   const [selectedMenuDate, setSelectedMenuDate] = useState<string | null>(null);
   const [hasAppliedActiveMenu, setHasAppliedActiveMenu] = useState(false);
+  const [showResendConfirm, setShowResendConfirm] = useState(false);
 
   const { data: categories = [], isLoading: isLoadingCatalog, error: catError } = useQuery<CategoryWithCode[]>({
     queryKey: ['categorias_menu'],
@@ -279,7 +280,7 @@ export default function Menu() {
     setSelectedMenuDate(menu.fecha);
   };
 
-  const handleSendMenu = async () => {
+  const handleSendMenu = async (force = false) => {
     const opciones = buildOpcionesPayload();
     const sopaCatId = getCategoryIdByName('sopa');
     const segundoCatId = getCategoryIdByName('segundo', 'plato');
@@ -299,14 +300,20 @@ export default function Menu() {
     setIsSending(true);
     try {
       const sections = buildSections();
-        const response = await apiFetch('/menu/enviar', {
+      const response = await apiFetch('/menu/enviar', {
         method: 'POST',
         body: JSON.stringify({
           opciones,
           image: sections.length ? buildTelegramMenuImage({ sections, combos: combosMenuImage }) : undefined,
+          force,
         }),
       });
       const data = await response.json().catch(() => ({}));
+
+      if (response.status === 409 && data.code === 'ALREADY_SENT_CONFIRM_REQUIRED') {
+        setShowResendConfirm(true);
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'No se pudo disparar el flujo de Telegram');
@@ -315,6 +322,7 @@ export default function Menu() {
       toast.success('Menu enviado a n8n correctamente', {
         description: data.mensaje || 'Telegram enviara el menu a los chats vinculados.'
       });
+      setShowResendConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['menus_registrados'] });
     } catch (error) {
       toast.error('No se pudo enviar el menu', {
@@ -611,6 +619,39 @@ export default function Menu() {
           </p>
         </div>
       </div>
+
+      <Dialog open={showResendConfirm} onOpenChange={setShowResendConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <span className="text-2xl">⚠️</span> Advertencia de Reenvío
+            </DialogTitle>
+            <DialogDescription className="pt-3 text-base">
+              Ya se ha enviado un menú el día de hoy. Si lo reenvías por una corrección, se <strong>CANCELARÁN</strong> todos los pedidos de Telegram que se hayan realizado hoy y se notificará a los usuarios para que vuelvan a pedir.
+              <br /><br />
+              ¿Estás seguro de que deseas forzar el reenvío?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-end gap-2 mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowResendConfirm(false)}
+              disabled={isSending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => handleSendMenu(true)}
+              disabled={isSending}
+            >
+              {isSending ? 'Reenviando...' : 'Forzar Reenvío'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -353,6 +353,7 @@ const schemas = {
     opciones: z.record(z.string(), menuOptionsSchema).optional().default({}),
     image: optionalText(8 * 1024 * 1024, 'Imagen'),
     confirmarEdicion: booleanSchema.optional(),
+    force: booleanSchema.optional(),
     clientIds: z.array(z.union([z.string(), z.number()])).optional(),
   }),
   menuOpciones: z.record(z.string(), menuOptionsSchema),

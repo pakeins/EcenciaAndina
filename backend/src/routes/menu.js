@@ -621,9 +621,10 @@ router.post('/enviar', async (req, res) => {
       .maybeSingle();
 
     if (envioHoy) {
-      if (!process.env.ECIENCIA_MENU_EDIT_AFTER_SEND) {
+      if (!payload.force) {
         return res.status(409).json({
-          error: 'Ya se envio un menu hoy con contenido diferente. No se permite reenvio.',
+          error: 'Ya se envio un menu hoy. ¿Deseas reenviarlo y cancelar los pedidos de Telegram actuales?',
+          code: 'ALREADY_SENT_CONFIRM_REQUIRED',
           sentAt: envioHoy.last_sent_at,
         });
       }
@@ -650,6 +651,41 @@ router.post('/enviar', async (req, res) => {
       guarniciones: legacyMenu.guarniciones,
     };
 
+    let cancelledChatIds = [];
+    if (isResend) {
+      const startOfDay = new Date(`${today}T00:00:00-05:00`).toISOString();
+      const endOfDay = new Date(`${today}T23:59:59.999-05:00`).toISOString();
+
+      const { data: ordenesParaCancelar } = await adminClient
+        .from('ordenes')
+        .select('id_orden, id_cliente')
+        .eq('id_origen', 1)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .neq('id_estado', 3);
+
+      if (ordenesParaCancelar && ordenesParaCancelar.length > 0) {
+        const idOrdenes = ordenesParaCancelar.map((o) => o.id_orden);
+        const idClientes = [...new Set(ordenesParaCancelar.map((o) => o.id_cliente).filter(Boolean))];
+
+        await adminClient
+          .from('ordenes')
+          .update({ id_estado: 3, observaciones: 'Cancelado automáticamente por corrección de menú' })
+          .in('id_orden', idOrdenes);
+
+        if (idClientes.length > 0) {
+          const { data: subs } = await adminClient
+            .from('telegram_subscriptions')
+            .select('chat_id')
+            .in('id_cliente', idClientes)
+            .eq('is_active', true);
+          if (subs) {
+            cancelledChatIds = subs.map((s) => s.chat_id).filter(Boolean);
+          }
+        }
+      }
+    }
+
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
@@ -668,6 +704,8 @@ router.post('/enviar', async (req, res) => {
         menu: menuPayload,
         photoUrl,
         clientIds,
+        isCorrection: isResend,
+        cancelledChatIds,
       }),
     });
 
