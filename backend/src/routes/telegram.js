@@ -84,7 +84,11 @@ const optionsKeyboard = (kind, options, sid) => {
 };
 
 const tipoAlmuerzoKeyboard = (sid, permitidos) => {
-  const options = TIPOS_ALMUERZO.filter((t) => !permitidos || permitidos.length === 0 || permitidos.includes(t.code));
+  const options = TIPOS_ALMUERZO.filter((t) => {
+    if (!permitidos || permitidos.length === 0) return true;
+    const genCode = t.nombreProducto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_');
+    return permitidos.includes(t.code) || permitidos.includes(genCode);
+  });
   return inlineKeyboard(
     options.map((tipo) => [{ text: tipo.shortLabel, callback_data: `tipo:${tipo.code}:${sid}` }]),
   );
