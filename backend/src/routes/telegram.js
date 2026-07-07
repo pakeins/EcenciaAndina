@@ -18,6 +18,7 @@ const {
   removeInlineKeyboard,
   sendMessage,
   sendPhoto,
+  telegramRequest,
 } = require('../services/telegramApi');
 
 const router = express.Router();
@@ -915,6 +916,13 @@ const handleAcceptedSession = async (parsed, traceId) => {
     }
     
     session.opciones = { ...(session.opciones || {}), [session.step]: chosen };
+    
+    await telegramRequest('editMessageText', {
+      chat_id: String(chatId),
+      message_id: Number(messageId),
+      text: `✅ <b>${labelForStep(session.step)}:</b> ${chosen}`,
+      parse_mode: 'HTML'
+    }).catch(() => {});
     
     if (session.modifying) {
       delete session.modifying;
