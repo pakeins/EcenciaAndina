@@ -371,51 +371,39 @@ export default function Dashboard() {
             {metricsData?.totalHoy === 0 ? (
               <p className="text-muted-foreground text-sm py-4 text-center">No hay pedidos en este periodo</p>
             ) : (
-              <>
-                <div className="flex items-center justify-between px-4 pb-2">
-                  <div className="text-center">
-                    <p className="text-3xl font-black text-cafe">{metricsData?.totalHoy || 0}</p>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Solicitados</p>
-                  </div>
-                  <div className="h-12 w-px bg-border"></div>
-                  <div className="text-center">
-                    <p className="text-3xl font-black text-emerald-600">{metricsData?.consumidosHoy || 0}</p>
-                    <p className="text-xs font-bold text-emerald-600/70 uppercase tracking-wider">Consumidos</p>
-                  </div>
-                </div>
-                
+              <div className="space-y-6 pt-2">
                 <div className="flex flex-col space-y-4 pt-2">
                   <div className="flex justify-between text-sm">
-                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500"></span> Consumidos ({metricsData?.consumidosHoy || 0})</span>
-                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500"></span> Pendientes ({metricsData?.pendientesHoy || 0})</span>
-                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500"></span> Cancelados ({metricsData?.canceladosHoy || 0})</span>
+                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-primary"></span> Consumidos ({metricsData?.consumidosHoy || 0})</span>
+                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-oro"></span> Pendientes ({metricsData?.pendientesHoy || 0})</span>
+                    <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-terracota"></span> Cancelados ({metricsData?.canceladosHoy || 0})</span>
                   </div>
                   
                   <div className="h-4 w-full bg-muted rounded-full overflow-hidden flex shadow-inner">
                     <div 
-                      className="bg-emerald-500 transition-all duration-500 hover:brightness-110" 
+                      className="bg-primary transition-all duration-500 hover:brightness-110" 
                       style={{ width: `${((metricsData?.consumidosHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
                       title={`Consumidos: ${metricsData?.consumidosHoy || 0}`}
                     />
                     <div 
-                      className="bg-amber-500 transition-all duration-500 hover:brightness-110" 
+                      className="bg-oro transition-all duration-500 hover:brightness-110" 
                       style={{ width: `${((metricsData?.pendientesHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
                       title={`Pendientes: ${metricsData?.pendientesHoy || 0}`}
                     />
                     <div 
-                      className="bg-red-500 transition-all duration-500 hover:brightness-110" 
+                      className="bg-terracota transition-all duration-500 hover:brightness-110" 
                       style={{ width: `${((metricsData?.canceladosHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
                       title={`Cancelados: ${metricsData?.canceladosHoy || 0}`}
                     />
                   </div>
                 </div>
-                
+
                 <div className="bg-primary/5 rounded-lg p-3 border border-primary/10 text-center">
                   <p className="text-sm font-medium text-cafe">
                     Tasa de conversión: <span className="font-bold text-terracota">{Math.round(((metricsData?.consumidosHoy || 0) / (metricsData?.totalHoy || 1)) * 100)}%</span>
                   </p>
                 </div>
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
