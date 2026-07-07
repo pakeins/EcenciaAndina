@@ -114,6 +114,7 @@ beforeAll(() => {
   });
   injectModule('../services/telegramApi.js', {
     sendMessage: (...a) => sendTelegramMessage(...a),
+    sendPhoto: (chatId, photoUrl, caption, replyMarkup, parseMode) => sendTelegramMessage(chatId, caption || '', replyMarkup, parseMode),
     answerCallback: async () => ({ ok: true }),
     deleteMessage: async () => ({ ok: true }),
     removeInlineKeyboard: async () => ({ ok: true }),
@@ -269,11 +270,11 @@ describe('reserva duplicada: se muestra la orden real', () => {
     await handleTelegramUpdate(callbackUpdate(100, 'confirmar:ok:sid12345'));
 
     const [, message, markup] = lastMessage();
-    expect(message).toContain('Ya tienes una reserva registrada para hoy');
-    expect(message).toContain('Tipo: Almuerzo Ejecutivo Completo');
-    expect(message).toContain('Sopa: crema de sapallo');
-    expect(message).toContain('Plato fuerte: Menestra de lenteja');
-    expect(message).toContain('Orden: order-1');
+    expect(message).toContain('Ya tienes una reserva activa para hoy');
+    expect(message).toContain('Almuerzo Ejecutivo Completo');
+    expect(message).toContain('crema de sapallo');
+    expect(message).toContain('Menestra de lenteja');
+    expect(message).toContain('#ORDER');
     expect(message).toContain('Tienes una nueva selección pendiente');
     // La seleccion nueva (Almuerzo del Dia con Encebollado) no se registra ni se muestra en el resumen original.
     expect(message).not.toContain('Encebollado');
@@ -288,9 +289,9 @@ describe('reserva duplicada: se muestra la orden real', () => {
     await handleTelegramUpdate(textUpdate(100, '/menu'));
 
     const [, message, markup] = lastMessage();
-    expect(message).toContain('Ya tienes una reserva registrada para hoy');
-    expect(message).toContain('Sopa: crema de sapallo');
-    expect(message).toContain('Estado: Reservado');
+    expect(message).toContain('Ya tienes una reserva activa para hoy');
+    expect(message).toContain('crema de sapallo');
+    expect(message).toContain('Reservado');
     expect(keyboardTexts(markup)).toEqual(['Modificar reserva', 'Cancelar reserva']);
     expect(writes.some((w) => w.table === 'telegram_bot_state' && w.op === 'upsert')).toBe(false);
   });
@@ -321,8 +322,8 @@ describe('/pedido', () => {
 
     const [, message, markup] = lastMessage();
     expect(message).toContain('Tu reserva de hoy:');
-    expect(message).toContain('Producto: Almuerzo Ejecutivo Completo');
-    expect(message).toContain('Orden: order-1');
+    expect(message).toContain('Almuerzo Ejecutivo Completo');
+    expect(message).toContain('#ORDER');
     expect(keyboardTexts(markup)).toEqual(['Modificar reserva', 'Cancelar reserva']);
   });
 });

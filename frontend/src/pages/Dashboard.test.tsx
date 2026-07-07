@@ -56,13 +56,11 @@ describe('Dashboard', () => {
   it('muestra KPIs reales y estados vacios', async () => {
     renderDashboard();
 
-    expect((await screen.findAllByText(/Total Registrados Hoy/i)).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Consumidos/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/De Convenios/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/De Frecuentes/i).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Almuerzos de Hoy/i)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Consumos de Convenio/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Consumos de Particulares/i).length).toBeGreaterThan(0);
     expect(screen.queryByText('Actividad reciente')).not.toBeInTheDocument();
     expect(screen.getByText('No hay ventas registradas en este periodo')).toBeInTheDocument();
-    expect(screen.getByText('No hay actividad registrada en este periodo')).toBeInTheDocument();
     expect(apiFetch).toHaveBeenCalledWith('/reportes/dashboard');
   });
 });

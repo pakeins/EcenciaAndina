@@ -59,34 +59,32 @@ jobs:
 
 # ----- ZONA DESACTIVADA TEMPORALMENTE (Descomentar para reactivar) -----
 
+      - name: Backend audit
+        working-directory: backend
+        run: npm audit --audit-level=critical
 
-#      - name: Backend audit
-#        working-directory: backend
-#        run: npm audit --audit-level=critical
-#
-#      - name: Backend lint
-#        working-directory: backend
-#        run: npm run lint
-#
-#      - name: Backend tests with coverage
-#        working-directory: backend
-#        run: npm run test:coverage
+      - name: Backend lint
+        working-directory: backend
+        run: npm run lint
+
+      - name: Backend tests with coverage
+        working-directory: backend
+        run: npm run test:coverage
 
       - name: Frontend install
         working-directory: frontend
         run: npm ci
+      - name: Frontend audit
+        working-directory: frontend
+        run: npm audit --audit-level=critical
 
-#      - name: Frontend audit
-#        working-directory: frontend
-#        run: npm audit --audit-level=critical
-#
-#      - name: Frontend lint
-#        working-directory: frontend
-#        run: npm run lint
-#
-#      - name: Frontend tests with coverage
-#        working-directory: frontend
-#        run: npm run test:coverage
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Frontend tests with coverage
+        working-directory: frontend
+        run: npm run test:coverage
 
       - name: Frontend build
         working-directory: frontend

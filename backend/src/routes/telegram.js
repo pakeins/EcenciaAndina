@@ -89,7 +89,7 @@ const optionsKeyboard = (kind, options, sid) => {
 const tipoAlmuerzoKeyboard = (sid, permitidos) => {
   const options = TIPOS_ALMUERZO.filter((t) => {
     if (!permitidos || permitidos.length === 0) return true;
-    const genCode = t.nombreProducto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_');
+    const genCode = t.nombreProducto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
     return permitidos.includes(t.code) || permitidos.includes(genCode);
   });
   return inlineKeyboard(
@@ -537,7 +537,7 @@ const buildOrderSummaryMessage = (order, detail) => {
     (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
     `\nℹ️ <b>Estado:</b> ${estadoStr}\n` +
     `🆔 <b>Orden:</b> #${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}\n\n` +
-    `<i>Usa los botones de abajo si deseas interactuar con tu pedido.</i>`
+    '<i>Usa los botones de abajo si deseas interactuar con tu pedido.</i>'
   );
 };
 
@@ -551,7 +551,7 @@ const buildPedidoMessage = (order, detail) => {
     (opc.segundo ? `🍽️ <b>Plato fuerte:</b> ${opc.segundo}\n` : '') +
     (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
     (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
-    `\nℹ️ <b>Estado:</b> Reservado\n` +
+    '\nℹ️ <b>Estado:</b> Reservado\n' +
     `🆔 <b>Orden:</b> #${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}`
   );
 };

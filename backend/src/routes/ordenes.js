@@ -261,14 +261,17 @@ router.put('/:id/estado', async (req, res) => {
     const { id_estado, forceFallback } = parseBody(schemas.estadoOrden, req.body);
     const adminClient = getAdminClient();
 
+    let orden;
     // Si se marca como Consumido (2)
     if (id_estado === ORDER_STATE.CONSUMED) {
       // Obtener detalles de la orden y cliente
-      const { data: orden, error: errOrden } = await adminClient
+      const { data, error: errOrden } = await adminClient
         .from('ordenes')
         .select('id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_producto, cantidad)')
         .eq('id_orden', id_orden)
         .single();
+      
+      orden = data;
       
       if (errOrden) throw errOrden;
 
@@ -412,7 +415,7 @@ router.put('/:id/estado', async (req, res) => {
     };
 
     // Si se consumio existosamente desde "Pendiente" y es cliente frecuente, forzamos "Saldo Prepago"
-    if (id_estado === ORDER_STATE.CONSUMED && typeof orden !== 'undefined') {
+    if (id_estado === ORDER_STATE.CONSUMED && orden) {
       const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
       if (isDirectClient && orden.metodo_pago === 'Pendiente') {
         updatePayload.metodo_pago = 'Saldo Prepago';

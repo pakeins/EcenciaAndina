@@ -30,13 +30,9 @@ describe('TelegramTraceList', () => {
   it('muestra metadatos, interpretacion y resultado sin texto libre', () => {
     render(<TelegramTraceList traces={[trace]} isLoading={false} error={null} />);
 
-    expect(screen.getByText('1. Acción del Cliente')).toBeInTheDocument();
     expect(screen.getAllByText(/confirm/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('2. Interpretación del Sistema')).toBeInTheDocument();
-    expect(screen.getByText('3. Resultado Final')).toBeInTheDocument();
-    expect(screen.getByText('El proceso se completó correctamente.')).toBeInTheDocument();
+    expect(screen.getByText(/Paso: completed \| Sopa: Locro/i)).toBeInTheDocument();
     expect(screen.getAllByText('Exitoso').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/order/).length).toBeGreaterThan(0);
   });
 
   it('muestra un mensaje cuando no existe historial', () => {

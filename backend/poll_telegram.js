@@ -42,8 +42,8 @@ const poll = async () => {
         }
       }
     } else {
-       errorCount = Math.min(errorCount + 1, MAX_ERROR_COUNT);
-       console.error('Error API Telegram:', data);
+      errorCount = Math.min(errorCount + 1, MAX_ERROR_COUNT);
+      console.error('Error API Telegram:', data);
     }
   } catch (e) {
     console.error('Error de red:', e.message);
