@@ -1587,7 +1587,10 @@ const handleTelegramUpdate = async (update) => {
   }
 
   if (command === '/pedido') {
-    if (!hasCurrentConsent(subscription)) return;
+    if (!hasCurrentConsent(subscription)) {
+      await sendMessage(parsed.chatId, '⚠️ Tu cuenta no está activa o no has aceptado los términos de privacidad. Por favor completa el registro con tu enlace de invitación o contacta al administrador.');
+      return;
+    }
     const today = todayInTimezone();
     const todayOrder = await findActiveTodayOrder(subscription.id_cliente);
     if (!todayOrder) {
@@ -1600,7 +1603,10 @@ const handleTelegramUpdate = async (update) => {
   }
 
   if (command === '/menu') {
-    if (!hasCurrentConsent(subscription)) return;
+    if (!hasCurrentConsent(subscription)) {
+      await sendMessage(parsed.chatId, '⚠️ Tu cuenta no está activa o no has aceptado los términos de privacidad. Por favor completa el registro con tu enlace de invitación o contacta al administrador.');
+      return;
+    }
     if (!isBusinessDay()) {
       await sendMessage(parsed.chatId, 'El servicio de reservas esta disponible de lunes a viernes. Vuelve el proximo dia habil.');
       return;
