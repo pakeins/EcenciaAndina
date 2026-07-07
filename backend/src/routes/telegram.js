@@ -853,12 +853,24 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const today = todayInTimezone();
     const existing = await findActiveTodayOrder(session.cliente.id_cliente);
     if (existing?.id_orden && session.mode !== 'modify') {
-      // Hay una reserva activa — mostrarla en lugar de registrar la nueva
-      await deleteState(stateKey(chatId));
+      // Hay una reserva activa — preparamos la sesion actual para reemplazarla
+      session.mode = 'modify';
+      session.orderId = existing.id_orden;
+      await setState(stateKey(chatId), session);
+
       const detail = await getOrderDetail(existing.id_orden);
       const estadoNombre = await getEstadoName(existing.id_estado);
       existing._estadoNombre = estadoNombre;
-      await sendMessage(chatId, buildOrderSummaryMessage(existing, detail), pedidoKeyboard(existing.id_orden));
+      
+      const msg = buildOrderSummaryMessage(existing, detail) + 
+                  '\n\n⚠️ <b>Tienes una nueva selección pendiente.</b> ¿Qué deseas hacer?';
+                  
+      const replaceKeyboard = inlineKeyboard([
+        [{ text: '🔄 Reemplazar con nueva selección', callback_data: `confirmar:ok:${session.sid}` }],
+        [{ text: '❌ Mantener reserva anterior', callback_data: 'confirm:cancel' }]
+      ]);
+
+      await sendMessage(chatId, msg, replaceKeyboard, 'HTML');
       return;
     }
 
@@ -971,12 +983,30 @@ const handlePedidoCallback = async (parsed, subscription) => {
     }
     const client = await getClientById(subscription.id_cliente);
     if (!client) return true;
-    const session = await startSessionForClient(chatId, client, { mode: 'modify', orderId });
+
+    // Cargar opciones existentes
+    const detail = await getOrderDetail(orderId);
+    if (!detail) {
+      await sendMessage(chatId, 'No se encontraron los detalles de la reserva.');
+      return true;
+    }
+    const opciones = detail.opciones || {};
+    const tipoCode = opciones.tipoAlmuerzo;
+    const tipoAlmuerzo = TIPOS_ALMUERZO.find((t) => t.code === tipoCode) || TIPOS_ALMUERZO.find((t) => t.id === detail.id_tipo_almuerzo) || null;
+
+    const session = await startSessionForClient(chatId, client, { 
+      mode: 'modify', 
+      orderId,
+      step: 'confirmar',
+      opciones,
+      tipoAlmuerzo
+    });
     if (!session) {
       await sendMessage(chatId, 'No hay menu activo para modificar la reserva.');
       return true;
     }
-    await sendMessage(chatId, `Vamos a modificar tu reserva ${orderId}.\nElige el tipo de almuerzo:`, await tipoAlmuerzoKeyboard(session.sid));
+    
+    await sendMessage(chatId, `Vamos a modificar tu reserva <code>${orderId}</code>.\n¿Qué parte de tu almuerzo deseas modificar?`, modificarPasosKeyboard(session, session.sid), 'HTML');
     return true;
   }
 

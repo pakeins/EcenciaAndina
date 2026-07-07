@@ -274,10 +274,11 @@ describe('reserva duplicada: se muestra la orden real', () => {
     expect(message).toContain('Sopa: crema de sapallo');
     expect(message).toContain('Plato fuerte: Menestra de lenteja');
     expect(message).toContain('Orden: order-1');
-    // La seleccion nueva (Almuerzo del Dia con Encebollado) no se registra ni se muestra.
+    expect(message).toContain('Tienes una nueva selección pendiente');
+    // La seleccion nueva (Almuerzo del Dia con Encebollado) no se registra ni se muestra en el resumen original.
     expect(message).not.toContain('Encebollado');
     expect(message).not.toContain('Pechuga de Pollo');
-    expect(keyboardTexts(markup)).toEqual(['Modificar reserva', 'Cancelar reserva']);
+    expect(keyboardTexts(markup)).toEqual(['🔄 Reemplazar con nueva selección', '❌ Mantener reserva anterior']);
     expect(writes.some((w) => w.table === 'ordenes' && w.op === 'insert')).toBe(false);
   });
 
@@ -416,18 +417,17 @@ describe('modificacion de la reserva real', () => {
     expect(session.mode).toBe('modify');
     expect(session.orderId).toBe('order-1');
 
-    await handleTelegramUpdate(callbackUpdate(100, `tipo:almuerzo_dia_simple:${session.sid}`));
-    await handleTelegramUpdate(callbackUpdate(100, `segundo:0:${session.sid}`));
-    await handleTelegramUpdate(callbackUpdate(100, `bebida:0:${session.sid}`));
+    await handleTelegramUpdate(callbackUpdate(100, `modstep:segundo:${session.sid}`));
+    await handleTelegramUpdate(callbackUpdate(100, `segundo:0:${session.sid}`)); // Cambiamos a Seco
     await handleTelegramUpdate(callbackUpdate(100, `confirmar:ok:${session.sid}`));
 
     const [, message] = lastMessage();
     expect(message).toContain('modificada correctamente');
-    expect(message).toContain('Tipo:</b> Almuerzo del Dia Simple');
+    expect(message).toContain('Seco'); // El nuevo segundo
     expect(message).toContain('Número de Orden:</b> <code>order-1</code>');
 
     const detailUpdate = writes.find((w) => w.table === 'detalle_orden' && w.op === 'update');
-    expect(detailUpdate.payload.id_tipo_almuerzo).toBe(10);
+    expect(detailUpdate.payload.opciones.segundo).toBe('Seco');
     expect(detailUpdate.filters).toContainEqual(['eq', 'id_orden', 'order-1']);
     expect(writes.some((w) => w.table === 'ordenes' && w.op === 'insert')).toBe(false);
   });
