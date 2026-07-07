@@ -413,7 +413,7 @@ export default function Clientes() {
               <Button
                 onClick={() => setPrivacyRequestsOpen(true)}
                 variant="outline"
-                className="gap-2 border-terracota text-terracota hover:bg-terracota/10"
+                className="gap-2 border-terracota text-terracota hover:bg-terracota/10 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]"
               >
                 <ShieldCheck className="h-5 w-5" />
                 Gestion de Privacidad
