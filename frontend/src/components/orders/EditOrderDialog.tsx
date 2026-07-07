@@ -94,8 +94,13 @@ export function EditOrderDialog({ order, open, onOpenChange, onSave }: EditOrder
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:rounded-2xl">
         <DialogHeader className="sm:text-center space-y-1.5">
           <DialogTitle className="text-2xl font-black text-foreground">Editar Pedido</DialogTitle>
-          <DialogDescription className="text-base">
-            Modificando pedido de <strong className="text-foreground">{order.clientes?.nombre} {order.clientes?.apellido}</strong>
+          <DialogDescription className="text-base flex items-center gap-2 justify-center sm:justify-start">
+            <span className="font-mono bg-cafe/10 text-cafe px-2 py-0.5 rounded-md font-bold text-sm">
+              #{order.numero_orden || order.id_orden?.split('-')[0]?.substring(0, 5).toUpperCase()}
+            </span>
+            <span>
+              Modificando pedido de <strong className="text-foreground">{order.clientes?.nombre} {order.clientes?.apellido}</strong>
+            </span>
           </DialogDescription>
         </DialogHeader>
 
