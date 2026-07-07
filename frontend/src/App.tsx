@@ -44,13 +44,13 @@ const App = () => (
                 <Route path="/convenios" element={<Convenios />} />
                 <Route path="/clientes" element={<Clientes />} />
                 <Route path="/productos" element={<Productos />} />
+                <Route path="/menu" element={<Menu />} />
                 
                 {/* Rutas exclusivas de administrador */}
                 <Route element={<ProtectedRoute allowedRoles={['administrador']} />}>
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/reportes" element={<Reportes />} />
                   <Route path="/usuarios" element={<Usuarios />} />
-                  <Route path="/menu" element={<Menu />} />
                   <Route path="/trazabilidad" element={<TrazabilidadTelegram />} />
                 </Route>
               </Route>

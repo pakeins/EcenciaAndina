@@ -45,7 +45,7 @@ const navItems: NavItem[] = [
     label: 'Menú Diario',
     path: '/menu',
     icon: <ChefHat className="h-5 w-5" />,
-    roles: ['administrador'],
+    roles: ['administrador', 'caja'],
   },
   {
     label: 'Reportes',
