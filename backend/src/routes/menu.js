@@ -764,8 +764,8 @@ const menuPayloadEquals = (a, b) => {
   const rightKeys = Object.keys(right).sort();
   if (leftKeys.length !== rightKeys.length) return false;
   return leftKeys.every((key) => {
-    const l = cleanOptions(left[key]);
-    const r = cleanOptions(right[key]);
+    const l = cleanOptions(left[key]).sort();
+    const r = cleanOptions(right[key]).sort();
     return l.length === r.length && l.every((v, i) => v === r[i]);
   });
 };
