@@ -273,7 +273,7 @@ export default function Pedidos() {
                     <TableRow key={order.id_orden}>
                       <TableCell>
                         <span className="font-mono text-lg font-bold text-cafe">
-                          #{order.id_orden?.split('-')[0]?.substring(0, 5).toUpperCase()}
+                          #{order.numero_orden || order.id_orden?.split('-')[0]?.substring(0, 5).toUpperCase()}
                         </span>
                       </TableCell>
                       <TableCell>

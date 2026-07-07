@@ -493,7 +493,7 @@ const findActiveTodayOrder = async (clientId) => {
   const today = todayInTimezone();
   const { data, error } = await getAdminClient()
     .from('ordenes')
-    .select('id_orden,id_estado,created_at,canal_origen')
+    .select('id_orden,numero_orden,id_estado,created_at,canal_origen')
     .eq('id_cliente', clientId)
     .eq('canal_origen', 'Telegram')
     .eq('id_estado', 1) // Solo considerar pedidos en estado Reservado
@@ -536,7 +536,7 @@ const buildOrderSummaryMessage = (order, detail) => {
     (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
     (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
     `\nℹ️ <b>Estado:</b> ${estadoStr}\n` +
-    `🆔 <b>Orden:</b> #${order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}\n\n` +
+    `🆔 <b>Orden:</b> #${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}\n\n` +
     `<i>Usa los botones de abajo si deseas interactuar con tu pedido.</i>`
   );
 };
@@ -552,14 +552,14 @@ const buildPedidoMessage = (order, detail) => {
     (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
     (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
     `\nℹ️ <b>Estado:</b> Reservado\n` +
-    `🆔 <b>Orden:</b> #${order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}`
+    `🆔 <b>Orden:</b> #${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}`
   );
 };
 
 const findTodayOrder = async (clientId, today) => {
   const { data, error } = await getAdminClient()
     .from('ordenes')
-    .select('id_orden,created_at')
+    .select('id_orden,numero_orden,created_at')
     .eq('id_cliente', clientId)
     .eq('canal_origen', 'Telegram')
     .eq('id_estado', 1) // Solo considerar pedidos en estado Reservado

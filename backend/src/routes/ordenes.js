@@ -149,6 +149,7 @@ router.get('/', async (req, res) => {
       .from('ordenes')
       .select(`
         id_orden,
+        numero_orden,
         id_estado,
         created_at,
         consumed_at,
