@@ -8,7 +8,7 @@ Diseñado bajo altos estándares de ingeniería de software, el sistema integra 
 
 ## 🏗️ Arquitectura del Sistema
 
-El proyecto está construido bajo un enfoque de **Arquitectura Monolítica Modular orientada a Servicios y Eventos (Event-Driven)**, dividida en los siguientes componentes principales:
+El proyecto está construido bajo un enfoque de **Arquitectura Desacoplada (Decoupled Architecture)** orientada a Servicios y Eventos, dividida en los siguientes componentes principales:
 
 ```mermaid
 graph TD;
