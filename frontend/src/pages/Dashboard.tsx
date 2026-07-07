@@ -45,6 +45,7 @@ import {
   Pie,
   Cell,
   Legend,
+  Sector,
 } from 'recharts';
 
 const CHART_COLORS = ['#2F4D49', '#BF5D30', '#C2803A', '#61603C', '#7A402E'];
@@ -371,44 +372,70 @@ export default function Dashboard() {
 
       {/* Widgets Inferiores: Actividad Reciente y Productos Populares */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Actividad Reciente */}
+        {/* Efectividad de Pedidos */}
         <Card className="border-border shadow-sm flex flex-col">
           <CardHeader className="pb-3">
             <CardTitle className="text-foreground flex items-center gap-2 text-xl font-bold">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              Actividad Reciente
+              <Sparkles className="h-5 w-5 text-terracota" />
+              Efectividad de Pedidos
             </CardTitle>
-            <CardDescription>Últimos consumos registrados en tiempo real</CardDescription>
+            <CardDescription>Comparativa de almuerzos solicitados vs consumidos</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 flex-1 overflow-y-auto max-h-[350px] pr-2">
-            {actividadReciente.length === 0 ? (
-              <p className="text-muted-foreground text-sm py-4 text-center">No hay actividad registrada en este periodo</p>
+          <CardContent className="space-y-4 flex-1 flex flex-col justify-center">
+            {metricsData?.totalHoy === 0 ? (
+              <p className="text-muted-foreground text-sm py-4 text-center">No hay pedidos en este periodo</p>
             ) : (
-              actividadReciente.map((act) => (
-                <div 
-                  key={act.id} 
-                  className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/30 hover:bg-card/75 hover:scale-[1.01] transition-all duration-200"
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold text-foreground">{act.cliente}</p>
-                    <p className="text-xs text-muted-foreground font-medium">{act.descripcion}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                        {act.metodo_pago}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground font-medium">
-                        {new Date(act.fecha).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
+              <>
+                <div className="flex items-center justify-between px-4 pb-2">
+                  <div className="text-center">
+                    <p className="text-3xl font-black text-cafe">{metricsData?.totalHoy || 0}</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Solicitados</p>
                   </div>
-                  <span className="text-xs bg-emerald-500/10 text-emerald-600 font-extrabold px-2.5 py-1 rounded-full border border-emerald-500/20 uppercase tracking-wider">
-                    {act.estado}
-                  </span>
+                  <div className="h-12 w-px bg-border"></div>
+                  <div className="text-center">
+                    <p className="text-3xl font-black text-emerald-600">{metricsData?.consumidosHoy || 0}</p>
+                    <p className="text-xs font-bold text-emerald-600/70 uppercase tracking-wider">Consumidos</p>
+                  </div>
                 </div>
-              ))
+                
+                <div className="h-[220px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Consumidos', value: metricsData?.consumidosHoy || 0 },
+                          { name: 'Pendientes', value: metricsData?.pendientesHoy || 0 },
+                          { name: 'Cancelados', value: metricsData?.canceladosHoy || 0 },
+                        ].filter(d => d.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        <Cell fill="#10b981" /> {/* Consumidos - Emerald */}
+                        <Cell fill="#f59e0b" /> {/* Pendientes - Amber */}
+                        <Cell fill="#ef4444" /> {/* Cancelados - Red */}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                      />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                <div className="bg-primary/5 rounded-lg p-3 border border-primary/10 text-center">
+                  <p className="text-sm font-medium text-cafe">
+                    Tasa de conversión: <span className="font-bold text-terracota">{Math.round(((metricsData?.consumidosHoy || 0) / (metricsData?.totalHoy || 1)) * 100)}%</span>
+                  </p>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
