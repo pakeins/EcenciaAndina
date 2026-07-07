@@ -121,6 +121,7 @@ export default function Clientes() {
       return data as Client[];
     },
     staleTime: 1000 * 60 * 2,
+    refetchInterval: 15000,
   });
 
   const { data: clientTypes = [] } = useQuery({
