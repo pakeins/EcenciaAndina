@@ -30,7 +30,7 @@ describe('TelegramTraceList', () => {
   it('muestra metadatos, interpretacion y resultado sin texto libre', () => {
     render(<TelegramTraceList traces={[trace]} isLoading={false} error={null} />);
 
-    expect(screen.getAllByText(/confirm/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Reservar Almuerzo/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Paso: completed \| Sopa: Locro/i)).toBeInTheDocument();
     expect(screen.getAllByText('Exitoso').length).toBeGreaterThan(0);
   });

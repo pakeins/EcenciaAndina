@@ -67,8 +67,10 @@ const humanizeAction = (action?: unknown) => {
   const mapping: Record<string, string> = {
     'menu': 'Revisar Menú',
     'pedir': 'Iniciar Pedido',
-    'confirmar': 'Confirmar',
-    'cancelar': 'Cancelar',
+    'confirmar': 'Reservar Almuerzo',
+    'confirm': 'Reservar Almuerzo',
+    'modificar': 'Modificar Pedido',
+    'cancelar': 'Cancelar Pedido',
     'estado': 'Consultar Estado',
     'sopas': 'Elegir Sopa',
     'segundos': 'Elegir Segundo',
