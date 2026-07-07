@@ -8,7 +8,7 @@ Diseñado bajo altos estándares de ingeniería de software, el sistema integra 
 
 ## 🏗️ Arquitectura del Sistema
 
-El proyecto está construido bajo un enfoque de **Arquitectura Desacoplada (Decoupled Architecture)** orientada a Servicios y Eventos, dividida en los siguientes componentes principales:
+El proyecto está construido bajo un enfoque de **Separación de Responsabilidades (Separation of Concerns)**, utilizando el backend como *Single Source of Truth* y a n8n como **Capa de Integración y Planificador (Integration & Scheduling Layer)**. Se divide en los siguientes componentes principales:
 
 ```mermaid
 graph TD;
