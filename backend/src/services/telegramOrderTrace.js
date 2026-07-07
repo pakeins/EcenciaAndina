@@ -28,9 +28,18 @@ const buildOriginalMessage = (update) => ({
   contactVerified: Boolean(update.contactVerified),
   receivedAt: new Date().toISOString(),
 });
+const IMPORTANT_ACTIONS = new Set(['pedir', 'confirmar', 'cancelar', 'estado', 'menu']);
 
 const createOrderTrace = async (update, context = {}, createClient = getAdminClient) => {
   try {
+    // Evitar llenar la base de datos con clics intermedios
+    if (update.isCallback) {
+      const action = String(update.text || '').split(':')[0];
+      if (!IMPORTANT_ACTIONS.has(action)) {
+        return ''; // Se ignora silenciosamente
+      }
+    }
+
     const { data, error } = await createClient()
       .from('telegram_order_traces')
       .insert({
