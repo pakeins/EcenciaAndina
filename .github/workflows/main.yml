@@ -1,5 +1,19 @@
 name: CI/CD DevSecOps
 
+# ==============================================================================
+# ⚠️ IMPORTANTE - TEMPORALMENTE DESHABILITADO PARA DESPLIEGUE RÁPIDO ⚠️
+# 
+# Para acelerar las pruebas, se han comentado/desactivado:
+# - Pruebas unitarias de Backend y Frontend (npm audit, lint, test:coverage)
+# - Escaneo de SonarQube Cloud
+# - OWASP ZAP Baseline Security
+# 
+# PARA REACTIVAR (Cuando ya haya más tiempo):
+# 1. Quita los `#` en los pasos de 'quality' (líneas 46-92 aprox).
+# 2. Cambia `if: false` por la condición original en el job 'zap' (línea 109).
+# 3. Vuelve a agregar `zap` al arreglo `needs: [quality, zap, migrate]` del job 'deploy'.
+# ==============================================================================
+
 on:
   pull_request:
     branches: [main, develop]
@@ -42,6 +56,9 @@ jobs:
       - name: Backend install
         working-directory: backend
         run: npm ci
+
+# ----- ZONA DESACTIVADA TEMPORALMENTE (Descomentar para reactivar) -----
+
 
 #      - name: Backend audit
 #        working-directory: backend
@@ -101,6 +118,8 @@ jobs:
     name: OWASP ZAP Baseline Security
     runs-on: ubuntu-latest
     needs: quality
+    # PARA REACTIVAR: Cambiar `if: false` por:
+    # if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
     if: false
     steps:
       - name: Checkout
