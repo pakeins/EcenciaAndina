@@ -135,20 +135,26 @@ function cleanOptions(options) {
 
 function compactMenu(menu) {
   return {
+    entradas: cleanOptions(menu.entradas).slice(0, 8),
     sopas: cleanOptions(menu.sopas).slice(0, 8),
     segundos: cleanOptions(menu.segundos).slice(0, 8),
     guarniciones: cleanOptions(menu.guarniciones).slice(0, 8),
+    bebidas: cleanOptions(menu.bebidas).slice(0, 8),
+    postres: cleanOptions(menu.postres).slice(0, 8),
   };
 }
 
 function menuFromPayload(payload) {
   const source = payload?.menu || payload || {};
   const menu = compactMenu({
+    entradas: source.entradas,
     sopas: source.sopas,
     segundos: source.segundos,
     guarniciones: source.guarniciones,
+    bebidas: source.bebidas,
+    postres: source.postres,
   });
-  if (!menu.sopas.length || !menu.segundos.length || !menu.guarniciones.length) return null;
+  if (!menu.sopas.length || !menu.segundos.length) return null;
   return menu;
 }
 
@@ -185,10 +191,29 @@ function optionsKeyboard(kind, options) {
   );
 }
 
+const TIPOS_ALMUERZO = [
+  { id: 6, code: 'ejecutivo_completo', label: 'Almuerzo Ejecutivo Completo', shortLabel: 'Ejecutivo Completo', nombreProducto: 'Almuerzo Ejecutivo Completo', requiresEntrada: true, requiresSopa: true, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+  { id: 7, code: 'ejecutivo_sin_sopa', label: 'Almuerzo Ejecutivo Sin Sopa', shortLabel: 'Ejecutivo Sin Sopa', nombreProducto: 'Almuerzo Ejecutivo Sin Sopa', requiresEntrada: true, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+  { id: 8, code: 'ejecutivo_simple', label: 'Almuerzo Ejecutivo Simple', shortLabel: 'Ejecutivo Simple', nombreProducto: 'Almuerzo Ejecutivo Simple', requiresEntrada: false, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+  { id: 9, code: 'almuerzo_dia', label: 'Almuerzo del Dia', shortLabel: 'Almuerzo del Dia', nombreProducto: 'Almuerzo del Dia', requiresEntrada: false, requiresSopa: true, requiresSegundo: true, requiresBebida: true, requiresPostre: false },
+  { id: 10, code: 'almuerzo_dia_simple', label: 'Almuerzo del Dia Simple', shortLabel: 'Almuerzo del Dia Simple', nombreProducto: 'Almuerzo del Dia Simple', requiresEntrada: false, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: false },
+];
+
+function tipoAlmuerzoKeyboard(sid) {
+  return {
+    inline_keyboard: TIPOS_ALMUERZO.map((tipo) => [
+      {
+        text: tipo.label,
+        callback_data: 'tipo:' + tipo.code + (sid ? ':' + sid : ''),
+      },
+    ]),
+  };
+}
+
 function menuCaption(today) {
   return trimTelegramCaption(
     'Ecencia Andina - Menu del dia ' + today + '\n\n' +
-      'Realiza toda la reserva con los botones. Primero elige una sopa.'
+      'Realiza toda la reserva con los botones. Primero elige el tipo de almuerzo.'
   );
 }
 
@@ -347,8 +372,10 @@ for (const client of clients) {
 
   const chatId = String(subscription.chat_id);
   const convenio = activeConvenio(client, today);
+  const sid = String(Date.now()) + Math.floor(Math.random() * 1000);
   const session = {
-    step: 'sopa',
+    sid,
+    step: 'tipo',
     date: today,
     menuDate: activeMenu?.date || today,
     menu,
@@ -372,7 +399,7 @@ for (const client of clients) {
       subscriptionId: subscription.id,
       photoUrl,
       caption: menuCaption(today),
-      inlineKeyboard: optionsKeyboard('sopa', menu.sopas),
+      inlineKeyboard: tipoAlmuerzoKeyboard(sid),
     },
   });
 }
