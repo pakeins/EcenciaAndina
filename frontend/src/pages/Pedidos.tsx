@@ -91,6 +91,7 @@ export default function Pedidos() {
       return response.json();
     },
     staleTime: 1000 * 60 * 2, // La info se considera fresca por 2 minutos
+    refetchInterval: 10000, // Autorecarga cada 10 segundos
   });
 
   const fetchOrders = () => {
