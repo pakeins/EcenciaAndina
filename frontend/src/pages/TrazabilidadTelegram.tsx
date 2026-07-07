@@ -19,16 +19,9 @@ interface TraceResponse {
   };
 }
 
-interface TelegramKpis {
-  users: { total: number; activos: number; pendientes: number; bloqueados: number };
-  reservas: {
-    hoy: { total: number; pendientes: number; consumidas: number; canceladas: number };
-    historico: { total: number; pendientes: number; consumidas: number; canceladas: number };
-  };
-}
+
 
 export default function TrazabilidadTelegram() {
-  const [kpis, setKpis] = useState<TelegramKpis | null>(null);
   const [traces, setTraces] = useState<TelegramOrderTrace[]>([]);
   const [outcome, setOutcome] = useState<'all' | TraceOutcome>('all');
   const [chatId, setChatId] = useState('');
@@ -65,12 +58,7 @@ export default function TrazabilidadTelegram() {
       setTotalPages(result.pagination?.totalPages || 1);
       setTotal(result.pagination?.total || 0);
 
-      // Cargar KPIs
-      const kpiResponse = await apiFetch('/reportes/telegram-kpis');
-      if (kpiResponse.ok) {
-        const kpiData = await kpiResponse.json();
-        setKpis(kpiData);
-      }
+
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'No se pudo consultar la trazabilidad.');
     } finally {
@@ -101,59 +89,6 @@ export default function TrazabilidadTelegram() {
         </p>
       </div>
 
-      {kpis && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="bg-primary/5 border-primary/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                Adopción de Usuarios
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary">{kpis.users.total}</div>
-              <div className="text-sm text-muted-foreground mt-1 flex flex-col gap-1">
-                <span className="text-green-600 font-medium">Activos: {kpis.users.activos}</span>
-                <span className="text-amber-600">Pendientes: {kpis.users.pendientes}</span>
-                <span className="text-destructive">Bloqueados: {kpis.users.bloqueados}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-green-500/5 border-green-500/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Utensils className="h-5 w-5 text-green-600" />
-                Reservas de Hoy
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">{kpis.reservas.hoy.total}</div>
-              <div className="text-sm text-muted-foreground mt-1 flex flex-col gap-1">
-                <span className="text-green-700 font-medium flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Consumidas: {kpis.reservas.hoy.consumidas}</span>
-                <span className="text-amber-600 flex items-center gap-1"><Clock className="h-3 w-3" /> Pendientes: {kpis.reservas.hoy.pendientes}</span>
-                <span className="text-destructive flex items-center gap-1"><XCircle className="h-3 w-3" /> Canceladas: {kpis.reservas.hoy.canceladas}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-cafe/5 border-cafe/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2 text-cafe">
-                <Activity className="h-5 w-5 text-terracota" />
-                Histórico de Reservas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-cafe">{kpis.reservas.historico.total}</div>
-              <div className="text-sm text-muted-foreground mt-1 flex flex-col gap-1">
-                <span className="font-medium">Total Consumidas: {kpis.reservas.historico.consumidas}</span>
-                <span>Total Canceladas: {kpis.reservas.historico.canceladas}</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       <Card>
         <CardHeader>

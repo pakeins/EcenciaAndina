@@ -1,4 +1,13 @@
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Bot, User, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
 
 export type TraceOutcome = 'received' | 'pending' | 'success' | 'failed' | 'rejected';
 
@@ -31,6 +40,14 @@ const outcomeLabels: Record<TraceOutcome, string> = {
   rejected: 'Rechazado',
 };
 
+const outcomeIcons: Record<TraceOutcome, React.ReactNode> = {
+  received: <Bot className="h-4 w-4" />,
+  pending: <Clock className="h-4 w-4" />,
+  success: <CheckCircle2 className="h-4 w-4" />,
+  failed: <XCircle className="h-4 w-4" />,
+  rejected: <AlertCircle className="h-4 w-4" />,
+};
+
 const outcomeClasses: Record<TraceOutcome, string> = {
   received: 'bg-blue-100 text-blue-800',
   pending: 'bg-amber-100 text-amber-800',
@@ -39,49 +56,25 @@ const outcomeClasses: Record<TraceOutcome, string> = {
   rejected: 'bg-slate-200 text-slate-800',
 };
 
-const displayValue = (value: unknown) => {
-  if (value === null || value === undefined || value === '') return 'No disponible';
-  if (Array.isArray(value)) return value.length ? value.join(', ') : 'Ninguno';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-};
-
 const clientName = (trace: TelegramOrderTrace) => {
   const client = Array.isArray(trace.clientes) ? trace.clientes[0] : trace.clientes;
   const name = `${client?.nombre || ''} ${client?.apellido || ''}`.trim();
-  return name || 'Cliente no identificado';
+  return name || 'Desconocido';
 };
 
 const humanizeAction = (action?: unknown) => {
-  if (typeof action !== 'string' || !action) return 'Mensaje directo o acción desconocida';
+  if (typeof action !== 'string' || !action) return 'Mensaje/Comando';
   const mapping: Record<string, string> = {
-    'menu': 'Revisó el menú del día',
-    'pedir': 'Inició un nuevo pedido',
-    'confirmar': 'Confirmó su pedido final',
-    'cancelar': 'Canceló el pedido en curso',
-    'estado': 'Consultó el estado de su pedido',
-    'sopas': 'Seleccionando Sopa',
-    'segundos': 'Seleccionando Segundo',
+    'menu': 'Revisar Menú',
+    'pedir': 'Iniciar Pedido',
+    'confirmar': 'Confirmar',
+    'cancelar': 'Cancelar',
+    'estado': 'Consultar Estado',
+    'sopas': 'Elegir Sopa',
+    'segundos': 'Elegir Segundo',
   };
-  return mapping[action.toLowerCase()] || action.replace(/_/g, ' ').toUpperCase();
+  return mapping[action.toLowerCase()] || action;
 };
-
-const TraceStep = ({
-  number,
-  title,
-  children,
-}: {
-  number: number;
-  title: string;
-  children: React.ReactNode;
-}) => (
-  <section className="rounded-lg border bg-muted/20 p-3">
-    <h3 className="mb-2 text-sm font-bold text-cafe">
-      {number}. {title}
-    </h3>
-    <div className="space-y-1 text-sm text-foreground">{children}</div>
-  </section>
-);
 
 export function TelegramTraceList({ traces, isLoading, error }: TelegramTraceListProps) {
   if (isLoading) {
@@ -97,63 +90,76 @@ export function TelegramTraceList({ traces, isLoading, error }: TelegramTraceLis
   }
 
   return (
-    <div aria-label="Historial de trazabilidad de pedidos automaticos" className="space-y-4">
-      {traces.map((trace) => (
-        <article key={trace.id} className="rounded-xl border bg-card p-4 shadow-sm">
-          <header className="mb-4 flex flex-col justify-between gap-2 border-b pb-3 sm:flex-row sm:items-center">
-            <div>
-              <p className="font-bold text-foreground">{clientName(trace)}</p>
-              <p className="text-xs text-muted-foreground">
-                {new Date(trace.created_at).toLocaleString('es-EC')} · Chat {trace.chat_id || 'sin identificar'}
-              </p>
-            </div>
-            <Badge className={`w-fit border-0 ${outcomeClasses[trace.outcome]}`}>
-              {outcomeLabels[trace.outcome]}
-            </Badge>
-          </header>
+    <div className="rounded-md border bg-card overflow-hidden">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
+            <TableHead className="w-[100px]">Hora</TableHead>
+            <TableHead>Cliente</TableHead>
+            <TableHead>Acción</TableHead>
+            <TableHead>Interpretación</TableHead>
+            <TableHead>Estado</TableHead>
+            <TableHead className="text-right">Detalle Técnico</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {traces.map((trace) => {
+            const time = new Date(trace.created_at).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+            const action = humanizeAction(trace.original_message?.callbackAction || trace.original_message?.text);
+            
+            // Build interpretation summary
+            const parts = [];
+            if (trace.interpreted_payload?.step) parts.push(`Paso: ${trace.interpreted_payload.step}`);
+            if (trace.interpreted_payload?.sopa) parts.push(`Sopa: ${trace.interpreted_payload.sopa}`);
+            if (trace.interpreted_payload?.segundo) parts.push(`Segundo: ${trace.interpreted_payload.segundo}`);
+            const interpretation = parts.length > 0 ? parts.join(' | ') : 'Interacción informativa';
 
-          <div className="grid gap-3 lg:grid-cols-3">
-            <TraceStep number={1} title="Acción del Cliente">
-              <p><strong>Interacción:</strong> {trace.original_message?.type === 'callback_query' ? 'Presionó un botón' : 'Envió un mensaje'}</p>
-              <p><strong>Acción solicitada:</strong> {humanizeAction(trace.original_message?.callbackAction || trace.original_message?.text)}</p>
-            </TraceStep>
-
-            <TraceStep number={2} title="Interpretación del Sistema">
-              {trace.interpreted_payload?.step && <p><strong>Paso actual:</strong> {displayValue(trace.interpreted_payload?.step)}</p>}
-              {trace.interpreted_payload?.missing && (
-                <p className="text-red-700"><strong>Le faltó elegir:</strong> {displayValue(trace.interpreted_payload?.missing)}</p>
-              )}
-              {trace.interpreted_payload?.sopa && <p><strong>Sopa:</strong> {displayValue(trace.interpreted_payload?.sopa)}</p>}
-              {trace.interpreted_payload?.segundo && <p><strong>Segundo:</strong> {displayValue(trace.interpreted_payload?.segundo)}</p>}
-              {!trace.interpreted_payload?.step && <p className="text-muted-foreground italic">El bot solo envió información (Ej. Menú del día).</p>}
-            </TraceStep>
-
-            <TraceStep number={3} title="Resultado Final">
-              <p><strong>Estado:</strong> {outcomeLabels[trace.outcome]}</p>
-              <p className="break-words"><strong>Detalle del sistema:</strong> {trace.error_message || 'El proceso se completó correctamente.'}</p>
-              {trace.id_orden && (
-                <p className="break-all font-bold text-cafe"><strong>Orden Generada:</strong> #{trace.id_orden.split('-')[0]}</p>
-              )}
-              <p className="text-xs text-muted-foreground mt-2"><strong>Completado a las:</strong> {new Date(trace.updated_at).toLocaleTimeString('es-EC')}</p>
-            </TraceStep>
-          </div>
-
-          <details className="mt-4 text-xs group">
-            <summary className="cursor-pointer font-semibold text-muted-foreground hover:text-cafe transition-colors select-none">
-              ▶ Ver registro técnico para desarrolladores (JSON)
-            </summary>
-            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 text-green-400 p-4 shadow-inner max-h-60 overflow-y-auto">
-              {JSON.stringify({
-                update_id: trace.update_id,
-                original_message: trace.original_message,
-                interpreted_payload: trace.interpreted_payload,
-                outcome: trace.outcome,
-                error_message: trace.error_message,
-              }, null, 2)}
-            </pre>
-          </details>
-        </article>
-      ))}
+            return (
+              <TableRow key={trace.id} className="group">
+                <TableCell className="font-medium text-xs text-muted-foreground">{time}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-foreground text-sm flex items-center gap-1.5"><User className="h-3 w-3" /> {clientName(trace)}</span>
+                    <span className="text-[10px] text-muted-foreground">Chat: {trace.chat_id || 'N/A'}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm font-medium">{action}</span>
+                </TableCell>
+                <TableCell className="max-w-[200px] truncate text-xs" title={interpretation}>
+                  {trace.error_message ? (
+                    <span className="text-red-600 font-medium truncate flex items-center gap-1"><AlertCircle className="h-3 w-3 shrink-0" /> Error del bot</span>
+                  ) : (
+                    <span className="text-muted-foreground">{interpretation}</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={`w-fit border-0 flex items-center gap-1.5 ${outcomeClasses[trace.outcome]}`}>
+                    {outcomeIcons[trace.outcome]}
+                    {outcomeLabels[trace.outcome]}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <details className="text-xs inline-block text-left cursor-pointer relative z-10">
+                    <summary className="font-semibold text-primary hover:underline select-none">
+                      Ver JSON
+                    </summary>
+                    <div className="absolute right-0 mt-2 w-72 bg-slate-900 text-green-400 p-3 rounded shadow-xl border border-slate-700 max-h-60 overflow-auto z-50">
+                      <pre>
+                        {JSON.stringify({
+                          original: trace.original_message,
+                          payload: trace.interpreted_payload,
+                          error: trace.error_message
+                        }, null, 2)}
+                      </pre>
+                    </div>
+                  </details>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }
