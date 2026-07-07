@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+app.disable('x-powered-by');
 
 const CLIENT_ID = process.env.OUTLOOK_CLIENT_ID || 'TU_CLIENT_ID_AQUÍ';
 const CLIENT_SECRET = process.env.OUTLOOK_CLIENT_SECRET || 'TU_CLIENT_SECRET_AQUÍ';
@@ -10,8 +11,8 @@ const AUTH_URL = `https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/author
 
 app.get('/api/auth/callback', async (req, res) => {
   const code = req.query.code;
-  if (!code) {
-    return res.send('Error: No se recibió ningún código. ' + JSON.stringify(req.query));
+  if (!code || typeof code !== 'string') {
+    return res.status(400).send('Error: No se recibió ningún código de autorización válido.');
   }
 
   try {
@@ -31,8 +32,8 @@ app.get('/api/auth/callback', async (req, res) => {
     const data = await response.json();
     
     if (data.error) {
-      console.error('Error de Microsoft:', data);
-      return res.send(`<h1>Error de Microsoft</h1><pre>${JSON.stringify(data, null, 2)}</pre>`);
+      console.error('Error al canjear el código con Microsoft.');
+      return res.status(400).send('<h1>Error de Autorización</h1><p>No se pudo obtener el token. Revisa la configuración de Azure.</p>');
     }
 
     console.log('\n=========================================');
