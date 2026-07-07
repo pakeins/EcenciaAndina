@@ -83,10 +83,12 @@ const optionsKeyboard = (kind, options, sid) => {
   return inlineKeyboard(rows);
 };
 
-const tipoAlmuerzoKeyboard = (sid) =>
-  inlineKeyboard(
-    TIPOS_ALMUERZO.map((tipo) => [{ text: tipo.shortLabel, callback_data: `tipo:${tipo.code}:${sid}` }]),
+const tipoAlmuerzoKeyboard = (sid, permitidos) => {
+  const options = TIPOS_ALMUERZO.filter((t) => !permitidos || permitidos.length === 0 || permitidos.includes(t.code));
+  return inlineKeyboard(
+    options.map((tipo) => [{ text: tipo.shortLabel, callback_data: `tipo:${tipo.code}:${sid}` }]),
   );
+};
 
 const consentKeyboard = () =>
   inlineKeyboard([
@@ -812,12 +814,12 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const kind = parts[0];
     const code = parts[1];
     if (kind !== 'tipo') {
-      await sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', await tipoAlmuerzoKeyboard(session.sid));
+      await sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos));
       return;
     }
     const tipo = TIPOS_ALMUERZO.find((t) => t.code === code);
     if (!tipo) {
-      await sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', await tipoAlmuerzoKeyboard(session.sid));
+      await sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos));
       return;
     }
     
@@ -1020,7 +1022,7 @@ const promptMenu = async (chatId, client) => {
     await sendMessage(chatId, 'Aun no hay un menu activo. Recibiras el siguiente envio disponible.');
     return;
   }
-  await sendMessage(chatId, menuCaption(session.date), await tipoAlmuerzoKeyboard(session.sid), 'HTML');
+  await sendMessage(chatId, menuCaption(session.date), await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos), 'HTML');
 };
 
 const tracePatch = (session, step, extra = {}) => ({

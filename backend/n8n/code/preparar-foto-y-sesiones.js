@@ -199,9 +199,10 @@ const TIPOS_ALMUERZO = [
   { id: 10, code: 'almuerzo_dia_simple', label: 'Almuerzo del Dia Simple', shortLabel: 'Almuerzo del Dia Simple', nombreProducto: 'Almuerzo del Dia Simple', requiresEntrada: false, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: false },
 ];
 
-function tipoAlmuerzoKeyboard(sid) {
+function tipoAlmuerzoKeyboard(sid, permitidos) {
+  const options = TIPOS_ALMUERZO.filter(t => !permitidos || permitidos.length === 0 || permitidos.includes(t.code));
   return {
-    inline_keyboard: TIPOS_ALMUERZO.map((tipo) => [
+    inline_keyboard: options.map((tipo) => [
       {
         text: tipo.label,
         callback_data: 'tipo:' + tipo.code + (sid ? ':' + sid : ''),
@@ -285,7 +286,7 @@ async function getClients() {
   return supa('/clientes?' + queryString([
     [
       'select',
-      'id_cliente,cedula,nombre,apellido,telefono,esta_activo,clientes_convenios(id_convenio,convenios(id_convenio,nombre_empresa,esta_activo,fecha_caducidad))',
+      'id_cliente,cedula,nombre,apellido,telefono,esta_activo,clientes_convenios(id_convenio,convenios(id_convenio,nombre_empresa,esta_activo,fecha_caducidad,tipos_almuerzo_permitidos))',
     ],
     ['esta_activo', 'eq.true'],
   ]));
@@ -309,10 +310,11 @@ function activeConvenio(client, today) {
       return {
         id_convenio: convenio.id_convenio || link.id_convenio,
         nombre_empresa: convenio.nombre_empresa || 'Convenio',
+        tipos_almuerzo_permitidos: convenio.tipos_almuerzo_permitidos || null,
       };
     }
   }
-  return { id_convenio: null, nombre_empresa: 'Cliente directo' };
+  return { id_convenio: null, nombre_empresa: 'Cliente directo', tipos_almuerzo_permitidos: null };
 }
 
 const today = todayInTimezone(CONFIG.timezone);
@@ -399,7 +401,7 @@ for (const client of clients) {
       subscriptionId: subscription.id,
       photoUrl,
       caption: menuCaption(today),
-      inlineKeyboard: tipoAlmuerzoKeyboard(sid),
+      inlineKeyboard: tipoAlmuerzoKeyboard(sid, convenio.tipos_almuerzo_permitidos),
     },
   });
 }
