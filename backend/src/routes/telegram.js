@@ -134,10 +134,11 @@ const menuCaption = (today) =>
   'Realiza toda la reserva con los botones. Primero elige una sopa.';
 
 const TIPOS_ALMUERZO = [
-  { id: 6, code: 'ejecutivo_completo', label: 'Almuerzo Ejecutivo Completo', shortLabel: 'Ejecutivo Completo', nombreProducto: 'Almuerzo Ejecutivo Completo', requiresSopa: true },
-  { id: 8, code: 'ejecutivo_simple', label: 'Almuerzo Ejecutivo Simple', shortLabel: 'Ejecutivo Simple', nombreProducto: 'Almuerzo Ejecutivo Simple', requiresSopa: false },
-  { id: 9, code: 'almuerzo_dia', label: 'Almuerzo del Dia', shortLabel: 'Almuerzo del Dia', nombreProducto: 'Almuerzo del Dia', requiresSopa: true },
-  { id: 10, code: 'almuerzo_dia_simple', label: 'Almuerzo del Dia Simple', shortLabel: 'Almuerzo del Dia Simple', nombreProducto: 'Almuerzo del Dia Simple', requiresSopa: false },
+  { id: 6, code: 'ejecutivo_completo', label: 'Almuerzo Ejecutivo Completo', shortLabel: 'Ejecutivo Completo', nombreProducto: 'Almuerzo Ejecutivo Completo', requiresEntrada: true, requiresSopa: true, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+  { id: 7, code: 'ejecutivo_sin_sopa', label: 'Almuerzo Ejecutivo Sin Sopa', shortLabel: 'Ejecutivo Sin Sopa', nombreProducto: 'Almuerzo Ejecutivo Sin Sopa', requiresEntrada: true, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+  { id: 8, code: 'ejecutivo_simple', label: 'Almuerzo Ejecutivo Simple', shortLabel: 'Ejecutivo Simple', nombreProducto: 'Almuerzo Ejecutivo Simple', requiresEntrada: false, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+  { id: 9, code: 'almuerzo_dia', label: 'Almuerzo del Dia', shortLabel: 'Almuerzo del Dia', nombreProducto: 'Almuerzo del Dia', requiresEntrada: false, requiresSopa: true, requiresSegundo: true, requiresBebida: true, requiresPostre: false },
+  { id: 10, code: 'almuerzo_dia_simple', label: 'Almuerzo del Dia Simple', shortLabel: 'Almuerzo del Dia Simple', nombreProducto: 'Almuerzo del Dia Simple', requiresEntrada: false, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: false },
 ];
 
 const readUpdate = (update) => {
@@ -524,8 +525,7 @@ const insertOrder = async (session) => {
       .update({
         id_tipo_almuerzo: tipoAlm.id || null,
         opciones: {
-          sopa: session.opciones?.sopa || null,
-          segundo: session.opciones?.segundo || null,
+          ...(session.opciones || {}),
           tipoAlmuerzo: tipoAlm.code || null,
           tipoOrigen: 'cliente_elige',
         },
@@ -573,8 +573,7 @@ const insertOrder = async (session) => {
     precio_aplicado: Number(product.precio_unitario || 0),
     id_tipo_almuerzo: tipoAlm.id || null,
     opciones: {
-      sopa: session.opciones?.sopa || null,
-      segundo: session.opciones?.segundo || null,
+      ...(session.opciones || {}),
       tipoAlmuerzo: tipoAlm.code || null,
       tipoOrigen: 'cliente_elige',
       menuDate: session.menuDate || session.date,
@@ -598,19 +597,81 @@ const optionFromCallback = (text, kind, options) => {
 };
 
 const orderSummary = (session) => {
-  // Soporte para sesiones legacy (campos directos) y nuevo formato (opciones)
-  const sopa = session.opciones?.sopa || session.sopa;
-  const segundo = session.opciones?.segundo || session.segundo;
-  const guarnicion = session.opciones?.guarnicion || session.guarnicion;
+  const opc = session.opciones || {};
+  const entrada = opc.entrada || session.entrada;
+  const sopa = opc.sopa || session.sopa;
+  const segundo = opc.segundo || session.segundo;
+  const bebida = opc.bebida || session.bebida;
+  const postre = opc.postre || session.postre;
+  const guarnicion = opc.guarnicion || session.guarnicion;
   const quantity = session.quantity;
   const tipoLabel = session.tipoAlmuerzo?.shortLabel;
   return (
     (tipoLabel ? `Tipo: ${tipoLabel}\n` : '') +
     (quantity ? `Cantidad: ${Number(quantity)}\n` : '') +
+    (entrada ? `Entrada: ${entrada}\n` : '') +
     (sopa ? `Sopa: ${sopa}\n` : '') +
     (segundo ? `Plato fuerte: ${segundo}\n` : '') +
-    (guarnicion ? `Guarnicion: ${guarnicion}\n` : '')
+    (guarnicion ? `Guarnicion: ${guarnicion}\n` : '') +
+    (bebida ? `Bebida: ${bebida}\n` : '') +
+    (postre ? `Postre: ${postre}\n` : '')
   );
+};
+
+const getNextStep = (tipo, currentStep) => {
+  const flow = [];
+  if (tipo?.requiresEntrada) flow.push('entrada');
+  if (tipo?.requiresSopa) flow.push('sopa');
+  if (tipo?.requiresSegundo) flow.push('segundo');
+  if (tipo?.requiresBebida) flow.push('bebida');
+  if (tipo?.requiresPostre) flow.push('postre');
+  flow.push('confirmar');
+
+  if (!currentStep) return flow[0];
+  const idx = flow.indexOf(currentStep);
+  if (idx === -1 || idx === flow.length - 1) return 'confirmar';
+  return flow[idx + 1];
+};
+
+const getMenuOptionsForStep = (menu, step) => {
+  if (!menu) return [];
+  switch (step) {
+    case 'entrada': return menu.entradas || [];
+    case 'sopa': return menu.sopas || [];
+    case 'segundo': return menu.segundos || [];
+    case 'bebida': return menu.bebidas || [];
+    case 'postre': return menu.postres || [];
+    default: return [];
+  }
+};
+
+const getPromptTextForStep = (tipo, step) => {
+  const base = `Tipo: ${tipo?.shortLabel || 'Almuerzo'}\n`;
+  switch (step) {
+    case 'entrada': return `${base}Ahora elige la entrada.`;
+    case 'sopa': return `${base}Ahora elige la sopa.`;
+    case 'segundo': return `${base}Ahora elige el plato fuerte.`;
+    case 'bebida': return `${base}Ahora elige la bebida.`;
+    case 'postre': return `${base}Ahora elige el postre.`;
+    default: return 'Elige una opcion.';
+  }
+};
+
+const promptForStep = async (chatId, session, step) => {
+  if (step === 'confirmar') {
+    const resumen = `${orderSummary(session)}\n\xbfConfirmas tu reserva?`;
+    await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid));
+    return;
+  }
+  const options = getMenuOptionsForStep(session.menu, step);
+  if (!options.length) {
+    const nextStep = getNextStep(session.tipoAlmuerzo, step);
+    session.step = nextStep;
+    await setState(stateKey(chatId), session);
+    return promptForStep(chatId, session, nextStep);
+  }
+  const promptText = getPromptTextForStep(session.tipoAlmuerzo, step);
+  await sendMessage(chatId, promptText, optionsKeyboard(step, options));
 };
 
 const orderConfirmation = (session, order) => {
@@ -701,36 +762,11 @@ const handleAcceptedSession = async (parsed, traceId) => {
       await sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', await tipoAlmuerzoKeyboard(session.sid));
       return;
     }
-    if (tipo.requiresSopa && session.menu.sopas?.length) {
-      session = { ...session, tipoAlmuerzo: tipo, step: 'sopa' };
-      await setState(stateKey(chatId), session);
-      await sendMessage(chatId, `Tipo: ${tipo.shortLabel}\nAhora elige la sopa.`, optionsKeyboard('sopa', session.menu.sopas));
-      return;
-    }
-    session = { ...session, tipoAlmuerzo: tipo, step: 'segundo' };
+    
+    const nextStep = getNextStep(tipo, null);
+    session = { ...session, tipoAlmuerzo: tipo, step: nextStep };
     await setState(stateKey(chatId), session);
-    await sendMessage(chatId, `Tipo: ${tipo.shortLabel}\nAhora elige el plato fuerte.`, optionsKeyboard('segundo', session.menu.segundos));
-    return;
-  }
-
-  // ---- Paso: plato fuerte ----
-  if (session.step === 'segundo') {
-    const parts = String(text).split(':');
-    const kind = parts[0];
-    const rawIndex = parts[1];
-    const index = Number(rawIndex);
-    if (kind !== 'segundo' || !Number.isInteger(index) || index < 0 || index >= session.menu.segundos.length) {
-      await sendMessage(chatId, 'Elige el plato fuerte con los botones.', optionsKeyboard('segundo', session.menu.segundos));
-      return;
-    }
-    const segundo = session.menu.segundos[index];
-    session = { ...session, opciones: { ...session.opciones, segundo }, step: 'confirmar' };
-    await setState(stateKey(chatId), session);
-    const resumen =
-      `Tipo: ${session.tipoAlmuerzo?.shortLabel || 'Almuerzo'}\n` +
-      `Plato fuerte: ${segundo}\n\n` +
-      '\xbfConfirmas tu reserva?';
-    await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid));
+    await promptForStep(chatId, session, nextStep);
     return;
   }
 
@@ -740,10 +776,7 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const kind = parts[0];
     const action = parts[1];
     if (kind !== 'confirmar' || action !== 'ok') {
-      const resumen =
-        `Tipo: ${session.tipoAlmuerzo?.shortLabel || 'Almuerzo'}\n` +
-        (session.opciones?.segundo ? `Plato fuerte: ${session.opciones.segundo}\n` : '') +
-        '\xbfConfirmas tu reserva?';
+      const resumen = `${orderSummary(session)}\n\xbfConfirmas tu reserva?`;
       await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid));
       return;
     }
@@ -779,13 +812,30 @@ const handleAcceptedSession = async (parsed, traceId) => {
     return;
   }
 
-  // ---- Paso: sopa ----
-  if (session.step === 'sopa') {
-    const sopa = optionFromCallback(text, 'sopa', session.menu.sopas);
-    if (!sopa) return sendMessage(chatId, 'Elige una sopa con los botones.', optionsKeyboard('sopa', session.menu.sopas));
-    session = { ...session, opciones: { ...session.opciones, sopa }, step: 'segundo' };
+  // ---- Pasos Dinamicos: entrada, sopa, segundo, bebida, postre ----
+  const validSteps = ['entrada', 'sopa', 'segundo', 'bebida', 'postre'];
+  if (validSteps.includes(session.step)) {
+    const parts = String(text).split(':');
+    const kind = parts[0];
+    const options = getMenuOptionsForStep(session.menu, session.step);
+    
+    if (kind !== session.step) {
+      await sendMessage(chatId, `Por favor, elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options));
+      return;
+    }
+    
+    const chosen = optionFromCallback(text, session.step, options);
+    if (!chosen) {
+      await sendMessage(chatId, `Opcion invalida. Elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options));
+      return;
+    }
+    
+    session.opciones = { ...(session.opciones || {}), [session.step]: chosen };
+    
+    const nextStep = getNextStep(session.tipoAlmuerzo, session.step);
+    session.step = nextStep;
     await setState(stateKey(chatId), session);
-    await sendMessage(chatId, `Sopa: ${sopa}\nAhora elige el plato fuerte.`, optionsKeyboard('segundo', session.menu.segundos));
+    await promptForStep(chatId, session, nextStep);
     return;
   }
 
@@ -855,7 +905,7 @@ const handlePedidoCallback = async (parsed, subscription) => {
       await sendMessage(chatId, 'No hay menu activo para modificar la reserva.');
       return true;
     }
-    await sendMessage(chatId, `Vamos a modificar tu reserva ${orderId}.\nElige el tipo de almuerzo:`, await tipoAlmuerzoKeyboard(session));
+    await sendMessage(chatId, `Vamos a modificar tu reserva ${orderId}.\nElige el tipo de almuerzo:`, await tipoAlmuerzoKeyboard(session.sid));
     return true;
   }
 
@@ -868,7 +918,7 @@ const promptMenu = async (chatId, client) => {
     await sendMessage(chatId, 'Aun no hay un menu activo. Recibiras el siguiente envio disponible.');
     return;
   }
-  await sendMessage(chatId, `Menu del dia ${session.date}:\n${menuCaption(session.date)}`, await tipoAlmuerzoKeyboard(session));
+  await sendMessage(chatId, `Menu del dia ${session.date}:\n${menuCaption(session.date)}`, await tipoAlmuerzoKeyboard(session.sid));
 };
 
 const tracePatch = (session, step, extra = {}) => ({
