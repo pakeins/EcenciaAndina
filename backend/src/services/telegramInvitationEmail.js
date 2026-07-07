@@ -93,10 +93,10 @@ const buildInvitationEmail = async ({ client, onboarding }) => {
       'No reenvies este correo. Si no solicitaste el registro, contacta a Eciencia Andina.',
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; color: #1a1a1a; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
-        <!-- Premium Header -->
-        <div style="background-color: #0f172a; background-image: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 48px 32px; text-align: center; border-bottom: 4px solid #f59e0b;">
-          <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Ecencia Andina</h1>
-          <p style="margin: 12px 0 0; color: #94a3b8; font-size: 16px; font-weight: 500;">Servicio exclusivo de almuerzos corporativos</p>
+        <!-- Simple Header -->
+        <div style="background-color: #f8fafc; padding: 40px 32px; text-align: center; border-bottom: 2px solid #e2e8f0;">
+          <h1 style="margin: 0; color: #2F4D49; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Ecencia Andina</h1>
+          <p style="margin: 12px 0 0; color: #64748b; font-size: 16px; font-weight: 500;">Servicio exclusivo de almuerzos corporativos</p>
         </div>
         
         <!-- Content -->
@@ -109,7 +109,7 @@ const buildInvitationEmail = async ({ client, onboarding }) => {
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px 24px; margin-bottom: 32px; text-align: center;">
             <p style="margin: 0 0 24px; font-size: 16px; font-weight: 600; color: #0f172a;">Activa tu asistente virtual en Telegram</p>
             <!-- Primary Action -->
-            <a href="${safeUrl}" style="display: inline-block; background-color: #f59e0b; color: #ffffff; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
+            <a href="${safeUrl}" style="display: inline-block; background-color: #24A1DE; color: #ffffff; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
               Conectar Telegram
             </a>
             <p style="margin: 20px 0 0; font-size: 12px; color: #94a3b8; word-break: break-all;">
@@ -174,10 +174,10 @@ const sendTelegramReactivationEmail = async (
         `Puedes revisar el mensaje abriendo este enlace en tu celular: ${botUrl}`,
       html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; color: #1a1a1a; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
-        <!-- Premium Header -->
-        <div style="background-color: #0f172a; background-image: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 48px 32px; text-align: center; border-bottom: 4px solid #f59e0b;">
-          <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Ecencia Andina</h1>
-          <p style="margin: 12px 0 0; color: #94a3b8; font-size: 16px; font-weight: 500;">Renovación de Acceso</p>
+        <!-- Simple Header -->
+        <div style="background-color: #f8fafc; padding: 40px 32px; text-align: center; border-bottom: 2px solid #e2e8f0;">
+          <h1 style="margin: 0; color: #2F4D49; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Ecencia Andina</h1>
+          <p style="margin: 12px 0 0; color: #64748b; font-size: 16px; font-weight: 500;">Renovación de Acceso</p>
         </div>
         
         <!-- Content -->
@@ -193,7 +193,7 @@ const sendTelegramReactivationEmail = async (
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px 24px; text-align: center;">
             <p style="margin: 0 0 24px; font-size: 16px; font-weight: 600; color: #0f172a;">Ir directamente al Bot</p>
             <!-- Primary Action -->
-            <a href="${botUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
+            <a href="${botUrl}" style="display: inline-block; background-color: #24A1DE; color: #ffffff; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
               Abrir Telegram
             </a>
             <p style="margin: 20px 0 0; font-size: 12px; color: #94a3b8; word-break: break-all;">
