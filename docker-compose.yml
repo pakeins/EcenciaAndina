@@ -40,7 +40,9 @@ services:
       - NODE_OPTIONS=--dns-result-order=ipv4first
       - WEBHOOK_URL=https://ecenciaapp.eastus2.cloudapp.azure.com/n8n/
       - N8N_PATH=/n8n/
+      - NODE_FUNCTION_ALLOW_BUILTIN=fs
     env_file:
       - ./backend/.env
     volumes:
       - ./backend/n8n/.n8n:/home/node/.n8n
+      - ./backend/n8n/code:/scripts
