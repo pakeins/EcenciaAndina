@@ -121,7 +121,6 @@ export default function Dashboard() {
   const consumosPorDia = data?.consumosPorDia || [];
   const consumosPorConvenio = data?.consumosPorConvenio || [];
   const actividadReciente = data?.actividadReciente || [];
-  const topProducts = data?.topProducts || [];
 
   const handlePeriodoChange = (newPeriodo: string) => {
     setPeriodo(newPeriodo);
@@ -434,24 +433,34 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Productos Más Vendidos */}
+        {/* Tipos de Almuerzo Más Pedidos */}
         <Card className="border-border shadow-sm flex flex-col">
           <CardHeader className="pb-3">
-            <CardTitle className="text-foreground text-xl font-bold">Productos Más Vendidos</CardTitle>
-            <CardDescription>Platos más populares en el periodo seleccionado</CardDescription>
+            <CardTitle className="text-foreground text-xl font-bold">Tipos de Almuerzo Más Pedidos</CardTitle>
+            <CardDescription>Top de tipos de almuerzo en el periodo seleccionado</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 flex-1">
-            {topProducts.length === 0 ? (
-              <p className="text-muted-foreground text-sm py-4 text-center">No hay ventas registradas en este periodo</p>
-            ) : (
-              topProducts.map((prod, index) => {
-                const maxVal = topProducts[0]?.value || 1;
-                const pct = (prod.value / maxVal) * 100;
+            {(() => {
+              const topLunches = [
+                { name: 'Ejecutivo Completo', value: metricsData?.ejecutivoCompleto || 0 },
+                { name: 'Ejecutivo Sin Sopa', value: metricsData?.ejecutivoSinSopa || 0 },
+                { name: 'Ejecutivo Simple', value: metricsData?.ejecutivoSimple || 0 },
+                { name: 'Almuerzo del Día', value: metricsData?.almuerzoDia || 0 },
+                { name: 'Almuerzo Día Simple', value: metricsData?.almuerzoDiaSimple || 0 },
+              ].filter(l => l.value > 0).sort((a, b) => b.value - a.value);
+
+              if (topLunches.length === 0) {
+                return <p className="text-muted-foreground text-sm py-4 text-center">No hay ventas registradas en este periodo</p>;
+              }
+
+              return topLunches.map((lunch, index) => {
+                const maxVal = topLunches[0]?.value || 1;
+                const pct = (lunch.value / maxVal) * 100;
                 return (
-                  <div key={prod.name} className="space-y-1.5 animate-in fade-in duration-300">
+                  <div key={lunch.name} className="space-y-1.5 animate-in fade-in duration-300">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-foreground font-bold">{index + 1}. {prod.name}</span>
-                      <span className="text-cafe font-extrabold">{prod.value} uds.</span>
+                      <span className="text-foreground font-bold">{index + 1}. {lunch.name}</span>
+                      <span className="text-cafe font-extrabold">{lunch.value} uds.</span>
                     </div>
                     <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                       <div 
@@ -461,8 +470,8 @@ export default function Dashboard() {
                     </div>
                   </div>
                 );
-              })
-            )}
+              });
+            })()}
           </CardContent>
         </Card>
       </div>
