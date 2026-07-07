@@ -41,6 +41,7 @@ services:
       - WEBHOOK_URL=https://ecenciaapp.eastus2.cloudapp.azure.com/n8n/
       - N8N_PATH=/n8n/
       - NODE_FUNCTION_ALLOW_BUILTIN=fs
+      - NODE_FUNCTION_ALLOW_ENV=*
     env_file:
       - ./backend/.env
     volumes:
