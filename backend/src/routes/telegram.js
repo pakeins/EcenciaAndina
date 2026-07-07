@@ -1341,32 +1341,21 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
     // Obtener los datos del cliente
     const client = await getClientById(subscription.id_cliente);
 
-    // Verificar si ya existe una peticion pendiente o completada
+    // Verificar si ya existe una peticion pendiente o en revision
     const { data: existingRequests } = await getAdminClient()
       .from('telegram_privacy_requests')
       .select('id, status')
       .eq('id_cliente', subscription.id_cliente)
-      .in('status', ['pending', 'in_review', 'resolved']);
+      .in('status', ['pending', 'in_review']);
 
     if (existingRequests && existingRequests.length > 0) {
-      if (existingRequests.some(r => ['pending', 'in_review'].includes(r.status))) {
-        await sendMessage(
-          parsed.chatId,
-          '⏳ <b>Solicitud en curso</b>\n\nYa hemos recibido tu solicitud anteriormente. Actualmente se encuentra en proceso de gestion.',
-          null,
-          'HTML'
-        );
-        return true;
-      }
-      if (existingRequests.some(r => r.status === 'resolved') && subscription.consent_status !== 'accepted') {
-        await sendMessage(
-          parsed.chatId,
-          '✅ <b>Solicitud Atendida</b>\n\nTu solicitud de eliminacion de datos ya fue procesada y finalizada exitosamente. Si tienes dudas, contacta al administrador.',
-          null,
-          'HTML'
-        );
-        return true;
-      }
+      await sendMessage(
+        parsed.chatId,
+        '⏳ <b>Solicitud en curso</b>\n\nYa hemos recibido tu solicitud anteriormente. Actualmente se encuentra en proceso de gestion.',
+        null,
+        'HTML'
+      );
+      return true;
     }
 
     // Registrar auditoria
