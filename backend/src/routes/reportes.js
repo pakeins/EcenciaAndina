@@ -275,12 +275,22 @@ router.get('/dashboard', async (req, res) => {
     if (errConv) throw errConv;
 
     // 4. Clientes Frecuentes Activos
-    const { count: clientesFrecuentes, error: errCli } = await adminClient
+    const { data: clientTypesData, error: errCliTypes } = await adminClient
       .from('clientes')
-      .select('*', { count: 'exact', head: true })
+      .select('id_tipo_cliente')
       .eq('esta_activo', true);
 
-    if (errCli) throw errCli;
+    if (errCliTypes) throw errCliTypes;
+
+    let totalClientes = 0;
+    let clientesConvenioActivos = 0;
+    let clientesParticularesActivos = 0;
+
+    (clientTypesData || []).forEach(c => {
+      totalClientes++;
+      if (c.id_tipo_cliente === 1) clientesConvenioActivos++;
+      else if (c.id_tipo_cliente === 2) clientesParticularesActivos++;
+    });
 
 
 
@@ -384,7 +394,9 @@ router.get('/dashboard', async (req, res) => {
         extrasCantidad: kpiSummary.extrasCantidad,
         valorExtras: Number(kpiSummary.extrasTotal.toFixed(2)),
         conveniosActivos: conveniosActivos || 0,
-        clientesFrecuentes: clientesFrecuentes || 0
+        clientesRegistrados: totalClientes,
+        clientesConvenioActivos,
+        clientesParticularesActivos
       },
       consumosPorDia,
       consumosPorConvenio,

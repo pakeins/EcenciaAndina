@@ -160,13 +160,13 @@ export default function Dashboard() {
       title: 'Consumos de Convenio',
       value: metricsData?.conveniosHoy ?? 0,
       icon: Building2,
-      description: 'Pedidos de cuentas corporativas',
+      description: 'Pedidos corporativos del periodo',
     },
     {
       title: 'Consumos de Particulares',
       value: metricsData?.frecuentesHoy ?? 0,
       icon: UserSquare2,
-      description: 'Pedidos de clientes sin convenio',
+      description: 'Pedidos particulares del periodo',
     },
     {
       title: 'Convenios Activos',
@@ -176,9 +176,9 @@ export default function Dashboard() {
     },
     {
       title: 'Clientes Activos',
-      value: metricsData?.clientesFrecuentes ?? 0,
+      value: metricsData?.clientesRegistrados ?? 0,
       icon: Users,
-      description: 'Total de clientes registrados',
+      description: `${metricsData?.clientesConvenioActivos || 0} corporativos | ${metricsData?.clientesParticularesActivos || 0} particulares`,
     },
   ];
 
