@@ -17,6 +17,7 @@ const {
   deleteMessage,
   removeInlineKeyboard,
   sendMessage,
+  sendPhoto,
 } = require('../services/telegramApi');
 
 const router = express.Router();
@@ -1026,7 +1027,14 @@ const promptMenu = async (chatId, client) => {
     await sendMessage(chatId, 'Aun no hay un menu activo. Recibiras el siguiente envio disponible.');
     return;
   }
-  await sendMessage(chatId, menuCaption(session.date), await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos), 'HTML');
+  
+  const activeMenuState = await getActiveMenu();
+  const photoUrl = activeMenuState?.photoUrl || process.env.N8N_ECIENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/eciencia-menu-demo.png';
+
+  const caption = menuCaption(session.date);
+  const inlineKeyboardData = await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos);
+
+  await sendPhoto(chatId, photoUrl, caption, inlineKeyboardData, 'HTML');
 };
 
 const tracePatch = (session, step, extra = {}) => ({

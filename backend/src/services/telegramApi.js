@@ -65,10 +65,22 @@ const removeInlineKeyboard = async (chatId, messageId) => {
   }
 };
 
+const sendPhoto = async (chatId, photoUrl, caption, replyMarkup, parseMode) => {
+  const body = {
+    chat_id: String(chatId),
+    photo: photoUrl,
+    caption: caption || '',
+  };
+  if (replyMarkup) body.reply_markup = replyMarkup;
+  if (parseMode) body.parse_mode = parseMode;
+  return telegramRequest('sendPhoto', body);
+};
+
 module.exports = {
   answerCallback,
   deleteMessage,
   removeInlineKeyboard,
   sendMessage,
+  sendPhoto,
   telegramRequest,
 };
