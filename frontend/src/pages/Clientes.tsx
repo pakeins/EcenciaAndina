@@ -701,9 +701,10 @@ export default function Clientes() {
                               onClick={() => handleTelegramReinvite(client)}
                               disabled={reinvitingClientId === client.id}
                               title="Reinvitar por Telegram"
+                              className="hover:bg-[#24A1DE]/10 hover:text-[#24A1DE]"
                             >
                               <Send
-                                className={`h-4 w-4 text-terracota ${
+                                className={`h-4 w-4 text-[#24A1DE] ${
                                   reinvitingClientId === client.id ? 'animate-pulse' : ''
                                 }`}
                               />
