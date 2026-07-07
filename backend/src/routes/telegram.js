@@ -496,7 +496,7 @@ const findActiveTodayOrder = async (clientId) => {
     .select('id_orden,id_estado,created_at,canal_origen')
     .eq('id_cliente', clientId)
     .eq('canal_origen', 'Telegram')
-    .neq('id_estado', 3) // Excluir cancelados
+    .eq('id_estado', 1) // Solo considerar pedidos en estado Reservado
     .gte('created_at', `${today}T00:00:00Z`)
     .lt('created_at', `${tomorrowFromDate(today)}T00:00:00Z`)
     .limit(1)
@@ -555,7 +555,7 @@ const findTodayOrder = async (clientId, today) => {
     .select('id_orden,created_at')
     .eq('id_cliente', clientId)
     .eq('canal_origen', 'Telegram')
-    .neq('id_estado', 3) // Excluir cancelados
+    .eq('id_estado', 1) // Solo considerar pedidos en estado Reservado
     .gte('created_at', `${today}T00:00:00Z`)
     .lt('created_at', `${tomorrowFromDate(today)}T00:00:00Z`)
     .limit(1)
