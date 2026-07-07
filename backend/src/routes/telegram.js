@@ -1774,7 +1774,7 @@ router.post('/broadcast-sessions', async (req, res) => {
         subscriptionId: subscription.id,
         photoUrl,
         caption: menuCaption(today),
-        inlineKeyboard: tipoAlmuerzoKeyboard(sid, convenio.tipos_almuerzo_permitidos).inline_keyboard,
+        inlineKeyboard: tipoAlmuerzoKeyboard(sid, convenio.tipos_almuerzo_permitidos),
       });
     }
     
