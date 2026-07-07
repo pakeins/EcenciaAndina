@@ -419,6 +419,72 @@ const validateDates = (req, res, next) => {
   next();
 };
 
+router.get('/telegram-kpis', async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    
+    // 1. Usuarios de Telegram
+    const { data: subsData, error: subsError } = await adminClient
+      .from('telegram_subscriptions')
+      .select('consent_status, is_active');
+    if (subsError) throw subsError;
+
+    let users = {
+      total: 0,
+      activos: 0,
+      pendientes: 0,
+      bloqueados: 0
+    };
+
+    (subsData || []).forEach(sub => {
+      users.total++;
+      if (sub.consent_status === 'accepted' && sub.is_active) {
+        users.activos++;
+      } else if (sub.consent_status === 'pending') {
+        users.pendientes++;
+      } else if (['rejected', 'revoked'].includes(sub.consent_status) || !sub.is_active) {
+        users.bloqueados++;
+      }
+    });
+
+    // 2. Reservas de Telegram (Hoy y Historico)
+    const { start: todayStart, end: todayEnd } = getEcuadorDayRange(new Date());
+
+    const { data: ordenesData, error: ordenesError } = await adminClient
+      .from('ordenes')
+      .select('id_estado, created_at')
+      .eq('id_origen', 1);
+    
+    if (ordenesError) throw ordenesError;
+
+    let reservas = {
+      hoy: { total: 0, pendientes: 0, consumidas: 0, canceladas: 0 },
+      historico: { total: 0, pendientes: 0, consumidas: 0, canceladas: 0 }
+    };
+
+    (ordenesData || []).forEach(o => {
+      const isToday = o.created_at >= todayStart && o.created_at <= todayEnd;
+      
+      reservas.historico.total++;
+      if (o.id_estado === 1) reservas.historico.pendientes++;
+      else if (o.id_estado === 2) reservas.historico.consumidas++;
+      else if (o.id_estado === 3) reservas.historico.canceladas++;
+
+      if (isToday) {
+        reservas.hoy.total++;
+        if (o.id_estado === 1) reservas.hoy.pendientes++;
+        else if (o.id_estado === 2) reservas.hoy.consumidas++;
+        else if (o.id_estado === 3) reservas.hoy.canceladas++;
+      }
+    });
+
+    res.json({ users, reservas });
+  } catch (error) {
+    console.error('Error fetching telegram KPIs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.use(validateDates);
 
 // 1. REPORTE GENERAL DE VENTAS (INGRESOS)
@@ -672,72 +738,6 @@ router.get('/clientes', async (req, res) => {
 
     res.json(reporteFormateado);
   } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/telegram-kpis', async (req, res) => {
-  try {
-    const adminClient = getAdminClient();
-    
-    // 1. Usuarios de Telegram
-    const { data: subsData, error: subsError } = await adminClient
-      .from('telegram_subscriptions')
-      .select('consent_status, is_active');
-    if (subsError) throw subsError;
-
-    let users = {
-      total: 0,
-      activos: 0,
-      pendientes: 0,
-      bloqueados: 0
-    };
-
-    (subsData || []).forEach(sub => {
-      users.total++;
-      if (sub.consent_status === 'accepted' && sub.is_active) {
-        users.activos++;
-      } else if (sub.consent_status === 'pending') {
-        users.pendientes++;
-      } else if (['rejected', 'revoked'].includes(sub.consent_status) || !sub.is_active) {
-        users.bloqueados++;
-      }
-    });
-
-    // 2. Reservas de Telegram (Hoy y Historico)
-    const { start: todayStart, end: todayEnd } = getEcuadorDayRange(new Date());
-
-    const { data: ordenesData, error: ordenesError } = await adminClient
-      .from('ordenes')
-      .select('id_estado, created_at')
-      .eq('id_origen', 1);
-    
-    if (ordenesError) throw ordenesError;
-
-    let reservas = {
-      hoy: { total: 0, pendientes: 0, consumidas: 0, canceladas: 0 },
-      historico: { total: 0, pendientes: 0, consumidas: 0, canceladas: 0 }
-    };
-
-    (ordenesData || []).forEach(o => {
-      const isToday = o.created_at >= todayStart && o.created_at <= todayEnd;
-      
-      reservas.historico.total++;
-      if (o.id_estado === 1) reservas.historico.pendientes++;
-      else if (o.id_estado === 2) reservas.historico.consumidas++;
-      else if (o.id_estado === 3) reservas.historico.canceladas++;
-
-      if (isToday) {
-        reservas.hoy.total++;
-        if (o.id_estado === 1) reservas.hoy.pendientes++;
-        else if (o.id_estado === 2) reservas.hoy.consumidas++;
-        else if (o.id_estado === 3) reservas.hoy.canceladas++;
-      }
-    });
-
-    res.json({ users, reservas });
-  } catch (error) {
-    console.error('Error fetching telegram KPIs:', error);
     res.status(500).json({ error: error.message });
   }
 });
