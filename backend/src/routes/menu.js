@@ -228,9 +228,12 @@ const buildActiveMenuPayload = (opciones, categories) => {
   const legacy = deriveLegacyMenu(opciones, categories);
   return {
     opciones,
+    entradas: legacy.entradas,
     sopas: legacy.sopas,
     segundos: legacy.segundos,
     guarniciones: legacy.guarniciones,
+    bebidas: legacy.bebidas,
+    postres: legacy.postres,
   };
 };
 
