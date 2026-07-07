@@ -528,24 +528,31 @@ const buildOrderSummaryMessage = (order, detail) => {
   const opc = detail?.opciones || {};
   const estadoStr = order._estadoNombre || String(order.id_estado);
   return (
-    'Ya tienes una reserva registrada para hoy:\n\n' +
-    `Tipo: ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
-    (opc.sopa ? `Sopa: ${opc.sopa}\n` : '') +
-    (opc.segundo ? `Plato fuerte: ${opc.segundo}\n` : '') +
-    `Estado: ${estadoStr}\n` +
-    `Orden: ${order.id_orden}`
+    '✅ <b>Ya tienes una reserva activa para hoy:</b>\n\n' +
+    `🍱 <b>Tipo:</b> ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
+    (opc.entrada ? `🥗 <b>Entrada:</b> ${opc.entrada}\n` : '') +
+    (opc.sopa ? `🍜 <b>Sopa:</b> ${opc.sopa}\n` : '') +
+    (opc.segundo ? `🍽️ <b>Plato fuerte:</b> ${opc.segundo}\n` : '') +
+    (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
+    (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
+    `\nℹ️ <b>Estado:</b> ${estadoStr}\n` +
+    `🆔 <b>Orden:</b> #${order.id_orden}\n\n` +
+    `<i>Usa los botones de abajo si deseas interactuar con tu pedido.</i>`
   );
 };
 
 const buildPedidoMessage = (order, detail) => {
   const opc = detail?.opciones || {};
   return (
-    'Tu reserva de hoy:\n\n' +
-    `Producto: ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
-    (opc.sopa ? `Sopa: ${opc.sopa}\n` : '') +
-    (opc.segundo ? `Plato fuerte: ${opc.segundo}\n` : '') +
-    'Estado: Reservado\n' +
-    `Orden: ${order.id_orden}`
+    '📋 <b>Tu reserva de hoy:</b>\n\n' +
+    `🍱 <b>Producto:</b> ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
+    (opc.entrada ? `🥗 <b>Entrada:</b> ${opc.entrada}\n` : '') +
+    (opc.sopa ? `🍜 <b>Sopa:</b> ${opc.sopa}\n` : '') +
+    (opc.segundo ? `🍽️ <b>Plato fuerte:</b> ${opc.segundo}\n` : '') +
+    (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
+    (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
+    `\nℹ️ <b>Estado:</b> Reservado\n` +
+    `🆔 <b>Orden:</b> #${order.id_orden}`
   );
 };
 
@@ -1588,7 +1595,7 @@ const handleTelegramUpdate = async (update) => {
       return;
     }
     const detail = await getOrderDetail(todayOrder.id_orden);
-    await sendMessage(parsed.chatId, buildPedidoMessage(todayOrder, detail), pedidoKeyboard(todayOrder.id_orden));
+    await sendMessage(parsed.chatId, buildPedidoMessage(todayOrder, detail), pedidoKeyboard(todayOrder.id_orden), 'HTML');
     return;
   }
 
@@ -1610,7 +1617,7 @@ const handleTelegramUpdate = async (update) => {
       const detail = await getOrderDetail(todayOrder.id_orden);
       const estadoNombre = await getEstadoName(todayOrder.id_estado);
       todayOrder._estadoNombre = estadoNombre;
-      await sendMessage(parsed.chatId, buildOrderSummaryMessage(todayOrder, detail), pedidoKeyboard(todayOrder.id_orden));
+      await sendMessage(parsed.chatId, buildOrderSummaryMessage(todayOrder, detail), pedidoKeyboard(todayOrder.id_orden), 'HTML');
       return;
     }
     await promptMenu(parsed.chatId, client);
