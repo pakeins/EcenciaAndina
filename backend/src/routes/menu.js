@@ -621,7 +621,7 @@ router.post('/enviar', async (req, res) => {
       .maybeSingle();
 
     if (envioHoy) {
-      if (!payload.force) {
+      if (!payload.force && !process.env.ECIENCIA_MENU_EDIT_AFTER_SEND) {
         return res.status(409).json({
           error: 'Ya se envio un menu hoy. ¿Deseas reenviarlo y cancelar los pedidos de Telegram actuales?',
           code: 'ALREADY_SENT_CONFIRM_REQUIRED',
