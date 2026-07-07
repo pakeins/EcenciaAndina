@@ -4,7 +4,7 @@ const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
-const { ORDER_STATE } = require('../constants/domain');
+const { ORDER_STATE, CLIENT_TYPE } = require('../constants/domain');
 const { zonedStartOfDay, getDateInTimeZone } = require('../services/reporting');
 const { sendMessage } = require('../services/telegramApi');
 
@@ -266,7 +266,7 @@ router.put('/:id/estado', async (req, res) => {
       // Obtener detalles de la orden y cliente
       const { data: orden, error: errOrden } = await adminClient
         .from('ordenes')
-        .select('id_cliente, metodo_pago, detalle_orden(id_producto, cantidad)')
+        .select('id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_producto, cantidad)')
         .eq('id_orden', id_orden)
         .single();
       
@@ -301,8 +301,9 @@ router.put('/:id/estado', async (req, res) => {
         }
       }
 
-      // Verificar y descontar si es Saldo Prepago
-      if (orden.metodo_pago === 'Saldo Prepago') {
+      // Verificar y descontar si es Saldo Prepago o Cliente Directo con metodo Pendiente
+      const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
+      if (orden.metodo_pago === 'Saldo Prepago' || (isDirectClient && orden.metodo_pago === 'Pendiente')) {
         // Obtenemos todos los saldos del cliente junto con los precios de los productos
         const { data: saldosCliente, error: errSaldos } = await adminClient
           .from('saldos_servicio')
@@ -409,6 +410,14 @@ router.put('/:id/estado', async (req, res) => {
       id_estado,
       updated_by: req.user.id,
     };
+
+    // Si se consumio existosamente desde "Pendiente" y es cliente frecuente, forzamos "Saldo Prepago"
+    if (id_estado === ORDER_STATE.CONSUMED && typeof orden !== 'undefined') {
+      const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
+      if (isDirectClient && orden.metodo_pago === 'Pendiente') {
+        updatePayload.metodo_pago = 'Saldo Prepago';
+      }
+    }
 
     const { data, error } = await adminClient
       .from('ordenes')
