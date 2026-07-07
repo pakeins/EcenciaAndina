@@ -1,6 +1,6 @@
 function cfg(name, fallback = '') {
   const vars = typeof $vars === 'undefined' ? {} : $vars;
-  const env = typeof process === 'undefined' ? {} : process.env;
+  const env = typeof $env === 'undefined' ? (typeof process === 'undefined' ? {} : process.env) : $env;
   return env[name] || vars[name] || fallback;
 }
 
