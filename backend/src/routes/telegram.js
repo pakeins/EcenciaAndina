@@ -536,7 +536,7 @@ const buildOrderSummaryMessage = (order, detail) => {
     (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
     (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
     `\nℹ️ <b>Estado:</b> ${estadoStr}\n` +
-    `🆔 <b>Orden:</b> #${order.id_orden}\n\n` +
+    `🆔 <b>Orden:</b> #${order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}\n\n` +
     `<i>Usa los botones de abajo si deseas interactuar con tu pedido.</i>`
   );
 };
@@ -552,7 +552,7 @@ const buildPedidoMessage = (order, detail) => {
     (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
     (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
     `\nℹ️ <b>Estado:</b> Reservado\n` +
-    `🆔 <b>Orden:</b> #${order.id_orden}`
+    `🆔 <b>Orden:</b> #${order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}`
   );
 };
 

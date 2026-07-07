@@ -246,6 +246,7 @@ export default function Pedidos() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/10 hover:bg-secondary/10">
+                  <TableHead className="text-cafe font-bold">Código</TableHead>
                   <TableHead className="text-cafe font-bold">Cliente</TableHead>
                   <TableHead className="text-cafe font-bold">Tipo de Cliente</TableHead>
                   <TableHead className="text-cafe font-bold">Detalle de Pedido</TableHead>
@@ -257,19 +258,24 @@ export default function Pedidos() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       Cargando pedidos...
                     </TableCell>
                   </TableRow>
                 ) : sortedOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       No se encontraron pedidos
                     </TableCell>
                   </TableRow>
                 ) : (
                   sortedOrders.map((order) => (
                     <TableRow key={order.id_orden}>
+                      <TableCell>
+                        <span className="font-mono text-lg font-bold text-cafe">
+                          #{order.id_orden?.split('-')[0]?.substring(0, 5).toUpperCase()}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <div>
                           <p className="font-medium text-foreground">{order.clientes?.nombre} {order.clientes?.apellido}</p>
