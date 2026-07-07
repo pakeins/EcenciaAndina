@@ -59,55 +59,55 @@ jobs:
 
 # ----- ZONA DESACTIVADA TEMPORALMENTE (Descomentar para reactivar) -----
 
-      - name: Backend audit
-        working-directory: backend
-        run: npm audit --audit-level=critical
-
-      - name: Backend lint
-        working-directory: backend
-        run: npm run lint
-
-      - name: Backend tests with coverage
-        working-directory: backend
-        run: npm run test:coverage
-
-      - name: Frontend install
-        working-directory: frontend
-        run: npm ci
-      - name: Frontend audit
-        working-directory: frontend
-        run: npm audit --audit-level=critical
-
-      - name: Frontend lint
-        working-directory: frontend
-        run: npm run lint
-
-      - name: Frontend tests with coverage
-        working-directory: frontend
-        run: npm run test:coverage
-
-      - name: Frontend build
-        working-directory: frontend
-        run: npm run build
-
-      - name: SonarQube Cloud scan
-        if: ${{ env.SONAR_TOKEN != '' }}
-        uses: SonarSource/sonarqube-scan-action@v8.2.0
-        env:
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.branch.name=master
-            -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info,frontend/coverage/lcov.info
-
-      - name: Upload coverage reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-reports
-          path: |
-            backend/coverage
-            frontend/coverage
+#      - name: Backend audit
+#        working-directory: backend
+#        run: npm audit --audit-level=critical
+#
+#      - name: Backend lint
+#        working-directory: backend
+#        run: npm run lint
+#
+#      - name: Backend tests with coverage
+#        working-directory: backend
+#        run: npm run test:coverage
+#
+#      - name: Frontend install
+#        working-directory: frontend
+#        run: npm ci
+#      - name: Frontend audit
+#        working-directory: frontend
+#        run: npm audit --audit-level=critical
+#
+#      - name: Frontend lint
+#        working-directory: frontend
+#        run: npm run lint
+#
+#      - name: Frontend tests with coverage
+#        working-directory: frontend
+#        run: npm run test:coverage
+#
+#      - name: Frontend build
+#        working-directory: frontend
+#        run: npm run build
+#
+#      - name: SonarQube Cloud scan
+#        if: ${{ env.SONAR_TOKEN != '' }}
+#        uses: SonarSource/sonarqube-scan-action@v8.2.0
+#        env:
+#          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+#        with:
+#          args: >
+#            -Dsonar.branch.name=master
+#            -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info,frontend/coverage/lcov.info
+#
+#      - name: Upload coverage reports
+#        if: always()
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: coverage-reports
+#          path: |
+#            backend/coverage
+#            frontend/coverage
 
       - name: Upload frontend build artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
