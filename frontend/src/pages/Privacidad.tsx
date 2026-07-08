@@ -63,7 +63,7 @@ export default function Privacidad() {
               reciben menus.
             </p>
             <p>
-              Los identificadores Telegram se eliminan cuando el titular usa
+              Los identificadores Telegram se eliminan cuando el titular usa{' '}
               <code className="mx-1 rounded bg-muted px-1">/eliminarmisdatos</code>.
               Los pedidos sujetos a obligaciones administrativas pueden conservarse durante el
               plazo legal aplicable y son revisados por un administrador.
@@ -86,8 +86,8 @@ export default function Privacidad() {
               Datos Personales de Ecuador.
             </p>
             <p>
-              En Telegram usa <code className="rounded bg-muted px-1">/misdatos</code>,
-              <code className="mx-1 rounded bg-muted px-1">/eliminarmisdatos</code> o
+              En Telegram usa <code className="rounded bg-muted px-1">/misdatos</code>,{' '}
+              <code className="mx-1 rounded bg-muted px-1">/eliminarmisdatos</code> o{' '}
               <code className="ml-1 rounded bg-muted px-1">/revocar</code>.
             </p>
             <p>

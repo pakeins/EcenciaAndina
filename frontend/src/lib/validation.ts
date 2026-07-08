@@ -68,7 +68,7 @@ export const isValidPhone = (value: string) => {
 };
 
 export const isValidEmail = (value: string) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase()) &&
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/.test(value.trim().toLowerCase()) &&
   value.trim().length <= FIELD_LIMITS.email;
 
 export const hasMaxLength = (value: string, max: number) => value.trim().length <= max;

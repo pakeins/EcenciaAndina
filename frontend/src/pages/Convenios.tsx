@@ -1135,7 +1135,7 @@ export default function Convenios() {
                           </div>
                           {filteredAvailableClients.length > 0 ? (
                             filteredAvailableClients.map(c => (
-                              <div key={c.id} className="flex items-center justify-between p-2 hover:bg-accent cursor-pointer" onClick={() => { handleAddClient(c.id); setClientSearch(''); }}>
+                              <div key={c.id} role="button" tabIndex={0} className="flex items-center justify-between p-2 hover:bg-accent cursor-pointer" onClick={() => { handleAddClient(c.id); setClientSearch(''); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAddClient(c.id); setClientSearch(''); } }}>
                                 <div><p className="text-sm font-medium">{c.nombre} {c.apellido}</p><p className="text-xs text-muted-foreground">{c.cedula}</p></div>
                                 <UserPlus className="h-4 w-4 text-primary" />
                               </div>
