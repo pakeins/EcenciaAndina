@@ -37,6 +37,6 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
     )
   }
 )
-PasswordInput.displayName = "PasswordInput"
+PasswordInput.displayName = "PasswordInput" // NOSONAR
 
 export { PasswordInput }

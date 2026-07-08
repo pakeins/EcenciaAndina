@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 const express = require('express');
+const crypto = require('node:crypto');
 const { getAdminClient } = require('../config/supabase');
 const { normalizePhone } = require('../validation/eciencia');
 const { createOrderTrace, updateOrderTrace } = require('../services/telegramOrderTrace');
@@ -1800,7 +1801,7 @@ router.post('/broadcast-sessions', async (req, res) => {
     
       const chatId = String(subscription.chat_id);
       const convenio = activeConvenio(client, today);
-      const sid = String(Date.now()) + Math.floor(Math.random() * 1000);
+      const sid = String(Date.now()) + crypto.randomInt(0, 1000);
       
       const session = {
         sid,

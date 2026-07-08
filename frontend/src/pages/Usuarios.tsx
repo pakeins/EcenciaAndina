@@ -93,17 +93,29 @@ export default function Usuarios() {
     );
   };
 
+  const getRandomInt = (max: number) => {
+    const array = new Uint32Array(1);
+    window.crypto.getRandomValues(array);
+    return array[0] % max;
+  };
+
   const generatePassword = () => {
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+';
     let pwd = '';
-    pwd += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
-    pwd += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
-    pwd += '0123456789'[Math.floor(Math.random() * 10)];
-    pwd += '!@#$%^&*()_+'[Math.floor(Math.random() * 12)];
+    pwd += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[getRandomInt(26)];
+    pwd += 'abcdefghijklmnopqrstuvwxyz'[getRandomInt(26)];
+    pwd += '0123456789'[getRandomInt(10)];
+    pwd += '!@#$%^&*()_+'[getRandomInt(12)];
     for (let i = 0; i < 6; i++) {
-      pwd += chars[Math.floor(Math.random() * chars.length)];
+      pwd += chars[getRandomInt(chars.length)];
     }
-    return pwd.split('').sort(() => 0.5 - Math.random()).join('');
+    
+    const pwdArray = pwd.split('');
+    for (let i = pwdArray.length - 1; i > 0; i--) {
+      const j = getRandomInt(i + 1);
+      [pwdArray[i], pwdArray[j]] = [pwdArray[j], pwdArray[i]];
+    }
+    return pwdArray.join('');
   };
 
   useEffect(() => {

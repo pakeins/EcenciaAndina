@@ -59,7 +59,7 @@ app.use(
 );
 app.use(cookieParser());
 // Solo el menu recibe JSON grande (imagen base64); el resto queda acotado.
-app.use('/api/menu', express.json({ limit: '15mb' }));
+app.use('/api/menu', express.json({ limit: '15mb' })); // NOSONAR - Límite alto necesario para imágenes base64
 app.use(express.json({ limit: '1mb' }));
 
 const authLimiter = rateLimit({

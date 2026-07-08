@@ -7,6 +7,7 @@ const multer = require('multer');
 const path = require('path');
 
 const fs = require('fs');
+const crypto = require('node:crypto');
 
 // Configuración de Multer para almacenamiento local
 const uploadDir = path.join(__dirname, '../../../convenios');
@@ -19,7 +20,7 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const uniqueSuffix = Date.now() + '-' + crypto.randomInt(0, 1e9);
     cb(null, 'convenio-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
@@ -462,11 +463,7 @@ const detectDocumentMimeType = (buffer) => {
  */
 const createAgreementObjectPath = (agreementId, mimeType) => {
   const ext = MIME_TO_EXT[mimeType] || 'bin';
-  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  const uuid = crypto.randomUUID();
   return `${agreementId}/${uuid}.${ext}`;
 };
 
