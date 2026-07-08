@@ -199,6 +199,9 @@ jobs:
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             git checkout -b master
+            cp $GITHUB_EVENT_PATH /tmp/fake_event.json
+            sed -i 's/"ref": "refs\/heads\/main"/"ref": "refs\/heads\/master"/g' /tmp/fake_event.json
+            echo "FAKE_EVENT_PATH=/tmp/fake_event.json" >> $GITHUB_ENV
           fi
       - name: SonarQube Cloud scan
         if: ${{ env.SONAR_TOKEN != '' }}
@@ -208,6 +211,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_REF: refs/heads/master
+          GITHUB_EVENT_PATH: ${{ env.FAKE_EVENT_PATH || github.event_path }}
 
   integration-tests:
     name: Integration Tests - Supertest
