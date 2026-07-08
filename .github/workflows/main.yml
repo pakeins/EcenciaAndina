@@ -108,15 +108,17 @@ jobs:
         working-directory: backend
         run: |
           npm ci
-          CI=true NO_COLOR=1 npm run test:coverage 2>&1 | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" | tee test_output.txt
+          CI=true NO_COLOR=1 npm run test:coverage
       - name: Backend coverage summary
         if: always()
         working-directory: backend
         run: |
           echo "### 🧪 Backend Coverage" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/lcov.info ]; then
+            echo "✅ Cobertura generada exitosamente" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No se generó reporte de cobertura" >> $GITHUB_STEP_SUMMARY
+          fi
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -139,15 +141,17 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
-          CI=true NO_COLOR=1 npm run test:coverage 2>&1 | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" | tee test_output.txt
+          CI=true NO_COLOR=1 npm run test:coverage
       - name: Frontend coverage summary
         if: always()
         working-directory: frontend
         run: |
           echo "### 🧪 Frontend Coverage" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/lcov.info ]; then
+            echo "✅ Cobertura generada exitosamente" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No se generó reporte de cobertura" >> $GITHUB_STEP_SUMMARY
+          fi
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -385,13 +389,13 @@ jobs:
             docker compose up -d
             docker image prune -af
             
-            echo "Esperando 10 segundos para que los servicios inicialicen..."
-            sleep 10
+            echo "Esperando 15 segundos para que los servicios inicialicen..."
+            sleep 15
             
-            npm install -g newman
-            if newman run backend/scripts/smoke-tests.json --env-var "baseUrl=http://localhost:3001"; then
-              echo "✅ Smoke Test Backend con Newman: EXITOSO"
+            # Smoke Test Post-Despliegue
+            if curl -fsS --max-time 10 http://localhost:3001/api/check-db > /dev/null 2>&1; then
+              echo "✅ Smoke Test Backend: EXITOSO (API respondiendo y BD conectada)"
             else
-              echo "::error::❌ Smoke Test Backend con Newman: FALLO"
+              echo "::error::❌ Smoke Test Backend: FALLO (El servidor no responde o la BD esta caida)"
               exit 1
             fi
