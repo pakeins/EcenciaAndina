@@ -41,19 +41,15 @@ jobs:
 
       - name: Backend install & lint
         working-directory: backend
-        # Comentado por 'Despliegue Rápido' - quitar los `#` para activar
-        # run: |
-        #   npm ci
-        #   npm run lint
-        run: echo "Lint de backend desactivado temporalmente"
+        run: |
+          npm ci
+          npm run lint
 
       - name: Frontend install & lint
         working-directory: frontend
-        # Comentado por 'Despliegue Rápido' - quitar los `#` para activar
-        # run: |
-        #   npm ci
-        #   npm run lint
-        run: echo "Lint de frontend desactivado temporalmente"
+        run: |
+          npm ci
+          npm run lint
 
   security-audit:
     name: Security Audit (Trivy & npm)
@@ -64,18 +60,11 @@ jobs:
 
       - name: Run Trivy vulnerability scanner in repo mode
         uses: aquasecurity/trivy-action@master
-        # Comentado por 'Despliegue Rápido' temporal. Quitar if: false para activar Trivy.
-        if: false
         with:
           scan-type: 'fs'
           ignore-unfixed: true
           format: 'table'
           severity: 'CRITICAL,HIGH'
-          
-      - name: Backend audit fallback
-        working-directory: backend
-        # run: npm audit --audit-level=critical
-        run: echo "Audit desactivado"
 
   unit-tests:
     name: Unit Tests & SonarCloud
@@ -104,21 +93,26 @@ jobs:
 
       - name: Backend install & tests
         working-directory: backend
-        # run: |
-        #   npm ci
-        #   npm run test:coverage
-        run: echo "Test backend desactivado"
+        run: |
+          npm ci
+          echo "### 🧪 Backend Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          npm run test:coverage | tee temp_cov.txt
+          cat temp_cov.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Frontend install & tests
         working-directory: frontend
-        # run: |
-        #   npm ci
-        #   npm run test:coverage
-        run: echo "Test frontend desactivado"
+        run: |
+          npm ci
+          echo "### 🧪 Frontend Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          npm run test:coverage | tee temp_cov.txt
+          cat temp_cov.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: SonarQube Cloud scan
-        # Cambiar a if: ${{ env.SONAR_TOKEN != '' }} para reactivar
-        if: false 
+        if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
