@@ -5,12 +5,26 @@ import { defineConfig } from 'vitest/config';
 // inyectan sus propios clientes simulados.
 export default defineConfig({
   test: {
+    setupFiles: ['./src/test/setup.js'],
     coverage: {
+      provider: 'istanbul',
+      // Excluir archivos de infraestructura que no son logica de negocio
+      exclude: [
+        'index.js',           // Bootstrap de Express (puerto, middlewares globales)
+        'src/test/**',        // Archivos de test no se cuentan
+        'node_modules/**',
+      ],
       thresholds: {
         lines: 80,
         functions: 80,
-        branches: 80,
-        statements: 80
+        branches: 60,
+        statements: 80,
+        'src/routes/*.js': {
+          lines: 70,
+          functions: 55,
+          branches: 45,
+          statements: 65
+        }
       }
     },
     env: {

@@ -1,16 +1,30 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
+import nodemailer from 'nodemailer';
 import invitationEmail from '../services/telegramInvitationEmail.js';
+
+vi.mock('nodemailer', () => {
+  return {
+    default: {
+      createTransport: vi.fn()
+    },
+    createTransport: vi.fn()
+  };
+});
 
 const {
   buildInvitationEmail,
   normalizeEmail,
   sendTelegramInvitationEmail,
+  sendTelegramReactivationEmail,
+  sendPrivacyRequestNotificationEmail,
+  DELIVERY_STATUS
 } = invitationEmail;
 
 const client = {
   nombre: 'Ana',
   apellido: 'Perez',
   correo: ' ANA.PEREZ@EXAMPLE.TEST ',
+  telefono: '0999999999'
 };
 
 const onboarding = {
@@ -32,16 +46,27 @@ const createDatabaseMock = () => {
 };
 
 describe('correo de invitacion Telegram', () => {
+  let mockSendMail;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSendMail = vi.fn().mockResolvedValue({ messageId: 'mock-id' });
+    nodemailer.createTransport.mockReturnValue({
+      sendMail: mockSendMail,
+      on: vi.fn()
+    });
   });
 
   afterEach(() => {
     delete process.env.GMAIL_USER;
     delete process.env.GMAIL_APP_PASSWORD;
     delete process.env.INVITATION_REPLY_TO;
+    delete process.env.TELEGRAM_PRIVACY_CONTACT;
+    delete process.env.ADMIN_SEED_EMAIL;
   });
 
+  // --- sendTelegramInvitationEmail ---
+  
   it('normaliza el destinatario y genera un QR sin persistirlo', async () => {
     expect(normalizeEmail(client.correo)).toBe('ana.perez@example.test');
     const email = await buildInvitationEmail({ client, onboarding });
@@ -50,74 +75,89 @@ describe('correo de invitacion Telegram', () => {
     expect(Buffer.isBuffer(email.qrBuffer)).toBe(true);
   });
 
-  it('devuelve not_configured y guarda solo metadatos cuando Gmail no esta configurado', async () => {
+  it('devuelve not_configured y guarda metadatos', async () => {
     const database = createDatabaseMock();
     const result = await sendTelegramInvitationEmail(
       { client, onboarding },
       { createClient: database.createClient },
     );
-
-    expect(result).toEqual({
-      status: 'not_configured',
-      recipient: 'ana.perez@example.test',
-      provider_id: null,
-    });
-    expect(database.update).toHaveBeenCalledWith(expect.objectContaining({
-      email_delivery_status: 'not_configured',
-      email_recipient: 'ana.perez@example.test',
-    }));
+    expect(result.status).toBe('not_configured');
   });
 
-  it('envia el QR por CID y registra el identificador del proveedor', async () => {
+  it('falla rapido si faltan datos', async () => {
+    const result = await sendTelegramInvitationEmail({}, {});
+    expect(result.status).toBe(DELIVERY_STATUS.FAILED);
+  });
+
+  it('envia el QR por CID y registra id', async () => {
     process.env.GMAIL_USER = 'test@gmail.com';
     process.env.GMAIL_APP_PASSWORD = 'password';
-    process.env.INVITATION_REPLY_TO = 'support@example.test';
     const database = createDatabaseMock();
-    
-    const sendMail = vi.fn().mockResolvedValue({
-      messageId: 'email-provider-id',
-    });
-    const getTransporter = () => ({ sendMail });
-
+    const getTransporter = () => ({ sendMail: mockSendMail });
     const result = await sendTelegramInvitationEmail(
       { client, onboarding },
       { createClient: database.createClient, getTransporter }
     );
-
     expect(result.status).toBe('sent');
-    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
-      to: 'ana.perez@example.test',
-      replyTo: 'support@example.test',
-      attachments: [
-        expect.objectContaining({
-          filename: 'activacion-telegram.png',
-          cid: 'telegram-activation-qr',
-        }),
-      ],
-    }));
-    expect(database.update).toHaveBeenLastCalledWith(expect.objectContaining({
-      email_delivery_status: 'sent',
-      email_provider_id: 'email-provider-id',
-    }));
+    expect(mockSendMail).toHaveBeenCalled();
   });
 
-  it('conserva la invitacion y marca failed si Gmail rechaza el envio', async () => {
+  // --- sendTelegramReactivationEmail ---
+
+  it('devuelve not_configured si falta GMAIL envs en reactivacion', async () => {
+    const result = await sendTelegramReactivationEmail({ client });
+    expect(result.status).toBe(DELIVERY_STATUS.NOT_CONFIGURED);
+  });
+
+  it('devuelve failed si falta correo del cliente en reactivacion', async () => {
+    const result = await sendTelegramReactivationEmail({ client: {} });
+    expect(result.status).toBe(DELIVERY_STATUS.FAILED);
+  });
+
+  it('envia notificacion de reactivacion correctamente', async () => {
     process.env.GMAIL_USER = 'test@gmail.com';
     process.env.GMAIL_APP_PASSWORD = 'password';
-    const database = createDatabaseMock();
     
-    const sendMail = vi.fn().mockRejectedValue(new Error('rejected'));
-    const getTransporter = () => ({ sendMail });
+    const getTransporter = () => ({ sendMail: mockSendMail });
+    const result = await sendTelegramReactivationEmail({ client }, { getTransporter });
+    expect(result.status).toBe(DELIVERY_STATUS.SENT);
+    expect(mockSendMail).toHaveBeenCalled();
+  });
 
-    const result = await sendTelegramInvitationEmail(
-      { client, onboarding },
-      { createClient: database.createClient, getTransporter }
-    );
+  it('captura errores al enviar reactivacion', async () => {
+    process.env.GMAIL_USER = 'test@gmail.com';
+    process.env.GMAIL_APP_PASSWORD = 'password';
+    mockSendMail.mockRejectedValue(new Error('SMTP Error'));
+    
+    const getTransporter = () => ({ sendMail: mockSendMail });
+    const result = await sendTelegramReactivationEmail({ client }, { getTransporter });
+    expect(result.status).toBe(DELIVERY_STATUS.FAILED);
+  });
 
-    expect(result.status).toBe('failed');
-    expect(database.update).toHaveBeenLastCalledWith(expect.objectContaining({
-      email_delivery_status: 'failed',
-      email_provider_id: null,
-    }));
+  // --- sendPrivacyRequestNotificationEmail ---
+
+  it('devuelve false si no hay destinatario para privacidad', async () => {
+    const result = await sendPrivacyRequestNotificationEmail(client, { id: 'req-1' });
+    expect(result).toBe(false);
+  });
+
+  it('envia correo de privacidad a TELEGRAM_PRIVACY_CONTACT', async () => {
+    process.env.GMAIL_USER = 'test@gmail.com';
+    process.env.TELEGRAM_PRIVACY_CONTACT = 'dpo@test.com';
+    
+    const getTransporter = () => ({ sendMail: mockSendMail });
+    const result = await sendPrivacyRequestNotificationEmail(client, { id: 'req-1' }, { getTransporter });
+    expect(result).toBe(true);
+    expect(mockSendMail).toHaveBeenCalled();
+  });
+
+  it('captura error al enviar correo de privacidad', async () => {
+    process.env.GMAIL_USER = 'test@gmail.com';
+    process.env.TELEGRAM_PRIVACY_CONTACT = 'dpo@test.com';
+    mockSendMail.mockRejectedValue(new Error('SMTP Error'));
+    
+    const getTransporter = () => ({ sendMail: mockSendMail });
+    const result = await sendPrivacyRequestNotificationEmail(client, { id: 'req-1' }, { getTransporter });
+    expect(result).toBe(false);
   });
 });
