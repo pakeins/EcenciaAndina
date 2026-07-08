@@ -29,7 +29,7 @@ router.get('/', roleMiddleware(['administrador', 'caja']), async (req, res) => {
     const productosFormateados = data.map((p) => ({
       id: p.id_producto,
       nombre: p.nombre_producto,
-      precio: parseFloat(p.precio_unitario),
+      precio: Number.parseFloat(p.precio_unitario),
       activo: p.esta_activo,
       descripcion: p.descripcion || '',
       id_categoria: p.id_categoria,
@@ -66,7 +66,7 @@ router.post('/', roleMiddleware(['administrador']), async (req, res) => {
     const formatted = {
       id: data.id_producto,
       nombre: data.nombre_producto,
-      precio: parseFloat(data.precio_unitario),
+      precio: Number.parseFloat(data.precio_unitario),
       activo: data.esta_activo,
       descripcion: data.descripcion || '',
       id_categoria: data.id_categoria,
@@ -104,7 +104,7 @@ router.put('/:id', roleMiddleware(['administrador']), async (req, res) => {
     const formatted = {
       id: data.id_producto,
       nombre: data.nombre_producto,
-      precio: parseFloat(data.precio_unitario),
+      precio: Number.parseFloat(data.precio_unitario),
       activo: data.esta_activo,
       descripcion: data.descripcion || '',
       id_categoria: data.id_categoria,

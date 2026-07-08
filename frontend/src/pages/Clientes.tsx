@@ -831,8 +831,8 @@ export default function Clientes() {
                   onValueChange={(value) =>
                     setFormData({
                       ...formData,
-                      id_tipo_cliente: parseInt(value),
-                      id_convenio: parseInt(value) === CLIENT_TYPE.AGREEMENT
+                      id_tipo_cliente: Number.parseInt(value),
+                      id_convenio: Number.parseInt(value) === CLIENT_TYPE.AGREEMENT
                         ? formData.id_convenio || (convenios.length > 0 ? convenios[0].id : '')
                         : '',
                     })

@@ -335,7 +335,7 @@ export default function Pedidos() {
                             value={order.id_estado ? order.id_estado.toString() : '1'}
                             disabled={!isAdmin && (order.id_estado === 2 || order.id_estado === 3)}
                             onValueChange={(val) => {
-                              const newStatusId = parseInt(val);
+                              const newStatusId = Number.parseInt(val);
                               let statusName = 'reservado';
                               if (newStatusId === 2) statusName = 'consumido';
                               if (newStatusId === 3) statusName = 'cancelado';

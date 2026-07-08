@@ -401,7 +401,7 @@ const saveDailyMenu = async (adminClient, opciones, imageUrl, userId, fecha = to
 
   for (const [catId, options] of Object.entries(opciones)) {
     for (const option of cleanOptions(options)) {
-      alimentosIds.push(await ensureAlimento(adminClient, parseInt(catId), option, userId));
+      alimentosIds.push(await ensureAlimento(adminClient, Number.parseInt(catId), option, userId));
     }
   }
 

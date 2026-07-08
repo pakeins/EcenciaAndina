@@ -1859,7 +1859,7 @@ const quantityFromText = (text, current = null) => {
   for (const re of patterns) {
     const m = str.match(re);
     if (m) {
-      const value = parseInt(m[1], 10);
+      const value = Number.parseInt(m[1], 10);
       return { provided: true, valid: value >= 1 && value <= MAX_QUANTITY, value };
     }
   }
@@ -1876,7 +1876,7 @@ const parseTextOrder = (text, session) => {
     const numRe = new RegExp(`${kind}[:\\s]+([+-]?\\d+)`, 'i');
     const numMatch = str.match(numRe);
     if (numMatch) {
-      const idx = parseInt(numMatch[1], 10) - 1;
+      const idx = Number.parseInt(numMatch[1], 10) - 1;
       if (idx >= 0 && idx < options.length) {
         return options[idx];
       }

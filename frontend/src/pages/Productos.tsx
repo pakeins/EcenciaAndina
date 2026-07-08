@@ -160,7 +160,7 @@ export default function Productos() {
       toast.error('Complete todos los campos'); return;
     }
 
-    if (parseFloat(productForm.precio) < 0) {
+    if (Number.parseFloat(productForm.precio) < 0) {
       toast.error('El precio no puede ser negativo');
       return;
     }
@@ -172,8 +172,8 @@ export default function Productos() {
         method,
         body: JSON.stringify({
           ...productForm,
-          precio: parseFloat(productForm.precio),
-          id_categoria: parseInt(productForm.id_categoria)
+          precio: Number.parseFloat(productForm.precio),
+          id_categoria: Number.parseInt(productForm.id_categoria)
         })
       });
       const data = await response.json();

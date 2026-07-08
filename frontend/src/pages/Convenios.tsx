@@ -977,7 +977,7 @@ export default function Convenios() {
                     value={formData.cupo_maximo}
                     onChange={e => {
                       const val = e.target.value;
-                      setFormData({ ...formData, cupo_maximo: val === '' ? '' : Math.max(0, parseInt(val) || 0) });
+                      setFormData({ ...formData, cupo_maximo: val === '' ? '' : Math.max(0, Number.parseInt(val) || 0) });
                     }}
                   />
                 </div>

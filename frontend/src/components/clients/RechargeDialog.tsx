@@ -89,7 +89,7 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
       const response = await apiFetch(`/clientes/${selectedClient}/recargar`, {
         method: 'POST',
         body: JSON.stringify({
-          id_producto: parseInt(selectedProduct),
+          id_producto: Number.parseInt(selectedProduct),
           cantidad_comprada: cantidad,
           monto_total: 0, // El monto lo maneja caja
           numero_factura: numeroFactura.trim(),
@@ -184,7 +184,7 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
               max="1000"
               step="1"
               value={cantidad}
-              onChange={e => setCantidad(parseInt(e.target.value) || 0)}
+              onChange={e => setCantidad(Number.parseInt(e.target.value) || 0)}
               className="bg-background"
             />
           </div>
