@@ -519,4 +519,15 @@ describe('privacidad y revocacion', () => {
     expect(message).toContain('/revocar');
     expect(allMessages()).toContain('/eliminarmisdatos');
   });
+
+  it('envia aviso de input invalido si recibe texto libre durante la seleccion', async () => {
+    // Iniciar flujo de seleccion
+    await handleTelegramUpdate(textUpdate(100, '/menu'));
+    // Enviar texto libre (isCallback = false)
+    await handleTelegramUpdate(textUpdate(100, 'texto libre no esperado'));
+
+    // Verifica que se envio el aviso
+    const [, message] = lastMessage();
+    expect(message).toContain('solo acepta botones');
+  });
 });
