@@ -3,7 +3,7 @@ export const API_BASE_URL = window.location.origin.includes('localhost')
   : '/api';
 
 export const apiFetch = async (url: string, options: RequestInit = {}) => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   
   // Si la URL no es absoluta, añadir el BASE_URL
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
@@ -18,7 +18,7 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(fullUrl, { ...options, headers: getHeaders(token) });
 
     if (response.status === 401) {
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = sessionStorage.getItem('refresh_token');
 
       if (refreshToken) {
         console.log('La sesión ha expirado. Intentando renovar token...');
@@ -31,8 +31,8 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
 
           if (refreshResponse.ok) {
             const data = await refreshResponse.json();
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('refresh_token', data.refresh_token);
+            sessionStorage.setItem('token', data.token);
+            sessionStorage.setItem('refresh_token', data.refresh_token);
 
             // Reintentar la petición original con el nuevo token
             console.log('Token renovado exitosamente. Reintentando petición original...');
@@ -59,9 +59,9 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
 
 // Función para manejar el cierre de sesión global (limpiar storage y redirigir)
 export const handleGlobalLogout = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('refresh_token');
+  sessionStorage.removeItem('user');
   
   // Despachar un evento de storage manualmente para que la pestaña actual también reaccione
   // si es necesario, aunque aquí usualmente redirigimos.

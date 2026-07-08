@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from 'react';
 import { User, UserRole } from '@/types';
 import { API_BASE_URL } from '@/lib/api';
+
+// Tiempo de inactividad máximo: 1 hora (en milisegundos)
+const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000;
 
 interface AuthContextType {
   user: User | null;
@@ -17,7 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
-    const savedUser = localStorage.getItem('user');
+    const savedUser = sessionStorage.getItem('user');
     if (savedUser) {
       try {
         return JSON.parse(savedUser);
@@ -28,16 +31,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   });
 
-  React.useEffect(() => {
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Escuchar cambios en localStorage (para cerrar sesión en todas las pestañas)
+  const logout = useCallback(() => {
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('user');
+    setUser(null);
+  }, []);
+
+  // ── Temporizador de inactividad ──────────────────────────────────────────
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+    }
+    // Solo iniciar temporizador si hay sesión activa
+    const hasSession = sessionStorage.getItem('token');
+    if (hasSession) {
+      inactivityTimer.current = setTimeout(() => {
+        console.warn('Sesión cerrada por inactividad (1 hora).');
+        logout();
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+      }, INACTIVITY_TIMEOUT_MS);
+    }
+  }, [logout]);
+
+  useEffect(() => {
+    // Eventos que indican actividad del usuario
+    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+
+    const handleActivity = () => resetInactivityTimer();
+
+    activityEvents.forEach((event) =>
+      window.addEventListener(event, handleActivity, { passive: true }),
+    );
+
+    // Iniciar temporizador al montar
+    resetInactivityTimer();
+
+    return () => {
+      activityEvents.forEach((event) =>
+        window.removeEventListener(event, handleActivity),
+      );
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+      }
+    };
+  }, [resetInactivityTimer]);
+
+  // Escuchar cambios en sessionStorage (para cerrar sesión en todas las pestañas)
+  useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      // Si otra pestaña eliminó el usuario (cerrar sesión)
       if (e.key === 'user' && e.newValue === null) {
         console.log('Sesión cerrada en otra pestaña. Sincronizando...');
         setUser(null);
       }
-      // Si otra pestaña actualizó el usuario (como cambio de perfil)
       if (e.key === 'user' && e.newValue !== null) {
         try {
           setUser(JSON.parse(e.newValue));
@@ -63,10 +113,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       const data = await response.json();
       if (response.ok && data.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('refresh_token', data.refresh_token);
-        localStorage.setItem('user', JSON.stringify(data.user));
+        sessionStorage.setItem('token', data.token);
+        sessionStorage.setItem('refresh_token', data.refresh_token);
+        sessionStorage.setItem('user', JSON.stringify(data.user));
         setUser(data.user);
+        resetInactivityTimer();
         return { success: true, rol: data.user.rol };
       }
       return { success: false, rol: 'caja', message: data.mensaje || 'Credenciales inválidas' };
@@ -76,18 +127,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    setUser(null);
-  };
-
   const updateProfile = (updatedData: Partial<User>) => {
     if (user) {
       const newUser = { ...user, ...updatedData };
       setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
+      sessionStorage.setItem('user', JSON.stringify(newUser));
     }
   };
 

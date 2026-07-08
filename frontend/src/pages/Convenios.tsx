@@ -484,7 +484,7 @@ export default function Convenios() {
     setIsUploading(true);
     try {
       // Usamos fetch directo para manejar FormData correctamente sin los headers JSON de apiFetch
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/convenios/${id}/upload`, {
         method: 'POST',
         headers: {
