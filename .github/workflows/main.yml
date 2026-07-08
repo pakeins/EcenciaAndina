@@ -366,7 +366,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/ecencia-backend:latest
+          tags: ghcr.io/packeins/ecencia-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
