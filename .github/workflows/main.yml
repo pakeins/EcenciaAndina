@@ -192,15 +192,25 @@ jobs:
     name: Integration Tests - Supertest
     runs-on: ubuntu-latest
     needs: [test-backend]
+    env:
+      SUPABASE_URL: "https://example.supabase.co"
+      SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
+      SUPABASE_ANON_KEY: "dummy-key"
+      JWT_SECRET: "dummy-secret"
+      PORT: 3001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Run Integration Tests Placeholder
-        run: |
-          echo "🧪 Corriendo pruebas de integración con Supertest..."
-          echo "✅ Todos los flujos de integración entre componentes pasaron satisfactoriamente."
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Run Integration Tests
+        working-directory: backend
+        run: npm run test:integration
 
   build:
     name: Build Frontend

@@ -8,6 +8,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:unit": "vitest run --exclude src/test",
+    "test:integration": "vitest run src/test",
     "test:coverage": "vitest run --coverage --coverage.reporter=text --coverage.reporter=lcov --coverage.reportsDirectory=./coverage",
     "telegram:set-webhook": "node scripts/set-telegram-webhook.js",
     "telegram:configure": "node scripts/configure-telegram-bot.js",
