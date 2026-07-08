@@ -456,7 +456,7 @@ const getActiveMenu = async () => {
   return state;
 };
 
-const crypto = require('crypto');
+
 
 const generateSid = () => crypto.randomBytes(8).toString('hex');
 
