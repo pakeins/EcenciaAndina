@@ -352,10 +352,12 @@ jobs:
           script: |
             if [ ! -d "/home/${{ secrets.AZURE_USER }}/EcenciaAPP" ]; then
               echo "Cloning EcenciaAPP for the first time..."
-              git clone https://github.com/Packeins/EcenciaAndinaAPP.git /home/${{ secrets.AZURE_USER }}/EcenciaAPP
+              git clone https://${{ secrets.GH_PAT }}@github.com/Packeins/EcenciaAndinaAPP.git /home/${{ secrets.AZURE_USER }}/EcenciaAPP
             fi
             
             cd /home/${{ secrets.AZURE_USER }}/EcenciaAPP
+            # Actualizar URL remota con token para repos privados
+            git remote set-url origin https://${{ secrets.GH_PAT }}@github.com/Packeins/EcenciaAndinaAPP.git
             git fetch --all
             git reset --hard origin/main
             
