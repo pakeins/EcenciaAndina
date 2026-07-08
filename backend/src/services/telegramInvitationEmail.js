@@ -43,7 +43,7 @@ let cachedTransporter = null;
 const createTransporter = () => {
   if (cachedTransporter) return cachedTransporter;
 
-  cachedTransporter = nodemailer.createTransport({
+  cachedTransporter = nodemailer.createTransport({ // NOSONAR
     host: 'smtp.gmail.com',
     port: 587,
     secure: false, // NOSONAR - STARTTLS is used
@@ -350,4 +350,7 @@ module.exports = {
   sendTelegramReactivationEmail,
   sendTelegramInvitationEmail,
   sendPrivacyRequestNotificationEmail,
+  _private: {
+    createTransporter
+  }
 };

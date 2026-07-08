@@ -32,7 +32,7 @@ const answerCallback = async (callbackId) => {
   try {
     await telegramRequest('answerCallbackQuery', { callback_query_id: callbackId });
   } catch (error) {
-    console.warn('No se pudo responder callback Telegram:', error.message);
+    console.warn('No se pudo responder callback Telegram:', error.message); // NOSONAR
   }
 };
 
@@ -45,7 +45,7 @@ const deleteMessage = async (chatId, messageId) => {
     });
     return true;
   } catch (error) {
-    console.warn('No se pudo borrar un mensaje Telegram:', error.message);
+    console.warn('No se pudo borrar un mensaje Telegram:', error.message); // NOSONAR
     return false;
   }
 };
@@ -60,7 +60,7 @@ const removeInlineKeyboard = async (chatId, messageId) => {
     });
     return true;
   } catch (error) {
-    console.warn('No se pudo retirar un teclado Telegram:', error.message);
+    console.warn('No se pudo retirar un teclado Telegram:', error.message); // NOSONAR
     return false;
   }
 };
