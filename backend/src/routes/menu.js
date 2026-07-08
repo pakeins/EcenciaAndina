@@ -760,12 +760,12 @@ const hasCompleteMenu = (payload) => {
 const menuPayloadEquals = (a, b) => {
   const left = buildMenuOpciones(a || {});
   const right = buildMenuOpciones(b || {});
-  const leftKeys = Object.keys(left).sort();
-  const rightKeys = Object.keys(right).sort();
+  const leftKeys = Object.keys(left).sort((x, y) => x.localeCompare(y));
+  const rightKeys = Object.keys(right).sort((x, y) => x.localeCompare(y));
   if (leftKeys.length !== rightKeys.length) return false;
   return leftKeys.every((key) => {
-    const l = cleanOptions(left[key]).sort();
-    const r = cleanOptions(right[key]).sort();
+    const l = cleanOptions(left[key]).sort((x, y) => String(x).localeCompare(String(y)));
+    const r = cleanOptions(right[key]).sort((x, y) => String(x).localeCompare(String(y)));
     return l.length === r.length && l.every((v, i) => v === r[i]);
   });
 };
