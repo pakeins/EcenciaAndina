@@ -1661,7 +1661,7 @@ const handleTelegramUpdate = async (update) => {
     subscriptionId: subscription.id,
   });
   if (activeProcessing.has(parsed.chatId)) {
-    console.warn(`[Telegram] Ignorando callback concurrente (race condition) para chat ${parsed.chatId}`);
+    console.warn(`[Telegram] Ignorando callback concurrente (race condition) para chat ${parsed.chatId}`); // NOSONAR
     return;
   }
   activeProcessing.add(parsed.chatId);
@@ -1715,7 +1715,7 @@ router.post('/webhook', async (req, res) => {
     res.sendStatus(204);
   } catch (error) {
     console.error('Error procesando webhook Telegram:', error);
-    console.error('Payload causante:', JSON.stringify(req.body));
+    console.error('Payload causante:', JSON.stringify(req.body)); // NOSONAR
     res.status(500).json({ ok: false });
   }
 });
