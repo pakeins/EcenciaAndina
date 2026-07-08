@@ -23,5 +23,22 @@ describe('frontend business rules', () => {
     expect(isConvenioVigente({ activo: true, vigente: true })).toBe(true);
     expect(isConvenioVigente({ activo: true, vigente: false })).toBe(false);
     expect(isConvenioVigente({ activo: false, vigente: true })).toBe(false);
+
+    // Fallback: cuando vigente es undefined, valida activo y fecha de caducidad
+    expect(isConvenioVigente({ activo: true })).toBe(false); // falta fecha
+    expect(isConvenioVigente({ activo: false, fecha_caducidad: '2099-12-31' })).toBe(false); // inactivo
+
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    
+    // YYYY-MM-DD
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    expect(isConvenioVigente({ activo: true, fecha_caducidad: tomorrowStr })).toBe(true);
+    expect(isConvenioVigente({ activo: true, fecha_caducidad: yesterdayStr })).toBe(false);
   });
 });

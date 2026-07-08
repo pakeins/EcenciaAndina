@@ -148,3 +148,41 @@ describe('exportaciones seguras', () => {
     click.mockRestore();
   });
 });
+
+describe('cobertura adicional para exportaciones', () => {
+  it('genera CSV y XML para ventas', () => {
+    const data = [{
+      metodo_pago: 'Efectivo',
+      cantidadAlmuerzos: 2,
+      totalConsumo: 12
+    }];
+    const csv = buildReportCsv({ reportType: 'ventas', data, detailedAgreement: false, stateFilter: 'all' });
+    expect(csv).toContain('"Efectivo"');
+    expect(csv).toContain('"12.00"');
+
+    const xml = buildReportXml({
+      reportType: 'ventas', data, startDate: '2026-06-01', endDate: '2026-06-30', detailedAgreement: false, stateFilter: 'all'
+    });
+    expect(xml).toContain('<metodoPago>Efectivo</metodoPago>');
+    expect(xml).toContain('<totalConsumo>12.00</totalConsumo>');
+  });
+
+  it('genera XML para convenios resumido y detallado', () => {
+    const data = [{
+      empleado: 'Ana', cedula: '123', total: 5,
+      consumos: [{ fecha: '2026-06-11T12:00:00.000Z', producto: 'Almuerzo', cantidad: 1, valor: 5 }]
+    }];
+
+    const xmlResumen = buildReportXml({
+      reportType: 'convenio', data, startDate: '2026-06-01', endDate: '2026-06-30', detailedAgreement: false, stateFilter: 'all'
+    });
+    expect(xmlResumen).toContain('<nombre>Ana</nombre>');
+    expect(xmlResumen).toContain('<cantidadAlmuerzos>1</cantidadAlmuerzos>');
+
+    const xmlDetalle = buildReportXml({
+      reportType: 'convenio', data, startDate: '2026-06-01', endDate: '2026-06-30', detailedAgreement: true, stateFilter: 'all'
+    });
+    expect(xmlDetalle).toContain('<colaborador>Ana</colaborador>');
+    expect(xmlDetalle).toContain('<producto>Almuerzo</producto>');
+  });
+});
