@@ -18,6 +18,6 @@ vi.mock('@/lib/api', () => ({
 describe('Convenios', () => {
   it('se renderiza correctamente (smoke test para cobertura)', () => {
     render(<Convenios />);
-    expect(screen.getByText(/Gestión de Convenios/i)).toBeInTheDocument();
+    expect(screen.getByText('Convenios')).toBeInTheDocument();
   });
 });
