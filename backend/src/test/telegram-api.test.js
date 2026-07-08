@@ -49,6 +49,6 @@ describe('Telegram API service', () => {
   it('sendPhoto - funciona correctamente', async () => {
     global.fetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ result: true }) });
     const res = await sendPhoto('chat-1', 'http://photo', 'caption');
-    expect(res).toEqual({ result: true });
+    expect(res).toBe(true);
   });
 });
