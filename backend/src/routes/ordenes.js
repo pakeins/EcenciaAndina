@@ -456,7 +456,7 @@ router.put('/:id/estado', async (req, res) => {
           }
         }
       } catch (err) {
-        console.error('Error enviando notificación de estado a Telegram:', err.message);
+        console.error('Error enviando notificación de estado a Telegram:', err.message); // NOSONAR
       }
     })();
   } catch (error) {
