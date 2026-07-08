@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 

@@ -145,7 +145,8 @@ const buildInvitationEmail = async ({ client, onboarding }) => {
 };
 
 const sendTelegramReactivationEmail = async (
-  { client }
+  { client },
+  { getTransporter = createTransporter } = {}
 ) => {
   const recipient = normalizeEmail(client?.correo);
   const user = String(process.env.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com').trim();
@@ -159,7 +160,7 @@ const sendTelegramReactivationEmail = async (
 
   const clientName = `${client.nombre || ''} ${client.apellido || ''}`.trim();
   try {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const botUsername = String(process.env.TELEGRAM_BOT_USERNAME || 'EcenciaAndinaBot').replace('@', '');
     const botUrl = `https://t.me/${botUsername}`;
 
@@ -308,7 +309,11 @@ const sendTelegramInvitationEmail = async (
   }
 };
 
-const sendPrivacyRequestNotificationEmail = async (client, requestData) => {
+const sendPrivacyRequestNotificationEmail = async (
+  client,
+  requestData,
+  { getTransporter = createTransporter } = {}
+) => {
   const recipient = String(process.env.TELEGRAM_PRIVACY_CONTACT || process.env.ADMIN_SEED_EMAIL || '').trim();
   const user = String(process.env.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com').trim();
 
@@ -317,7 +322,7 @@ const sendPrivacyRequestNotificationEmail = async (client, requestData) => {
   const clientName = `${client?.nombre || ''} ${client?.apellido || ''}`.trim();
   
   try {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     await transporter.sendMail({
       from: `"Eciencia Andina Privacidad" <${user}>`,
       to: recipient,

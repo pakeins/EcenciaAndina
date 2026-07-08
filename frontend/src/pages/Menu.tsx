@@ -191,7 +191,6 @@ export default function Menu() {
       }
       setHasAppliedActiveMenu(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menus, hasAppliedActiveMenu]);
 
   const buildOpcionesPayload = () => {

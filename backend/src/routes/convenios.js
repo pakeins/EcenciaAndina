@@ -6,10 +6,17 @@ const roleMiddleware = require('../middlewares/roleMiddleware');
 const multer = require('multer');
 const path = require('path');
 
+const fs = require('fs');
+
 // Configuración de Multer para almacenamiento local
+const uploadDir = path.join(__dirname, '../../../convenios');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../../../convenios'));
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);

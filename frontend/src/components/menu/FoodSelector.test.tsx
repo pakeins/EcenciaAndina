@@ -102,4 +102,43 @@ describe('FoodSelector', () => {
     expect(screen.getByRole('combobox')).toBeDisabled();
     expect(mockedApiFetch).not.toHaveBeenCalled();
   });
+
+  it('impide crear un alimento si ya está en la lista de excluidos', () => {
+    render(
+      <FoodSelector
+        value=""
+        onChange={vi.fn()}
+        idCategoria={2}
+        alimentos={[]}
+        exclude={['Sopa de Queso']}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.change(screen.getByPlaceholderText('Buscar plato...'), {
+      target: { value: 'Sopa de queso' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Añadir "Sopa de queso" al catálogo' }));
+
+    expect(mockedToast.error).toHaveBeenCalledWith('"Sopa de queso" ya está seleccionado en otra opción');
+    expect(mockedApiFetch).not.toHaveBeenCalled();
+  });
+
+  it('permite seleccionar un alimento existente del catálogo', () => {
+    const onChange = vi.fn();
+    render(
+      <FoodSelector
+        value=""
+        onChange={onChange}
+        idCategoria={2}
+        alimentos={[{ id: 10, nombre: 'Arroz con menestra', id_categoria: 2 }]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.click(screen.getByText('Arroz con menestra'));
+
+    expect(onChange).toHaveBeenCalledWith('Arroz con menestra');
+    // En radix-ui al seleccionar se cierra el popover automáticamente pero disparamos el onSelect
+  });
 });

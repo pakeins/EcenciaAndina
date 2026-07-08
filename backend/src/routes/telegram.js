@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const express = require('express');
 const { getAdminClient } = require('../config/supabase');
 const { normalizePhone } = require('../validation/eciencia');
