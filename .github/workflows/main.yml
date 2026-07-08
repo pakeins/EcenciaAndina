@@ -33,7 +33,6 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
   lint-backend:
     name: Code Quality (Backend) - ESLint
@@ -81,12 +80,10 @@ jobs:
             frontend/package-lock.json
       - name: NPM Audit Backend
         working-directory: backend
-        continue-on-error: true
-        run: npm audit --audit-level=critical || true
+        run: npm audit --audit-level=critical
       - name: NPM Audit Frontend
         working-directory: frontend
-        continue-on-error: true
-        run: npm audit --audit-level=critical || true
+        run: npm audit --audit-level=critical
 
   security-trivy:
     name: Security Scan - Trivy
@@ -100,6 +97,7 @@ jobs:
           ignore-unfixed: true
           format: 'table'
           severity: 'CRITICAL,HIGH'
+          exit-code: '1'
 
   test-backend:
     name: Unit Tests (Backend) - Vitest
@@ -343,34 +341,39 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
-  migrate:
-    name: Apply DB Migrations
+  docker-build:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [lint-backend, test-backend]
+    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Supabase CLI
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        uses: supabase/setup-cli@v1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          version: latest
-      - name: Apply migrations
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        working-directory: backend
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
-      - name: Skip notice
-        if: ${{ env.SUPABASE_DB_URL == '' }}
-        run: echo "::warning::SUPABASE_DB_URL no configurado; se omite la aplicacion de migraciones."
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GH_PAT }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ecencia-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   deploy:
     name: Continuous Deployment (Azure VM)
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap, release, migrate]
+    needs: [docker-build, release]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
@@ -433,7 +436,14 @@ jobs:
             set_env "GMAIL_USER" "${{ secrets.GMAIL_USER }}"
             set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD }}"
             
-            docker compose build
+            # Autenticarse en GHCR para descargar la imagen
+            echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Exportar variables necesarias para docker-compose
+            export GITHUB_REPOSITORY=${{ github.repository }}
+            
+            # Descargar la imagen preconstruida y levantar los servicios
+            docker compose pull
             docker compose up -d
             docker image prune -af
             
@@ -447,3 +457,17 @@ jobs:
               echo "::error::❌ Smoke Test Backend: FALLO (El servidor no responde o la BD esta caida)"
               exit 1
             fi
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Apply DB Migrations
+        if: ${{ env.SUPABASE_DB_URL != '' }}
+        working-directory: backend
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
+      - name: Skip Migrations Notice
+        if: ${{ env.SUPABASE_DB_URL == '' }}
+        run: echo "::warning::SUPABASE_DB_URL no configurado; se omite la aplicacion de migraciones."
