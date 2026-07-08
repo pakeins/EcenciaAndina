@@ -22,6 +22,19 @@ env:
   NODE_VERSION: "22"
 
 jobs:
+  security-secrets:
+    name: Security Scan - Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
   lint-backend:
     name: Code Quality (Backend) - ESLint
     runs-on: ubuntu-latest
@@ -164,6 +177,8 @@ jobs:
     name: Code Analysis - SonarCloud
     runs-on: ubuntu-latest
     needs: [test-backend, test-frontend]
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -238,7 +253,6 @@ jobs:
     name: OWASP ZAP Baseline Security
     runs-on: ubuntu-latest
     needs: [build]
-    if: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -308,6 +322,24 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.zap.yml down --volumes --remove-orphans
 
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
   migrate:
     name: Apply DB Migrations
     runs-on: ubuntu-latest
@@ -334,7 +366,7 @@ jobs:
   deploy:
     name: Continuous Deployment (Azure VM)
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, build, migrate]
+    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap, release, migrate]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
