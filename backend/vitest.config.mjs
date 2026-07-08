@@ -5,6 +5,14 @@ import { defineConfig } from 'vitest/config';
 // inyectan sus propios clientes simulados.
 export default defineConfig({
   test: {
+    coverage: {
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80
+      }
+    },
     env: {
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
