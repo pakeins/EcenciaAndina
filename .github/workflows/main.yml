@@ -195,6 +195,11 @@ jobs:
         with:
           name: coverage-frontend
           path: frontend/coverage
+      - name: Workaround for SonarCloud branch (Free Tier)
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            git checkout -b master
+          fi
       - name: SonarQube Cloud scan
         if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@master
@@ -327,6 +332,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
