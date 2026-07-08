@@ -1,3 +1,4 @@
+ 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
@@ -41,7 +42,7 @@ describe('Rutas HTTP de Auth', () => {
       let body = null;
       try {
         if (options?.body) body = JSON.parse(options.body);
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
 
       // --- Supabase Auth (Respuestas crudas del servidor de Supabase) ---
       if (urlStr.includes('/auth/v1/token') && urlStr.includes('grant_type=password')) {

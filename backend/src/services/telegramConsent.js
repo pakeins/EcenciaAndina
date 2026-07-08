@@ -1,7 +1,6 @@
+ 
 const crypto = require('crypto');
 const { getAdminClient } = require('../config/supabase');
-const fs = require('fs');
-const path = require('path');
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const REQUIRED_TELEGRAM_ENV = [

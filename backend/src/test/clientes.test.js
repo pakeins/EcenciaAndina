@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
@@ -107,10 +108,10 @@ describe('Rutas de Clientes Completo', () => {
       if (isClientes) {
         if (method === 'GET') {
           if (urlStr.includes('telefono=eq.0988888888')) {
-             return new Response(JSON.stringify([{ id_cliente: 'exist' }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            return new Response(JSON.stringify([{ id_cliente: 'exist' }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
           }
           if (urlStr.includes('limit=1')) {
-             return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
           }
           if (urlStr.includes('id_cliente=eq.')) {
             return new Response(JSON.stringify({ id_cliente: 'cli-1', esta_activo: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });

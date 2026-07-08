@@ -40,7 +40,7 @@ export function ProductManager({ onProductsChanged }: { onProductsChanged: () =>
     if (categories.length > 0 && !selectedCategoryId) {
       setSelectedCategoryId(categories[0].id_categoria_menu);
     }
-  }, [categories]);
+  }, [categories, selectedCategoryId]);
 
   const handleAdd = async () => {
     if (!newProductName.trim() || !selectedCategoryId) return;

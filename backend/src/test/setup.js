@@ -1,3 +1,4 @@
+ 
 const path = require('path');
 
 // Clear all routes and services from require cache before each test file runs
@@ -7,7 +8,7 @@ routes.forEach(route => {
   try {
     const resolved = require.resolve(path.join(__dirname, '..', 'routes', `${route}.js`));
     delete require.cache[resolved];
-  } catch (e) {
+  } catch {
     // Ignore if not found
   }
 });

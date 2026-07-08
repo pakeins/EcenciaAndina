@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
@@ -41,7 +42,7 @@ describe('Rutas de Productos', () => {
       // 4. GET /rest/v1/productos
       if (urlStr.includes('/rest/v1/productos') && method === 'GET') {
         if (urlStr.includes('fail=true')) {
-           return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+          return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
         }
         
         return new Response(JSON.stringify([
