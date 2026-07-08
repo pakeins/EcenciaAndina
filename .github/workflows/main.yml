@@ -461,7 +461,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 1.145.4
       - name: Apply DB Migrations
         if: ${{ env.SUPABASE_DB_URL != '' }}
         working-directory: backend
