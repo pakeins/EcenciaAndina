@@ -15,7 +15,7 @@ const escapeHtml = (value) =>
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replaceAll('\'', '&#039;');
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 

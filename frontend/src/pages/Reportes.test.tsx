@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
-import Convenios from './Convenios';
+import { render, screen, act } from '@testing-library/react';
+import Reportes from './Reportes';
 import { apiFetch } from '@/lib/api';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -26,33 +26,28 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-describe('Convenios', () => {
+describe('Reportes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  const renderComponent = async () => {
-    await act(async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter>
-            <Convenios />
-          </MemoryRouter>
-        </QueryClientProvider>
-      );
-    });
-  };
-
-  it('se renderiza correctamente y maneja carga de datos', async () => {
+  it('se renderiza correctamente y simula carga inicial (smoke test)', async () => {
+    // Simulamos las llamadas a la API que ocurren al cargar la vista
     (apiFetch as any).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve([])
     });
 
-    await renderComponent();
+    await act(async () => {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Reportes />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+    });
 
-    // Validar renderizado básico
-    expect(screen.getByText('Convenios')).toBeInTheDocument();
-    expect(screen.getByText(/Nuevo Convenio/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reportes/i)).toBeInTheDocument();
   });
 });
