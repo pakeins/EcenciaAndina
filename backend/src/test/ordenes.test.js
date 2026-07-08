@@ -254,6 +254,12 @@ describe('Rutas de Ordenes', () => {
       expect(res.status).toBe(200);
       expect(res.body.mensaje).toMatch(/actualizada/i);
     });
+
+    it('GET /api/ordenes/telegram/trazabilidad lista exitosamente', async () => {
+      const res = await request(app).get('/api/ordenes/telegram/trazabilidad').set('Authorization', 'Bearer token');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('traces');
+    });
   });
 
   // BLOQUE 4: ERRORES DE BASE DE DATOS Y VALIDACIONES
@@ -282,6 +288,24 @@ describe('Rutas de Ordenes', () => {
     it('POST /api/ordenes falla si el cuerpo esta vacío (Joi validation)', async () => {
       const res = await request(app).post('/api/ordenes').set('Authorization', 'Bearer token').send({});
       expect(res.status).toBe(400);
+    });
+
+    it('GET /api/ordenes/telegram/trazabilidad falla correctamente ante error de BD', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/ordenes/telegram/trazabilidad').set('Authorization', 'Bearer token');
+      expect(res.status).toBe(500);
+    });
+
+    it('PUT /api/ordenes/:id falla correctamente ante error de BD al actualizar cabecera', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .put(`/api/ordenes/${UUID_ORDEN}`)
+        .set('Authorization', 'Bearer token')
+        .send({
+          observaciones: 'Fallo inminente',
+          detalles: [{ id_producto: 2, cantidad: 2, precio_aplicado: 7 }]
+        });
+      expect(res.status).toBe(500);
     });
   });
 });

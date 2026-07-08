@@ -206,6 +206,11 @@ describe('Rutas de Clientes Completo', () => {
       const res = await request(app).get('/api/clientes/cli-1/historial').set('Authorization', 'Bearer valid-token');
       expect(res.status).toBe(200);
     });
+
+    it('GET /api/clientes/:id/saldo lista el saldo', async () => {
+      const res = await request(app).get('/api/clientes/cli-1/saldo').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(200);
+    });
   });
 
 
@@ -277,6 +282,24 @@ describe('Rutas de Clientes Completo', () => {
       const res = await request(app).post('/api/clientes/cli-1/recargar').set('Authorization', 'Bearer valid-token').send({
         id_producto: 1, cantidad_comprada: 1, monto_total: 5, numero_factura: '1'
       });
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /api/clientes/:id/saldo falla si hay error de base de datos', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/clientes/cli-1/saldo').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /api/clientes/:id/historial falla si hay error de BD', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/clientes/cli-1/historial').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('DELETE /api/clientes/:id/convenio falla si hay error de BD', async () => {
+      forceDbError = true;
+      const res = await request(app).delete('/api/clientes/cli-1/convenio').set('Authorization', 'Bearer valid-token');
       expect(res.status).toBe(500);
     });
   });
