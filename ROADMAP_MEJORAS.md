@@ -30,6 +30,7 @@ Este documento consolida todas las ideas de mejora y rediseño de arquitectura s
 | QA-02 | **Pruebas de Latencia (Frontend)** | Incorporar test en React (ej. Lighthouse CI o Cypress) para medir tiempos de carga y garantizar que no haya bloqueos en la Experiencia de Usuario (UX). | ⏳ Pendiente |
 | QA-03 | **Pruebas de Rendimiento (Backend)** | Utilizar `k6` o `JMeter` en el pipeline para confirmar que el sistema aguanta la concurrencia bajo los principios arquitectónicos propuestos. | ⏳ Pendiente |
 | QA-04 | **Plan de pruebas para la API Agnóstica** | Crear pruebas automatizadas que valoren la interfaz de comunicación entre el Backend y el Microservicio del Bot. | ⏳ Pendiente |
+| QA-05 | **Comprobación de Protección DDoS** | Se detectó el uso de `express-rate-limit` en `index.js` (protección DDoS básica). Se deben auditar los umbrales para garantizar que mitigan ataques adecuadamente. | ✅ Completado (En revisión de parámetros) |
 
 ## 4. Trabajos Futuros y Observabilidad
 
@@ -38,3 +39,5 @@ Este documento consolida todas las ideas de mejora y rediseño de arquitectura s
 | FUT-01 | **Orquestación con Kubernetes** | Al tener Docker (n8n, Backend), migrar la VM hacia K3s o AKS para robustecer la alta disponibilidad. | ⏳ Trabajo Futuro |
 | FUT-02 | **Módulo de Observabilidad (Prometheus)** | Tener métricas en tiempo real del uso de CPU/RAM y respuestas de la API, usando Prometheus y Grafana. | ⏳ Trabajo Futuro |
 | FUT-03 | **Gestor Gráfico del Bot** | Extender el Frontend en React para poder visualizar, gestionar y cambiar la configuración del bot sin tocar código. | ⏳ Trabajo Futuro |
+| FUT-04 | **Validación Geográfica (Haversine)** | Evaluar el uso de la fórmula de Haversine para cálculo de distancias y validación de coordenadas (Latitud/Longitud) sugerido por revisión par. | ⏳ Trabajo Futuro |
+| FUT-05 | **Modelos Predictivos (LSTM, Prophet)** | Evaluar viabilidad de implementar Machine Learning (Series Temporales) para estimaciones de demanda o pronósticos. *Nota: Tomar con pinzas, descartar si no aporta al core business.* | ⏳ Trabajo Futuro |
