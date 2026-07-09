@@ -112,6 +112,30 @@ jobs:
       - uses: actions/checkout@v4
       - name: Skip Backend Tests for fast deployment
         run: echo "Backend tests temporarily disabled for fast deployment"
+      # TODO: Para restaurar las pruebas del backend, borra el 'Skip Backend Tests' de arriba y descomenta lo siguiente:
+      # - name: Install & Test Backend
+      #   working-directory: backend
+      #   run: |
+      #     npm ci
+      #     set -o pipefail
+      #     CI=true NO_COLOR=1 npm run test:coverage -- --maxWorkers=2 2>&1 | tee test_output_raw.txt || true
+      #     sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt
+      #     if grep -q "failed" test_output_raw.txt; then exit 1; fi
+      # - name: Backend coverage summary
+      #   if: always()
+      #   working-directory: backend
+      #   run: |
+      #     echo "### 🧪 Backend Coverage" >> $GITHUB_STEP_SUMMARY
+      #     echo '```text' >> $GITHUB_STEP_SUMMARY
+      #     cat test_output.txt >> $GITHUB_STEP_SUMMARY
+      #     echo '```' >> $GITHUB_STEP_SUMMARY
+      # - name: Upload coverage artifacts
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: coverage-backend
+      #     path: backend/coverage
+      #     if-no-files-found: warn
 
   test-frontend:
     name: Unit Tests (Frontend) - Vitest
@@ -120,6 +144,30 @@ jobs:
       - uses: actions/checkout@v4
       - name: Skip Frontend Tests for fast deployment
         run: echo "Frontend tests temporarily disabled for fast deployment"
+      # TODO: Para restaurar las pruebas del frontend, borra el 'Skip Frontend Tests' de arriba y descomenta lo siguiente:
+      # - name: Install & Test Frontend
+      #   working-directory: frontend
+      #   run: |
+      #     npm ci
+      #     set -o pipefail
+      #     CI=true NO_COLOR=1 npm run test:coverage -- --maxWorkers=2 2>&1 | tee test_output_raw.txt || true
+      #     sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt
+      #     if grep -q "failed" test_output_raw.txt; then exit 1; fi
+      # - name: Frontend coverage summary
+      #   if: always()
+      #   working-directory: frontend
+      #   run: |
+      #     echo "### 🧪 Frontend Coverage" >> $GITHUB_STEP_SUMMARY
+      #     echo '```text' >> $GITHUB_STEP_SUMMARY
+      #     cat test_output.txt >> $GITHUB_STEP_SUMMARY
+      #     echo '```' >> $GITHUB_STEP_SUMMARY
+      # - name: Upload coverage artifacts
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: coverage-frontend
+      #     path: frontend/coverage
+      #     if-no-files-found: warn
 
   sonarcloud:
     name: Code Analysis - SonarCloud
@@ -145,6 +193,14 @@ jobs:
           path: frontend/coverage
       - name: SonarQube Cloud scan
         run: echo "SonarCloud scan temporarily disabled for fast deployment"
+      # TODO: Para restaurar SonarCloud, borra el 'SonarQube Cloud scan' de arriba y descomenta lo siguiente:
+      # - name: SonarQube Cloud scan
+      #   if: ${{ env.SONAR_TOKEN != '' }}
+      #   uses: SonarSource/sonarqube-scan-action@master
+      #   continue-on-error: true
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   integration-tests:
     name: Integration Tests - Supertest
@@ -165,6 +221,13 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - name: Skip Integration Tests for fast deployment
         run: echo "Integration tests temporarily disabled for fast deployment"
+      # TODO: Para restaurar las pruebas de integracion, borra el 'Skip Integration Tests' de arriba y descomenta lo siguiente:
+      # - name: Install dependencies
+      #   working-directory: backend
+      #   run: npm ci
+      # - name: Run Integration Tests
+      #   working-directory: backend
+      #   run: npm run test:integration
 
   build:
     name: Build Frontend
@@ -201,6 +264,68 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - name: Skip ZAP for fast deployment
         run: echo "OWASP ZAP tests temporarily disabled for fast deployment"
+      # TODO: Para restaurar los analisis de OWASP ZAP, borra el 'Skip ZAP' de arriba y descomenta todo lo siguiente:
+      # - name: Start ephemeral stack
+      #   env:
+      #     SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      #     SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      #     SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      #     TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      #     TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+      #     TELEGRAM_INVITE_TOKEN_SECRET: ${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET }}
+      #   run: docker compose -f docker-compose.zap.yml up -d --build
+      # - name: Wait for HTTP targets
+      #   env:
+      #     WAIT_HTTP_TIMEOUT_MS: 600000
+      #   run: |
+      #     npm init -y
+      #     npm install axios
+      #     node scripts/wait-http.js http://127.0.0.1:8080 http://127.0.0.1:3001/
+      # - name: ZAP frontend baseline
+      #   uses: zaproxy/action-baseline@v0.15.0
+      #   if: always()
+      #   continue-on-error: true
+      #   with:
+      #     target: http://127.0.0.1:8080
+      #     allow_issue_writing: false
+      #     fail_action: false
+      #     artifact_name: zap_frontend
+      # - name: Preserve ZAP frontend reports
+      #   if: always()
+      #   run: |
+      #     cp report_json.json zap-frontend.json || true
+      #     cp report_html.html zap-frontend.html || true
+      #     cp report_md.md zap-frontend.md || true
+      # - name: ZAP backend baseline
+      #   uses: zaproxy/action-baseline@v0.15.0
+      #   if: always()
+      #   continue-on-error: true
+      #   with:
+      #     target: http://127.0.0.1:3001
+      #     allow_issue_writing: false
+      #     fail_action: false
+      #     artifact_name: zap_backend
+      # - name: Preserve ZAP backend reports
+      #   if: always()
+      #   run: |
+      #     cp report_json.json zap-backend.json || true
+      #     cp report_html.html zap-backend.html || true
+      #     cp report_md.md zap-backend.md || true
+      # - name: Fail on High alerts
+      #   run: node scripts/zap-fail-on-high.js zap-frontend.json zap-backend.json
+      # - name: Upload ZAP reports
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: zap-reports
+      #     path: |
+      #       zap-*.html
+      #       zap-*.md
+      #       zap-*.xml
+      #       zap-*.json
+      # - name: Stop ephemeral stack
+      #   if: always()
+      #   run: docker compose -f docker-compose.zap.yml down --volumes --remove-orphans
 
   release:
     name: Semantic Release
