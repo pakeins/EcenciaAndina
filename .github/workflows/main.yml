@@ -454,6 +454,15 @@ jobs:
             docker compose up -d
             docker image prune -af
             
+            # Restaurar Webhook
+            echo "Registrando webhook de Telegram..."
+            export TELEGRAM_WEBHOOK_URL="https://ecenciaapp.eastus2.cloudapp.azure.com/api/telegram/webhook"
+            export PUBLIC_BACKEND_URL="https://ecenciaapp.eastus2.cloudapp.azure.com"
+            cd backend
+            npm install dotenv-cli > /dev/null 2>&1 || true
+            node scripts/set-telegram-webhook.js || echo "::warning::Fallo la configuracion del webhook"
+            cd ..
+            
             echo "Esperando 15 segundos para que los servicios inicialicen..."
             sleep 15
             
