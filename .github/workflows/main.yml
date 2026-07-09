@@ -443,6 +443,10 @@ jobs:
             set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET }}"
             set_env "GMAIL_USER" "${{ secrets.GMAIL_USER }}"
             set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD }}"
+            set_env "TELEGRAM_BOT_USERNAME" "EcenciaBot"
+            set_env "TELEGRAM_PRIVACY_CONTACT" "ecenciaconvenios@outlook.com"
+            set_env "TELEGRAM_PRIVACY_POLICY_URL" "https://ecenciaapp.eastus2.cloudapp.azure.com/privacidad"
+            set_env "TELEGRAM_CONSENT_VERSION" "EC-LOPDP-2026-06"
             
             # Autenticarse en GHCR para descargar la imagen
             echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
