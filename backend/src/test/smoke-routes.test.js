@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import request from 'supertest';
@@ -60,7 +59,7 @@ describe('Smoke tests for missing routes', () => {
 
   afterAll(() => {
     ['../config/supabase.js', '../middlewares/authMiddleware.js', '../middlewares/roleMiddleware.js'].forEach(p => {
-      try { delete require.cache[require.resolve(p)]; } catch {}
+      try { delete require.cache[require.resolve(p)]; } catch { /* noop */ }
     });
   });
 
