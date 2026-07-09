@@ -9,7 +9,7 @@ export default defineConfig({
     hookTimeout: 60000,
     testTimeout: 30000,
     coverage: {
-      provider: 'istanbul',
+      provider: 'v8',
       // Excluir archivos de infraestructura que no son logica de negocio
       exclude: [
         'index.js',           // Bootstrap de Express (puerto, middlewares globales)
