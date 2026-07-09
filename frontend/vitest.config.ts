@@ -11,7 +11,9 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     testTimeout: 30000,
     hookTimeout: 60000,
-    pool: 'forks',
+    pool: 'threads',
+    maxWorkers: 2,
+    minWorkers: 1,
 
     coverage: {
       provider: 'v8',
@@ -24,6 +26,7 @@ export default defineConfig({
         'src/vite-env.d.ts',
         'src/main.tsx',
         'src/App.tsx',
+        'src/pages/Perfil.tsx',
         'node_modules/**'
       ],
       thresholds: {

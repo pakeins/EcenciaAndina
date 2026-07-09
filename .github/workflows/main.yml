@@ -120,7 +120,7 @@ jobs:
         run: |
           npm ci
           set -o pipefail
-          CI=true NO_COLOR=1 npm run test:coverage -- --pool=forks --maxWorkers=2 2>&1 | tee test_output_raw.txt || true
+          CI=true NO_COLOR=1 npm run test:coverage -- --maxWorkers=2 2>&1 | tee test_output_raw.txt || true
           sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt
           # Si el archivo raw dice "failed", hacemos que el paso falle después de procesarlo
           if grep -q "failed" test_output_raw.txt; then exit 1; fi
@@ -155,7 +155,7 @@ jobs:
         run: |
           npm ci
           set -o pipefail
-          CI=true NO_COLOR=1 npm run test:coverage -- --pool=forks --maxWorkers=2 2>&1 | tee test_output_raw.txt || true
+          CI=true NO_COLOR=1 npm run test:coverage -- --maxWorkers=2 2>&1 | tee test_output_raw.txt || true
           sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt
           # Si el archivo raw dice "failed", hacemos que el paso falle después de procesarlo
           if grep -q "failed" test_output_raw.txt; then exit 1; fi
