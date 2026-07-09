@@ -279,7 +279,6 @@ const getSubscriptionByChat = async (chatId) => {
 };
 
 const getSubscriptionByClient = async (idCliente) => {
-  if (!idCliente) return null;
   const { data, error } = await getAdminClient()
     .from('telegram_subscriptions')
     .select('*')
