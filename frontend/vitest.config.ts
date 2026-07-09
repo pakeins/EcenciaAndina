@@ -11,7 +11,7 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     testTimeout: 30000,
     hookTimeout: 60000,
-    isolate: false,
+
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
