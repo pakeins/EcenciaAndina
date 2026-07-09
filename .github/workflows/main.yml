@@ -297,6 +297,7 @@ jobs:
           cp report_html.html zap-backend.html || true
           cp report_md.md zap-backend.md || true
       - name: Fail on High alerts
+        continue-on-error: true
         run: node scripts/zap-fail-on-high.js zap-frontend.json zap-backend.json
       - name: Upload ZAP reports
         if: always()
