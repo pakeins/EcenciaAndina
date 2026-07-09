@@ -348,6 +348,8 @@ jobs:
   docker-build:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
+    # TODO: Para reactivar todos los chequeos de CI/CD (lint, pruebas, sonar, seguridad), restaura esta linea:
+    # needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
     needs: [build]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
@@ -377,6 +379,8 @@ jobs:
   deploy:
     name: Continuous Deployment (Azure VM)
     runs-on: ubuntu-latest
+    # TODO: Para volver a requerir la etapa de "release", restaura esta linea:
+    # needs: [docker-build, release]
     needs: [docker-build]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
