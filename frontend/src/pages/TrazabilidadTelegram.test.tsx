@@ -20,6 +20,10 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+vi.mock('@/lib/api', () => ({
+  apiFetch: vi.fn().mockResolvedValue({}),
+}));
+
 describe('TrazabilidadTelegram', () => {
   it('se renderiza correctamente', () => {
     render(
