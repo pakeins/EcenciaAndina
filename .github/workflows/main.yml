@@ -110,56 +110,16 @@ jobs:
       PORT: 3001
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
       - name: Skip Backend Tests for fast deployment
         run: echo "Backend tests temporarily disabled for fast deployment"
-      - name: Backend coverage summary
-        if: always()
-        working-directory: backend
-        run: |
-          echo "### 🧪 Backend Coverage" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-      - name: Upload coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-backend
-          path: backend/coverage
-          if-no-files-found: warn
 
   test-frontend:
     name: Unit Tests (Frontend) - Vitest
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
       - name: Skip Frontend Tests for fast deployment
         run: echo "Frontend tests temporarily disabled for fast deployment"
-      - name: Frontend coverage summary
-        if: always()
-        working-directory: frontend
-        run: |
-          echo "### 🧪 Frontend Coverage" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-      - name: Upload coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-frontend
-          path: frontend/coverage
-          if-no-files-found: warn
 
   sonarcloud:
     name: Code Analysis - SonarCloud
