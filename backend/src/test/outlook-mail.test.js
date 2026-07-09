@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
+import outlookMail from '../services/outlookMail.js';
 
-const require = createRequire(import.meta.url);
-const { buildInvitationEmail } = require('../services/outlookMail.js');
+const { buildInvitationEmail } = outlookMail;
 
 describe('buildInvitationEmail', () => {
   it('genera correo HTML con imagen enlazada, link de respaldo y firma', () => {

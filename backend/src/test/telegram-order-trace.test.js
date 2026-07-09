@@ -6,11 +6,12 @@ let createOrderTrace;
 let updateOrderTrace;
 let buildOriginalMessage;
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY =
     process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
-  const service = require('../services/telegramOrderTrace.js');
+  delete require.cache[require.resolve('../services/telegramOrderTrace.js')];
+  const service = (await import('../services/telegramOrderTrace.js')).default;
   createOrderTrace = service.createOrderTrace;
   updateOrderTrace = service.updateOrderTrace;
   buildOriginalMessage = service._private.buildOriginalMessage;

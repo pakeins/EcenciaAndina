@@ -8,8 +8,9 @@ let buildCleanupPlan;
 const publicUrl = (name) =>
   `https://example.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/${name}`;
 
-beforeAll(() => {
-  const cleanupService = require('../services/menuImageCleanup.js');
+beforeAll(async () => {
+  delete require.cache[require.resolve('../services/menuImageCleanup.js')];
+  const cleanupService = (await import('../services/menuImageCleanup.js')).default;
   cleanupOldMenuImages = cleanupService.cleanupOldMenuImages;
   buildCleanupPlan = cleanupService._private.buildCleanupPlan;
 });

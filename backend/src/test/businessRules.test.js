@@ -1,14 +1,13 @@
-import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
+import businessRules from '../services/businessRules.js';
 
-const require = createRequire(import.meta.url);
 const {
   calculateSaldoDeductions,
   isConvenioVigente,
   isPositiveInteger,
   isValidOrderTransition,
   validatePersonName,
-} = require('../services/businessRules');
+} = businessRules;
 
 describe('businessRules', () => {
   it('bloquea transiciones desde estados finales', () => {

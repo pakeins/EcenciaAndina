@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
+import orderLifecycle from '../services/orderLifecycle.js';
 
-const require = createRequire(import.meta.url);
 const {
   closePendingReservations,
   isAfterServiceCutoff,
-} = require('../services/orderLifecycle.js');
+} = orderLifecycle;
 
 class FakeQuery {
   constructor(table, state) {

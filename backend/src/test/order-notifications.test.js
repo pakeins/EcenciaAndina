@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
+import orderNotifications from '../services/orderNotifications.js';
 
-const require = createRequire(import.meta.url);
 const {
   buildOrderStatusMessage,
   notifyOrderStatusChange,
-} = require('../services/orderNotifications.js');
+} = orderNotifications;
 
 class FakeQuery {
   constructor(table, rows, audits) {

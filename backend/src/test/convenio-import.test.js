@@ -2,15 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import zlib from 'node:zlib';
 
-const require = createRequire(import.meta.url);
-const { importConvenioEmployees, _private } = require('../services/convenioEmployeeImport.js');
+import convenioEmployeeImport from '../services/convenioEmployeeImport.js';
+import convenioInvitations from '../services/convenioInvitations.js';
+import xlsxReader from '../services/xlsxReader.js';
+
+const { importConvenioEmployees, _private } = convenioEmployeeImport;
 const {
   buildConvenioInvitationMessage,
   buildInvitationLink,
   generateConvenioInvitation,
   resolveInvitationStatus,
-} = require('../services/convenioInvitations.js');
-const { readXlsxRows, _private: xlsxPrivate } = require('../services/xlsxReader.js');
+} = convenioInvitations;
+const { readXlsxRows, _private: xlsxPrivate } = xlsxReader;
 
 const crc32Table = Array.from({ length: 256 }, (_, index) => {
   let value = index;

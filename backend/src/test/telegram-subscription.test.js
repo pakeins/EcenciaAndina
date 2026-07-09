@@ -1,12 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-let consent;
-
-beforeAll(() => {
-  consent = require('../services/telegramConsent.js');
-});
+import { describe, expect, it } from 'vitest';
+import consent from '../services/telegramConsent.js';
 
 const invitation = (patch = {}) => ({
   id: 'invite-1',
