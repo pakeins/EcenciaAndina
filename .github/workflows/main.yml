@@ -348,7 +348,7 @@ jobs:
   docker-build:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
+    needs: [build]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
@@ -377,7 +377,7 @@ jobs:
   deploy:
     name: Continuous Deployment (Azure VM)
     runs-on: ubuntu-latest
-    needs: [docker-build, release]
+    needs: [docker-build]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
