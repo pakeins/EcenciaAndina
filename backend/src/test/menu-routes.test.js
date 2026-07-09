@@ -82,7 +82,7 @@ const TODAY = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 }).format(new Date());
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.SUPABASE_URL = 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
   process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
@@ -96,7 +96,7 @@ beforeAll(() => {
   injectModule('../services/menuImageCleanup.js', { cleanupOldMenuImages: async () => ({ removed: 0 }) });
 
   delete require.cache[require.resolve('../routes/menu.js')];
-  const menuRouter = require('../routes/menu.js');
+  const menuRouter = (await import('../routes/menu.js')).default;
   app = express();
   app.use(express.json());
   app.use('/api/menu', menuRouter);

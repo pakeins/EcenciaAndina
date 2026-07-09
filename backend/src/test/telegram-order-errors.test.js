@@ -4,8 +4,9 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 let telegramPrivate;
 
-beforeAll(() => {
-  const telegramRouter = require('../routes/telegram.js');
+beforeAll(async () => {
+  delete require.cache[require.resolve('../routes/telegram.js')];
+  const telegramRouter = (await import('../routes/telegram.js')).default;
   telegramPrivate = telegramRouter._private;
 });
 

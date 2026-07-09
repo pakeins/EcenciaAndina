@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-const { readXlsxRows } = require('../services/xlsxReader');
+import xlsxReader from '../services/xlsxReader.js';
+
+const { readXlsxRows } = xlsxReader;
 
 describe('xlsxReader Service', () => {
   it('debe rechazar si el archivo no existe o path es inválido', async () => {

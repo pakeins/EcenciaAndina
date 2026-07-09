@@ -16,10 +16,12 @@ const makeSession = (overrides = {}) => ({
   ...overrides,
 });
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
-  const telegramRouter = require('../routes/telegram.js');
+  
+  delete require.cache[require.resolve('../routes/telegram.js')];
+  const telegramRouter = (await import('../routes/telegram.js')).default;
   quantityFromText = telegramRouter._private.quantityFromText;
   parseTextOrder = telegramRouter._private.parseTextOrder;
 });

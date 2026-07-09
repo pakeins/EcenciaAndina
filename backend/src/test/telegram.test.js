@@ -78,8 +78,9 @@ beforeAll(() => {
 describe('Telegram Webhook & API', () => {
   let app;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    delete require.cache[require.resolve('../routes/telegram.js')];
 
     // Default mock behavior
     mockTelegramConsent.hasCurrentConsent.mockResolvedValue(true);
@@ -96,7 +97,7 @@ describe('Telegram Webhook & API', () => {
       }
     });
 
-    const telegramRouter = require('../routes/telegram.js');
+    const telegramRouter = (await import('../routes/telegram.js')).default;
     app = PatternApp || express();
     function PatternApp() {
       const a = express();
