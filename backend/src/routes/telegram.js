@@ -1082,7 +1082,8 @@ const invitationFailureText = (reason) => {
 
 const acceptConsent = async (parsed, subscription, consentState) => {
   if (!consentState || consentState.status !== 'awaiting_decision') return;
-  await removeInlineKeyboard(parsed.chatId, parsed.messageId);  const sent = await sendMessage(
+  await removeInlineKeyboard(parsed.chatId, parsed.messageId);
+  const sent = await sendMessage(
     parsed.chatId,
     '📱 <b>¡Paso Final!</b>\n\nPara validar tu suscripcion, necesitamos verificar tu usuario.\n\nPor favor, utiliza el boton <b>"Compartir mi telefono"</b> que acaba de aparecer en la parte inferior de tu pantalla.\n\n<i>(Si no ves el boton en la parte inferior, busca en la barra inferior el icono de un cuadrado para compartir tu numero).</i>',
     contactKeyboard(),
