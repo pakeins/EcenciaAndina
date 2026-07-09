@@ -34,9 +34,15 @@ describe('frontend business rules', () => {
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
     
-    // YYYY-MM-DD
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const formatLocalDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const tomorrowStr = formatLocalDate(tomorrow);
+    const yesterdayStr = formatLocalDate(yesterday);
 
     expect(isConvenioVigente({ activo: true, fecha_caducidad: tomorrowStr })).toBe(true);
     expect(isConvenioVigente({ activo: true, fecha_caducidad: yesterdayStr })).toBe(false);

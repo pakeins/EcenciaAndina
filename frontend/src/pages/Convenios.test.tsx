@@ -45,9 +45,21 @@ describe('Convenios', () => {
   };
 
   it('se renderiza correctamente y maneja carga de datos', async () => {
+    const mockConvenios = [
+      {
+        id_convenio: 'conv1',
+        nombre_convenio: 'Convenio de Prueba',
+        empresa: 'Empresa A',
+        activo: true,
+        fecha_caducidad: '2026-12-31',
+        cupo_maximo: 50,
+        porcentaje_descuento: 10,
+        registrados_count: 5
+      }
+    ];
     (apiFetch as any).mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve([])
+      json: () => Promise.resolve(mockConvenios)
     });
 
     await renderComponent();

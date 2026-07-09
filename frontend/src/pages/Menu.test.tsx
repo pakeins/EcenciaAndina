@@ -33,9 +33,50 @@ describe('Menu', () => {
   });
 
   it('se renderiza correctamente y simula carga inicial (smoke test)', async () => {
-    (apiFetch as any).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ success: true, payload: { opciones: {} } })
+    (apiFetch as any).mockImplementation((url: string) => {
+      if (url.includes('/alimentos/categorias')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
+            { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
+          ])
+        });
+      }
+      if (url.includes('/alimentos')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            { id_alimento: 1, nombre_alimento: 'Locro', id_categoria_menu: 1 }
+          ])
+        });
+      }
+      if (url.includes('/productos')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
+        });
+      }
+      if (url.includes('/menu')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            {
+              fecha: '2026-06-10',
+              estado: 'activo',
+              opciones: {
+                '1': ['Locro de Papa'],
+                '2': ['Seco de Pollo']
+              },
+              imagen_url: null,
+            }
+          ])
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([])
+      });
     });
 
     await act(async () => {
