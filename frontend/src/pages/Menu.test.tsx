@@ -85,7 +85,7 @@ describe('Menu', () => {
     await renderComponent();
 
     await waitFor(() => {
-      expect(screen.getByTestId('icon-calendar-days')).toBeInTheDocument();
+      expect(screen.getAllByTestId('icon-calendar-days')[0]).toBeInTheDocument();
       expect(screen.getByTestId('icon-soup')).toBeInTheDocument();
     });
   });

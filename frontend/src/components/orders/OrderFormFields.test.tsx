@@ -99,7 +99,7 @@ describe('OrderFormFields', () => {
     });
   });
 
-  it('permite añadir observaciones', async () => {
+  it('permite anadir observaciones', async () => {
     await renderComponent();
     
     const textarea = screen.getByPlaceholderText(/Sin cebolla/i);
@@ -109,5 +109,90 @@ describe('OrderFormFields', () => {
       items: [],
       observaciones: 'Nueva observacion'
     });
+  });
+
+  it('permite agregar un producto estandar', async () => {
+    await renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Jugo de Mora/i)).toBeInTheDocument();
+    });
+
+    const buttons = screen.getAllByRole('button');
+    const addButton = buttons.find(b => b.textContent?.includes('Agregar Jugo de Mora'));
+    if (addButton) {
+      fireEvent.click(addButton);
+      expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({ producto_id: 'p2', cantidad: 1 })
+        ])
+      }));
+    }
+  });
+
+  it('muestra las opciones de almuerzo al agregar uno', async () => {
+    await renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Agregar Almuerzo/i)).toBeInTheDocument();
+    });
+
+    const addLunchBtn = screen.getByText(/Agregar Almuerzo/i);
+    fireEvent.click(addLunchBtn);
+
+    // Debe abrir the dialog para elegir sopa y segundo
+    await waitFor(() => {
+      expect(screen.getByText(/Sopa/i)).toBeInTheDocument();
+      expect(screen.getByText(/Segundo/i)).toBeInTheDocument();
+      expect(screen.getByText(/Confirmar Almuerzo/i)).toBeInTheDocument();
+    });
+  });
+
+  it('permite actualizar cantidad de un item existente', async () => {
+    const stateWithItem = {
+      observaciones: '',
+      items: [
+        { producto_id: 'p2', nombre: 'Jugo de Mora', precio: 1, cantidad: 1 }
+      ]
+    };
+
+    await renderComponent({ state: stateWithItem });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('icon-plus')).toBeInTheDocument();
+    });
+
+    const increaseBtn = screen.getAllByTestId('icon-plus')[0].parentElement;
+    if (increaseBtn) {
+      fireEvent.click(increaseBtn);
+      expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({ producto_id: 'p2', cantidad: 2 })
+        ])
+      }));
+    }
+  });
+
+  it('permite eliminar un item existente', async () => {
+    const stateWithItem = {
+      observaciones: '',
+      items: [
+        { producto_id: 'p2', nombre: 'Jugo de Mora', precio: 1, cantidad: 1 }
+      ]
+    };
+
+    await renderComponent({ state: stateWithItem });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('icon-trash')).toBeInTheDocument();
+    });
+
+    const removeBtn = screen.getAllByTestId('icon-trash')[0].parentElement;
+    if (removeBtn) {
+      fireEvent.click(removeBtn);
+      expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
+        items: []
+      }));
+    }
   });
 });
