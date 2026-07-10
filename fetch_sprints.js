@@ -1,6 +1,7 @@
 const domain = 'webecenciaandina.atlassian.net';
 const email = 'esteban.carvajal.landazuri@udla.edu.ec';
-const token = 'ATATT3xFfGF0Ps6gD9ZX0jVYugPblcGtrJqxgNPq8RPkhblhLTvwVBelF2eLf_p77ikUAGQcOQXXAgg3mySym7muWIPmQLUStOIKiwfBCppt2VStcXhrAAvlV7N7sptLMl5zKU4ZioebLGDqoHUhiCe82dMytRV7cRkaroJmkcsFOSkdrHKCewQ=A895653B';
+// WARNING: The token was revoked/removed from source control. Provide it via environment variables.
+const token = process.env.JIRA_API_TOKEN || '';
 const auth = Buffer.from(`${email}:${token}`).toString('base64');
 
 async function run() {

@@ -1,0 +1,6 @@
+title = "gitleaks config"
+# Ignore the Jira token that was accidentally committed to fetch_sprints.js in a past commit.
+# The token has been removed from the current file, but Gitleaks scans git history.
+[allowlist]
+description = "Ignore Jira API token previously committed in fetch_sprints.js"
+regexes = ['''ATATT3xFfGF0Ps6gD9ZX0jVYugPblcGtrJqxgNPq8RPkhblhLTvwVBelF2eLf_p77ikUAGQcOQXXAgg3mySym7muWIPmQLUStOIKiwfBCppt2VStcXhrAAvlV7N7sptLMl5zKU4ZioebLGDqoHUhiCe82dMytRV7cRkaroJmkcsFOSkdrHKCewQ=A895653B''']

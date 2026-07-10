@@ -5,9 +5,9 @@ const data = JSON.stringify({
   update_id: 1,
   message: {
     message_id: 1,
-    from: { id: 12345, username: "test_user" },
+    from: { id: 12345, username: 'test_user' },
     chat: { id: 12345 },
-    text: "/start"
+    text: '/start'
   }
 });
 

@@ -4,24 +4,24 @@ async function simulateConsentAccept() {
   const payload = {
     update_id: 123456789,
     callback_query: {
-      id: "438232323",
+      id: '438232323',
       from: {
         id: 1111111,
         is_bot: false,
-        first_name: "Test",
-        username: "testuser"
+        first_name: 'Test',
+        username: 'testuser'
       },
       message: {
         message_id: 555,
         chat: {
           id: 1111111,
-          type: "private"
+          type: 'private'
         },
         date: Math.floor(Date.now() / 1000),
-        text: "Please read terms..."
+        text: 'Please read terms...'
       },
-      chat_instance: "12345",
-      data: "consent:accept"
+      chat_instance: '12345',
+      data: 'consent:accept'
     }
   };
 
