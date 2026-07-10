@@ -163,6 +163,22 @@ if (require.main === module) {
   const server = app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
     console.log(`Rutas de autenticacion listas en http://localhost:${PORT}/api/auth/login`);
+    
+    // Configurar webhook de Telegram automáticamente en Producción
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        console.log('Iniciando configuracion automatica del webhook de Telegram...');
+        require('child_process').exec('node scripts/set-telegram-webhook.js', (err, stdout, stderr) => {
+          if (err) {
+            console.error('Error al configurar webhook de Telegram:', err.message);
+          } else {
+            console.log(stdout.trim());
+          }
+        });
+      } catch (e) {
+        console.error('No se pudo ejecutar script de webhook:', e.message);
+      }
+    }
   });
 
   process.on('SIGINT', () => {

@@ -428,7 +428,7 @@ jobs:
             set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET || 'EcenciaInviteToken2026' }}"
             set_env "GMAIL_USER" "${{ secrets.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com' }}"
             set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD || 'dummy-password' }}"
-            set_env "TELEGRAM_BOT_USERNAME" "EcenciaBot"
+            set_env "TELEGRAM_BOT_USERNAME" "${{ secrets.TELEGRAM_BOT_USERNAME || 'ECIENCIATESTEBOT' }}"
             set_env "TELEGRAM_PRIVACY_CONTACT" "ecenciaconvenios@outlook.com"
             set_env "TELEGRAM_PRIVACY_POLICY_URL" "https://ecenciaapp.eastus2.cloudapp.azure.com/privacidad"
             set_env "TELEGRAM_CONSENT_VERSION" "EC-LOPDP-2026-06"

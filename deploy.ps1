@@ -189,3 +189,8 @@ Write-Host "=========================================================" -Foregrou
 Write-Host " ¡Despliegue Completado Exitosamente! " -ForegroundColor Green
 Write-Host " Aplicación disponible en: http://$ip " -ForegroundColor Green
 Write-Host "=========================================================" -ForegroundColor Green
+
+# 10. Configurar Webhook de Telegram
+Write-Host "[9/9] Configurando Webhook de Telegram hacia el servidor de Producción..." -ForegroundColor Yellow
+ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose exec -T backend npm run telegram:set-webhook"
+Write-Host "¡Webhook de Telegram configurado exitosamente!" -ForegroundColor Green
