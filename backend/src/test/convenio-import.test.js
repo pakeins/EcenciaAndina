@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
+
 import zlib from 'node:zlib';
 
 import convenioEmployeeImport from '../services/convenioEmployeeImport.js';

@@ -43,7 +43,7 @@ async function setWebhook() {
         try {
           const parsed = JSON.parse(data);
           if (!parsed.ok) {
-            reject(new Error(parsed.description || \`Telegram respondio \${res.statusCode}\`));
+            reject(new Error(parsed.description || `Telegram respondio ${res.statusCode}`));
           } else {
             resolve(parsed);
           }
