@@ -104,7 +104,7 @@ describe('Convenios', () => {
 
     // Validar renderizado básico
     await waitFor(() => {
-      expect(screen.getByText('Empresas y Convenios')).toBeInTheDocument();
+      expect(screen.getByText('Convenios')).toBeInTheDocument();
       expect(screen.getByText('Empresa A')).toBeInTheDocument();
       expect(screen.getByText('1799999999001')).toBeInTheDocument();
     });
