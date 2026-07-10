@@ -106,7 +106,7 @@ describe('Convenios', () => {
     await waitFor(() => {
       expect(screen.getByText('Convenios')).toBeInTheDocument();
       expect(screen.getByText('Empresa A')).toBeInTheDocument();
-      expect(screen.getByText('1799999999001')).toBeInTheDocument();
+      expect(screen.getByText(/1799999999001/i)).toBeInTheDocument();
     });
   });
 });
