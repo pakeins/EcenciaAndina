@@ -1,11 +1,7 @@
 import request from 'supertest';
 import express from 'express';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import categoriasRouter from '../routes/categorias';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
 import supabaseConfig from '../config/supabase';
-
-vi.spyOn(supabaseConfig, 'getAdminClient');
-
 
 vi.mock('../validation/eciencia', () => ({
   parseBody: vi.fn((schema, body) => body),
@@ -15,46 +11,59 @@ vi.mock('../validation/eciencia', () => ({
   sendValidationError: vi.fn(() => false)
 }));
 
+let categoriasRouter;
+let forceDbError = false;
+let fetchSpy;
+
+beforeAll(async () => {
+  const resolvedPath = require.resolve('../routes/categorias.js');
+  delete require.cache[resolvedPath];
+  categoriasRouter = (await import('../routes/categorias.js')).default;
+});
+
 const app = express();
 app.use(express.json());
-app.use('/categorias', categoriasRouter);
+app.use('/categorias', (req, res, next) => categoriasRouter(req, res, next));
 
 describe('Categorias Routes', () => {
-  let mockSupabase;
-
   beforeEach(() => {
-    vi.clearAllMocks();
+    forceDbError = false;
+    
+    fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url, options) => {
+      const urlStr = url.toString();
+      const method = options?.method || 'GET';
 
-    vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
-      console.log('FETCH URL:', url); if (url.toString().includes('/auth/v1/user')) { console.log('MATCHED USER');
+      if (urlStr.includes('/auth/v1/user')) {
         return new Response(JSON.stringify({ id: 'admin1', email: 'admin@test.com' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      if (url.toString().includes('/rest/v1/empleados')) { return new Response(JSON.stringify([{ id: 'admin1', esta_activo: true, roles: { nombre_rol: 'administrador' } }]), { status: 200, headers: { 'Content-Type': 'application/json' } }); } return new Response(JSON.stringify([]), { status: 200 });
-    });
+      if (urlStr.includes('/rest/v1/empleados')) {
+        return new Response(JSON.stringify([{ id: 'admin1', esta_activo: true, roles: { nombre_rol: 'administrador' } }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (forceDbError) {
+        return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
 
-    mockSupabase = {
-      from: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({
-        data: { id: 'admin1', esta_activo: true, roles: { nombre_rol: 'administrador' } },
-        error: null
-      }),
-    };
-    supabaseConfig.getAdminClient.mockReturnValue(mockSupabase);
+      if (urlStr.includes('/rest/v1/categorias_productos')) {
+        if (method === 'GET') {
+          return new Response(JSON.stringify([{ id_categoria: 1, nombre_categoria: 'Postres' }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (method === 'POST') {
+          return new Response(JSON.stringify({ id_categoria: 2, nombre_categoria: 'Bebidas' }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (method === 'PATCH') {
+          return new Response(JSON.stringify({ id_categoria: 1, nombre_categoria: 'Snacks' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+      return new Response(JSON.stringify([]), { status: 200 });
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('GET /categorias', () => {
     it('debe retornar todas las categorias', async () => {
-      mockSupabase.order.mockResolvedValue({
-        data: [{ id_categoria: 1, nombre_categoria: 'Postres' }],
-        error: null,
-      });
-
       const response = await request(app).get('/categorias').set('Authorization', 'Bearer token');
 
       expect(response.status).toBe(200);
@@ -63,10 +72,7 @@ describe('Categorias Routes', () => {
     });
 
     it('debe retornar error 500 si la bd falla', async () => {
-      mockSupabase.order.mockResolvedValue({
-        data: null,
-        error: new Error('DB Error'),
-      });
+      forceDbError = true;
 
       const response = await request(app).get('/categorias').set('Authorization', 'Bearer token');
 
@@ -77,11 +83,6 @@ describe('Categorias Routes', () => {
 
   describe('POST /categorias', () => {
     it('debe crear categoria exitosamente', async () => {
-      mockSupabase.single.mockResolvedValue({
-        data: { id_categoria: 2, nombre_categoria: 'Bebidas' },
-        error: null,
-      });
-
       const response = await request(app)
         .post('/categorias')
         .set('Authorization', 'Bearer token')
@@ -92,10 +93,7 @@ describe('Categorias Routes', () => {
     });
 
     it('debe retornar error 500 en fallo db', async () => {
-      mockSupabase.single.mockResolvedValue({
-        data: null,
-        error: new Error('Insert Error'),
-      });
+      forceDbError = true;
 
       const response = await request(app)
         .post('/categorias')
@@ -103,17 +101,12 @@ describe('Categorias Routes', () => {
         .send({ nombre_categoria: 'Bebidas' });
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe('Insert Error');
+      expect(response.body.error).toBe('DB Error');
     });
   });
 
   describe('PUT /categorias/:id', () => {
     it('debe actualizar categoria', async () => {
-      mockSupabase.single.mockResolvedValue({
-        data: { id_categoria: 1, nombre_categoria: 'Snacks' },
-        error: null,
-      });
-
       const response = await request(app)
         .put('/categorias/1')
         .set('Authorization', 'Bearer token')
@@ -124,10 +117,7 @@ describe('Categorias Routes', () => {
     });
 
     it('debe retornar error 500 en fallo db', async () => {
-      mockSupabase.single.mockResolvedValue({
-        data: null,
-        error: new Error('Update Error'),
-      });
+      forceDbError = true;
 
       const response = await request(app)
         .put('/categorias/1')
@@ -135,7 +125,7 @@ describe('Categorias Routes', () => {
         .send({ nombre_categoria: 'Snacks' });
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe('Update Error');
+      expect(response.body.error).toBe('DB Error');
     });
   });
 });
