@@ -185,6 +185,10 @@ jobs:
         with:
           name: coverage-frontend
           path: frontend/coverage
+      - name: Fix coverage paths for SonarScanner
+        run: |
+          sed -i 's/^SF:src\//SF:backend\/src\//' backend/coverage/lcov.info || true
+          sed -i 's/^SF:src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
       - name: SonarQube Cloud scan
         if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@master
