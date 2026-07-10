@@ -1,5 +1,6 @@
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config();
+const https = require('https');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL || `${process.env.PUBLIC_BACKEND_URL || ''}/api/telegram/webhook`;
@@ -15,27 +16,54 @@ if (!secretToken) {
   throw new Error('Falta TELEGRAM_WEBHOOK_SECRET.');
 }
 
-async function main() {
-  const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: webhookUrl,
-      secret_token: secretToken,
-      allowed_updates: ['message', 'callback_query'],
-      drop_pending_updates: false,
-    }),
+async function setWebhook() {
+  const payload = JSON.stringify({
+    url: webhookUrl,
+    secret_token: secretToken,
+    allowed_updates: ['message', 'callback_query'],
+    drop_pending_updates: false,
   });
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) {
-    throw new Error(data.description || `Telegram respondio ${response.status}`);
-  }
+  const options = {
+    hostname: 'api.telegram.org',
+    port: 443,
+    path: `/bot${token}/setWebhook`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  };
 
-  console.log(`Webhook registrado: ${webhookUrl}`);
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (!parsed.ok) {
+            reject(new Error(parsed.description || \`Telegram respondio \${res.statusCode}\`));
+          } else {
+            resolve(parsed);
+          }
+        } catch (e) {
+          reject(new Error('Invalid JSON from Telegram API'));
+        }
+      });
+    });
+
+    req.on('error', (e) => reject(e));
+    req.write(payload);
+    req.end();
+  });
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
+setWebhook()
+  .then(() => {
+    console.log(`Webhook registrado: ${webhookUrl}`);
+  })
+  .catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
