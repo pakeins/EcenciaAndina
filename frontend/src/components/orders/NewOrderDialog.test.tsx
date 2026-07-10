@@ -27,7 +27,7 @@ describe('NewOrderDialog', () => {
 
   it('se renderiza correctamente', () => {
     vi.spyOn(useClientsAndConvenios, 'useClientsAndConvenios').mockReturnValue({
-      clientes: [{ id: '1', nombre: 'Juan', apellido: 'Perez', cedula: '123' } as any],
+      clientes: [{ id: '1', nombre: 'Juan', apellido: 'Perez', cedula: '123' } as unknown as ReturnType<typeof useClientsAndConvenios.useClientsAndConvenios>['clientes'][number]],
       convenios: [],
       isLoading: false,
       refetchClients: vi.fn(),

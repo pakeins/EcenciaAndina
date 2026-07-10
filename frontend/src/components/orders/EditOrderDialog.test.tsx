@@ -20,12 +20,12 @@ describe('EditOrderDialog', () => {
   });
 
   const renderComponent = (open = true) => {
-    const mockOrder: any = {
+    const mockOrder = {
       id_orden: '1',
-      estado: 'reservado',
+      estado: 'reservado' as const,
       fecha_pedido: new Date().toISOString(),
       detalles: []
-    };
+    } as Parameters<typeof EditOrderDialog>[0]['order'];
 
     return render(
       <QueryClientProvider client={queryClient}>

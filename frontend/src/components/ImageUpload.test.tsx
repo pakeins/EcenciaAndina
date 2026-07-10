@@ -32,9 +32,9 @@ describe('ImageUpload', () => {
 
   it('maneja el evento change de un archivo de imagen', async () => {
     const handleChange = vi.fn();
-    render(<ImageUpload value={null} onChange={handleChange} />);
+    const { container } = render(<ImageUpload value={null} onChange={handleChange} />);
     
-    const input = screen.getByLabelText(/Click o arrastra la foto del menú/i).querySelector('input') as HTMLInputElement;
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['mock-image-content'], 'test.png', { type: 'image/png' });
 
     fireEvent.change(input, { target: { files: [file] } });

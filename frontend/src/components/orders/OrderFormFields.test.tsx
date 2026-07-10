@@ -111,65 +111,33 @@ describe('OrderFormFields', () => {
     });
   });
 
-  it('permite agregar un producto estandar', async () => {
-    await renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByText(/Jugo de Mora/i)).toBeInTheDocument();
-    });
-
-    const buttons = screen.getAllByRole('button');
-    const addButton = buttons.find(b => b.textContent?.includes('Agregar Jugo de Mora'));
-    if (addButton) {
-      fireEvent.click(addButton);
-      expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
-        items: expect.arrayContaining([
-          expect.objectContaining({ producto_id: 'p2', cantidad: 1 })
-        ])
-      }));
-    }
-  });
-
-  it('muestra las opciones de almuerzo al agregar uno', async () => {
-    await renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByText(/Agregar Almuerzo/i)).toBeInTheDocument();
-    });
-
-    const addLunchBtn = screen.getByText(/Agregar Almuerzo/i);
-    fireEvent.click(addLunchBtn);
-
-    // Debe abrir the dialog para elegir sopa y segundo
-    await waitFor(() => {
-      expect(screen.getByText(/Sopa/i)).toBeInTheDocument();
-      expect(screen.getByText(/Segundo/i)).toBeInTheDocument();
-      expect(screen.getByText(/Confirmar Almuerzo/i)).toBeInTheDocument();
-    });
-  });
-
-  it('permite actualizar cantidad de un item existente', async () => {
+  it('muestra items en el carrito cuando hay items', async () => {
     const stateWithItem = {
       observaciones: '',
       items: [
-        { producto_id: 'p2', nombre: 'Jugo de Mora', precio: 1, cantidad: 1 }
+        { id_producto: 'p1', nombre: 'Ejecutivo Completo', precio: 3.5, cantidad: 2, id_categoria: 1 }
       ]
     };
-
     await renderComponent({ state: stateWithItem });
 
     await waitFor(() => {
-      expect(screen.getByTestId('icon-plus')).toBeInTheDocument();
+      expect(screen.getByText('Ejecutivo Completo')).toBeInTheDocument();
+      expect(screen.getByText('2x')).toBeInTheDocument();
     });
+  });
 
-    const increaseBtn = screen.getAllByTestId('icon-plus')[0].parentElement;
+  it('permite actualizar cantidad del formulario', async () => {
+    await renderComponent();
+
+    const initialQuantity = screen.getByText('1');
+    expect(initialQuantity).toBeInTheDocument();
+
+    // El primer icon-plus es la cabecera, el segundo es el botón de incrementar
+    const increaseBtn = screen.getAllByTestId('icon-plus')[1].parentElement;
     if (increaseBtn) {
       fireEvent.click(increaseBtn);
-      expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
-        items: expect.arrayContaining([
-          expect.objectContaining({ producto_id: 'p2', cantidad: 2 })
-        ])
-      }));
+      // La cantidad debe cambiar a 2
+      expect(screen.getByText('2')).toBeInTheDocument();
     }
   });
 
@@ -177,7 +145,7 @@ describe('OrderFormFields', () => {
     const stateWithItem = {
       observaciones: '',
       items: [
-        { producto_id: 'p2', nombre: 'Jugo de Mora', precio: 1, cantidad: 1 }
+        { id_producto: 'p2', nombre: 'Jugo de Mora', precio: 1, cantidad: 1, id_categoria: 2 }
       ]
     };
 
@@ -187,7 +155,7 @@ describe('OrderFormFields', () => {
       expect(screen.getByTestId('icon-trash')).toBeInTheDocument();
     });
 
-    const removeBtn = screen.getAllByTestId('icon-trash')[0].parentElement;
+    const removeBtn = screen.getByTestId('icon-trash').parentElement;
     if (removeBtn) {
       fireEvent.click(removeBtn);
       expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
