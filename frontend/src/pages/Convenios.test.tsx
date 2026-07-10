@@ -93,7 +93,7 @@ describe('Convenios', () => {
       }
     ];
 
-    (apiFetch as any).mockImplementation((url: string) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url.includes('/productos')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id_categoria: 1, nombre: 'Almuerzo Completo', activo: true }]) });
       }

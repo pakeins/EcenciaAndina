@@ -33,7 +33,7 @@ describe('OrderFormFields', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    (apiFetch as any).mockImplementation((url: string) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url.includes('/categorias')) {
         return Promise.resolve({
           ok: true,

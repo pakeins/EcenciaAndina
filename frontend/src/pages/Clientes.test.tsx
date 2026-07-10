@@ -50,7 +50,7 @@ describe('Clientes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    (apiFetch as any).mockImplementation((url: string) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url.includes('/clientes/tipos')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id_tipo_cliente: 1, nombre_tipo: 'Frecuente' }]) });
       }

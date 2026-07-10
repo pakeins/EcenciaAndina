@@ -84,7 +84,7 @@ describe('Reportes', () => {
   };
 
   it('se renderiza correctamente y carga catalogos', async () => {
-    (apiFetch as any).mockImplementation((url: string) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url.includes('/clientes')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
       }
@@ -107,7 +107,7 @@ describe('Reportes', () => {
       otrosAlmuerzos: 0, extrasCantidad: 2, valorExtras: 10, totalConsumo: 110,
     }];
 
-    (apiFetch as any).mockImplementation(() => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation(() => {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentas) });
     });
 

@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import Menu from './Menu';
 import { apiFetch } from '@/lib/api';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -9,76 +8,68 @@ import { MemoryRouter } from 'react-router-dom';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-// Mock dependencias
-vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { rol: 'administrador' } }),
-}));
-
 vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
+  API_BASE_URL: 'http://localhost:3000/api',
 }));
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('lucide-react', () => {
+  const mockComponent = (name: string) => () => <div data-testid={`icon-${name}`} />;
   return {
-    ...actual as any,
-    useNavigate: () => vi.fn(),
-    Link: ({ children, to, ...props }: any) => <a href={to} {...props}>{children}</a>,
+    Soup: mockComponent('soup'),
+    ChefHat: mockComponent('chef-hat'),
+    Send: mockComponent('send'),
+    CalendarDays: mockComponent('calendar-days'),
+    Image: mockComponent('image'),
+    Plus: mockComponent('plus'),
+    Trash2: mockComponent('trash'),
+    Utensils: mockComponent('utensils'),
+    Cake: mockComponent('cake'),
+    Wine: mockComponent('wine'),
+    Cookie: mockComponent('cookie'),
+    ChevronDown: mockComponent('chevron-down'),
+    ChevronUp: mockComponent('chevron-up'),
+    Check: mockComponent('check'),
+    X: mockComponent('x'),
+    Search: mockComponent('search'),
+    Pencil: mockComponent('pencil'),
+    ChevronsUpDown: mockComponent('chevrons-up-down'),
   };
 });
+
+// Mock canvas from buildTelegramMenuImage
+vi.mock('@/lib/menuImage', () => ({
+  buildTelegramMenuImage: vi.fn(() => 'data:image/png;base64,fake'),
+}));
 
 describe('Menu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
 
-  it('se renderiza correctamente y simula carga inicial (smoke test)', async () => {
-    (apiFetch as any).mockImplementation((url: string) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url.includes('/alimentos/categorias')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve([
-            { id_categoria_menu: 1, nombre_categoria: 'Sopas' },
-            { id_categoria_menu: 2, nombre_categoria: 'Segundos' },
+            { id_categoria_menu: 1, nombre_categoria: 'Sopa' },
+            { id_categoria_menu: 2, nombre_categoria: 'Segundo' }
           ])
         });
       }
       if (url.includes('/alimentos')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve([
-            { id_alimento: 1, nombre_alimento: 'Locro', id_categoria_menu: 1 }
-          ])
-        });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }
       if (url.includes('/productos')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve([])
-        });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }
       if (url.includes('/menu')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve([
-            {
-              fecha: '2026-06-10',
-              estado: 'activo',
-              opciones: {
-                '1': ['Locro de Papa'],
-                '2': ['Seco de Pollo']
-              },
-              imagen_url: null,
-            }
-          ])
-        });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve([])
-      });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
+  });
 
+  const renderComponent = async () => {
     await act(async () => {
       render(
         <QueryClientProvider client={queryClient}>
@@ -88,7 +79,14 @@ describe('Menu', () => {
         </QueryClientProvider>
       );
     });
+  };
 
-    expect(screen.getAllByText(/Menú/i)[0]).toBeInTheDocument();
+  it('se renderiza correctamente y carga las categorias del menu', async () => {
+    await renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('icon-calendar-days')).toBeInTheDocument();
+      expect(screen.getByTestId('icon-soup')).toBeInTheDocument();
+    });
   });
 });
