@@ -80,7 +80,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const fs = require('fs');\nconst code = fs.readFileSync('/scripts/preparar-foto-y-sesiones.js', 'utf8');\nreturn eval(code);"
+        "jsCode": "function cfg(name, fallback = '') {\n  const vars = typeof $vars === 'undefined' ? {} : $vars;\n  const env = typeof $env === 'undefined' ? (typeof process === 'undefined' ? {} : process.env) : $env;\n  return env[name] || vars[name] || fallback;\n}\n\nconst backendUrl = (cfg('N8N_ECIENCIA_BACKEND_URL') || cfg('PUBLIC_BACKEND_URL')).replace(/\\/$/, '');\nconst secret = cfg('N8N_MENU_WEBHOOK_SECRET');\n\nif (!backendUrl || !secret) {\n  throw new Error('Faltan N8N_ECIENCIA_BACKEND_URL y N8N_MENU_WEBHOOK_SECRET en n8n.');\n}\n\nconst payload = items[0]?.json || {};\n\nconst result = await helpers.httpRequest({\n  method: 'POST',\n  url: backendUrl + '/api/telegram/broadcast-sessions',\n  headers: {\n    'X-Eciencia-Webhook-Secret': secret,\n    'Content-Type': 'application/json'\n  },\n  body: payload,\n  json: true,\n});\n\nif (!Array.isArray(result)) {\n  throw new Error('El backend no devolvio un arreglo de sesiones valido.');\n}\n\nreturn result.map(item => ({ json: item }));\n"
       },
       "id": "3799ce6e-4a74-456e-b36d-f5210e98a8bc",
       "name": "Preparar foto y sesiones",
