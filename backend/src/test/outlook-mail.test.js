@@ -5,7 +5,7 @@ const { buildInvitationEmail } = outlookMail;
 
 describe('buildInvitationEmail', () => {
   it('genera correo HTML con imagen enlazada, link de respaldo y firma', () => {
-    const inviteLink = 'https://t.me/EcienciaBot?start=abc123';
+    const inviteLink = 'https://t.me/EcenciaBot?start=abc123';
     const email = buildInvitationEmail({
       nombre: 'Alex <script>',
       inviteLink,
@@ -28,7 +28,7 @@ describe('buildInvitationEmail', () => {
   });
 
   it('mantiene boton y link aunque no haya URL publica para la imagen', () => {
-    const inviteLink = 'https://t.me/EcienciaBot?start=abc123';
+    const inviteLink = 'https://t.me/EcenciaBot?start=abc123';
     const email = buildInvitationEmail({
       nombre: 'Ana',
       inviteLink,

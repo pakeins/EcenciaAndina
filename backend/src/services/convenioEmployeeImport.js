@@ -1,6 +1,6 @@
 const { readXlsxRows } = require('./xlsxReader');
 const { isConvenioVigente, validatePersonName } = require('./businessRules');
-const { isValidCedula, normalizeEmail, normalizePhone, onlyDigits } = require('../validation/eciencia');
+const { isValidCedula, normalizeEmail, normalizePhone, onlyDigits } = require('../validation/ecencia');
 const { generateConvenioInvitation } = require('./convenioInvitations');
 
 const CONVENIO_CLIENT_TYPE = 2;

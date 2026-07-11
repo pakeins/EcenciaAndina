@@ -22,7 +22,7 @@ describe('endpoint interno de limpieza de menus', () => {
 
     const res = await request(app)
       .post('/api/menu/system/limpiar-imagenes')
-      .set('X-Eciencia-Webhook-Secret', 'otro-secret')
+      .set('X-Ecencia-Webhook-Secret', 'otro-secret')
       .send({});
     expect(res.status).toBe(401);
   });

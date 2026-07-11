@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { normalizePhone } = require('../validation/eciencia');
+const { normalizePhone } = require('../validation/ecencia');
 const { sendTelegramMessage } = require('./telegramBot');
 const { MAIL_STATUSES, buildInvitationEmail, sendOutlookMail } = require('./outlookMail');
 

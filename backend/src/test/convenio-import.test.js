@@ -343,7 +343,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('crea cliente, vinculo, suscripcion pendiente e invitacion manual', async () => {
-    process.env.TELEGRAM_BOT_USERNAME = 'EcienciaBot';
+    process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     const cedula = validCedula('010203040');
     const db = makeDb();
     const buffer = createWorkbook([
@@ -361,7 +361,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
     expect(db.clients[0]).toMatchObject({ cedula, nombre: 'Ana', email: 'ana@example.com', id_tipo_cliente: 2 });
     expect(db.links[0]).toMatchObject({ id_cliente: 'client-1', id_convenio: 'conv-1' });
     expect(db.subscriptions[0]).toMatchObject({ id_cliente: 'client-1', consent_status: 'pending' });
-    expect(db.invitations[0].invite_link).toContain('https://t.me/EcienciaBot?start=');
+    expect(db.invitations[0].invite_link).toContain('https://t.me/EcenciaBot?start=');
   });
 
   it('dry run valida todas las filas sin escribir clientes, vinculos ni invitaciones', async () => {
@@ -532,7 +532,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('envia directo si ya existe suscripcion aceptada con chat_id', async () => {
-    process.env.TELEGRAM_BOT_USERNAME = 'EcienciaBot';
+    process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     process.env.TELEGRAM_BOT_TOKEN = 'token-test';
     const cedula = validCedula('020203040');
     const db = makeDb();
@@ -578,16 +578,16 @@ describe('importacion Excel de colaboradores de convenio', () => {
     const message = buildConvenioInvitationMessage({
       nombre: 'Ana',
       convenioNombre: 'Convenio QA',
-      inviteLink: 'https://t.me/EcienciaBot?start=abc',
+      inviteLink: 'https://t.me/EcenciaBot?start=abc',
     });
 
     expect(message).toContain('bienvenido/a a ECencia Andina');
     expect(message).toContain('Convenio QA');
-    expect(message).toContain('https://t.me/EcienciaBot?start=abc');
+    expect(message).toContain('https://t.me/EcenciaBot?start=abc');
   });
 
   it('detecta filas duplicadas en el Excel sin crear un segundo cliente', async () => {
-    process.env.TELEGRAM_BOT_USERNAME = 'EcienciaBot';
+    process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     const cedula = validCedula('030203040');
     const db = makeDb();
     const buffer = createWorkbook([
@@ -664,7 +664,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('genera auditoria sin suscripcion cuando el cliente no tiene telefono', async () => {
-    process.env.TELEGRAM_BOT_USERNAME = 'EcienciaBot';
+    process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     const db = makeDb();
 
     const invitation = await generateConvenioInvitation(db.client, {
@@ -681,7 +681,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
     });
 
     expect(invitation).toMatchObject({
-      inviteLink: expect.stringContaining('https://t.me/EcienciaBot?start='),
+      inviteLink: expect.stringContaining('https://t.me/EcenciaBot?start='),
       telegramStatus: 'manual_required',
       subscriptionStatus: 'no_phone',
     });
@@ -690,7 +690,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('envia correo de invitacion por Outlook cuando Graph responde correctamente', async () => {
-    process.env.TELEGRAM_BOT_USERNAME = 'EcienciaBot';
+    process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     const db = makeDb();
     const fetchImpl = vi
       .fn()
@@ -746,7 +746,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('audita correo no configurado sin bloquear la invitacion', async () => {
-    process.env.TELEGRAM_BOT_USERNAME = 'EcienciaBot';
+    process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     const db = makeDb();
 
     const invitation = await generateConvenioInvitation(
@@ -767,7 +767,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
     );
 
     expect(invitation).toMatchObject({
-      inviteLink: expect.stringContaining('https://t.me/EcienciaBot?start='),
+      inviteLink: expect.stringContaining('https://t.me/EcenciaBot?start='),
       telegramStatus: 'manual_required',
       emailTo: 'ana@example.com',
       emailStatus: 'not_configured',
@@ -780,7 +780,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('marca reinvitacion manual cuando el telefono habia rechazado terminos', async () => {
-    process.env.TELEGRAM_BOT_USERNAME = 'EcienciaBot';
+    process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     const db = makeDb();
     db.subscriptions.push({
       id: 'sub-rejected',
@@ -809,7 +809,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('audita fallo si Telegram rechaza el envio directo', async () => {
-    process.env.TELEGRAM_BOT_USERNAME = 'EcienciaBot';
+    process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     process.env.TELEGRAM_BOT_TOKEN = 'token-test';
     const db = makeDb();
     db.subscriptions.push({
@@ -848,8 +848,8 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('resuelve links y estados base de invitacion', () => {
-    expect(buildInvitationLink('abc_123', '@EcienciaBot')).toBe('https://t.me/EcienciaBot?start=abc_123');
-    expect(buildInvitationLink('', '@EcienciaBot')).toBeNull();
+    expect(buildInvitationLink('abc_123', '@EcenciaBot')).toBe('https://t.me/EcenciaBot?start=abc_123');
+    expect(buildInvitationLink('', '@EcenciaBot')).toBeNull();
     expect(resolveInvitationStatus({
       phoneNormalized: '',
       inviteLink: null,
@@ -857,7 +857,7 @@ describe('importacion Excel de colaboradores de convenio', () => {
     })).toBe('no_phone');
     expect(resolveInvitationStatus({
       phoneNormalized: '',
-      inviteLink: 'https://t.me/EcienciaBot?start=abc',
+      inviteLink: 'https://t.me/EcenciaBot?start=abc',
       subscriptionStatus: 'no_phone',
     })).toBe('manual_required');
     expect(resolveInvitationStatus({

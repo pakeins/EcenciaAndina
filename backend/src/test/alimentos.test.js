@@ -3,7 +3,7 @@ import express from 'express';
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
 
 // Mock validation
-vi.mock('../validation/eciencia', () => ({
+vi.mock('../validation/ecencia', () => ({
   parseBody: vi.fn((schema, body) => body),
   schemas: {
     alimento: {},

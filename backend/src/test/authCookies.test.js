@@ -21,7 +21,7 @@ describe('authCookies config and helpers', () => {
   it('retrieve cookie from request raw headers correctly', () => {
     const req = {
       headers: {
-        cookie: 'some_other_cookie=value1; eciencia_access_token=token123; dummy=1',
+        cookie: 'some_other_cookie=value1; ecencia_access_token=token123; dummy=1',
       },
     };
     expect(getCookie(req, ACCESS_COOKIE)).toBe('token123');
@@ -75,7 +75,7 @@ describe('authCookies config and helpers', () => {
     const reqPostInvalid = {
       method: 'POST',
       headers: {
-        cookie: 'eciencia_csrf_token=validToken',
+        cookie: 'ecencia_csrf_token=validToken',
         'x-csrf-token': 'wrongToken',
       },
     };
@@ -84,7 +84,7 @@ describe('authCookies config and helpers', () => {
     const reqPostValid = {
       method: 'POST',
       headers: {
-        cookie: 'eciencia_csrf_token=validToken',
+        cookie: 'ecencia_csrf_token=validToken',
         'x-csrf-token': 'validToken',
       },
     };

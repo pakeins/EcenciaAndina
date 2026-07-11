@@ -10,7 +10,7 @@ import {
   normalizePhone,
   isValidCedula,
   isValidRuc,
-} from '../validation/eciencia';
+} from '../validation/ecencia';
 
 describe('Validaciones de Utilidad', () => {
   it('onlyDigits', () => {

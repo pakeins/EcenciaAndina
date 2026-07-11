@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -78,6 +79,8 @@ export default function Productos() {
   // Dialogs
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -139,19 +142,26 @@ export default function Productos() {
     setProductDialogOpen(true);
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este producto?')) return;
+  const handleDeleteClick = (id: string) => {
+    setProductToDelete(id);
+    setConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return;
     try {
-      const res = await apiFetch(`/productos/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/productos/${productToDelete}`, { method: 'DELETE' });
       const data = await res.json();
       if (res.ok) {
         toast.success(data.message || 'Producto eliminado');
-        fetchProducts();
+        fetchData();
       } else {
         toast.error(data.error || 'No se pudo eliminar el producto');
       }
     } catch (e) {
       toast.error('Error de conexión');
+    } finally {
+      setProductToDelete(null);
     }
   };
 
@@ -400,6 +410,9 @@ export default function Productos() {
                              <Button variant="outline" size="sm" onClick={() => handleOpenProduct(p)} title="Editar producto">
                                <Pencil className="h-4 w-4" />
                              </Button>
+                             <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(p.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                               <Trash2 className="h-4 w-4" />
+                             </Button>
                           </div>
                         </TableCell>
                       )}
@@ -557,6 +570,16 @@ export default function Productos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="¿Eliminar Producto?"
+        description="¿Estás seguro de que deseas eliminar este producto permanentemente?"
+        onConfirm={confirmDelete}
+        confirmText="Sí, Eliminar"
+        variant="destructive"
+      />
     </div>
   );
 }

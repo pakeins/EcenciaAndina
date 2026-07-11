@@ -46,7 +46,7 @@ const normalizePublicBaseUrl = (value) => {
 };
 
 const buildPublicAssetUrl = (assetPath, env = process.env) => {
-  const baseUrl = normalizePublicBaseUrl(env.PUBLIC_BACKEND_URL || env.N8N_ECIENCIA_BACKEND_URL);
+  const baseUrl = normalizePublicBaseUrl(env.PUBLIC_BACKEND_URL || env.N8N_ECENCIA_BACKEND_URL);
   const cleanPath = String(assetPath || '').replace(/^\/+/, '');
   return baseUrl && cleanPath ? `${baseUrl}/${cleanPath}` : '';
 };

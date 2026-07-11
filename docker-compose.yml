@@ -15,19 +15,6 @@ services:
     volumes:
       - ./convenios:/usr/src/convenios
 
-  telegram_bot:
-    image: ghcr.io/packeins/ecencia-backend:latest
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: ecencia-telegram-bot
-    restart: always
-    command: node poll_telegram.js
-    environment:
-      - LOCAL_WEBHOOK_URL=http://backend:3001/api/telegram/webhook
-    env_file:
-      - ./backend/.env
-
   n8n:
     image: docker.n8n.io/n8nio/n8n
     container_name: ecencia-n8n

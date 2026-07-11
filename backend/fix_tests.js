@@ -16,6 +16,6 @@ disableUnusedVars('src/test/productos.test.js');
 disableUnusedVars('src/test/reportes.test.js');
 disableUnusedVars('src/test/setup.js');
 disableUnusedVars('src/test/telegram-convenio-flow.test.js');
-disableUnusedVars('src/test/validation-eciencia.test.js');
+disableUnusedVars('src/test/validation-ecencia.test.js');
 
 console.log('Added eslint-disable to tests');

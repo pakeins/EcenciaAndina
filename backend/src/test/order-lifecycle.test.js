@@ -85,27 +85,27 @@ describe('cierre automatico de reservas', () => {
     expect(isAfterServiceCutoff(new Date('2026-06-26T20:00:00.000Z'))).toBe(true);
   });
 
-  it('ECIENCIA_SERVICE_CUTOFF_HOUR ajusta la hora o desactiva el corte', () => {
-    process.env.ECIENCIA_SERVICE_CUTOFF_HOUR = '20';
+  it('ECENCIA_SERVICE_CUTOFF_HOUR ajusta la hora o desactiva el corte', () => {
+    process.env.ECENCIA_SERVICE_CUTOFF_HOUR = '20';
     try {
       // 20:00Z = 15:00 en Bogota, antes del corte configurado a las 20:00.
       expect(isAfterServiceCutoff(new Date('2026-06-26T20:00:00.000Z'))).toBe(false);
       // 01:30Z del 27 = 20:30 en Bogota del 26, despues del corte.
       expect(isAfterServiceCutoff(new Date('2026-06-27T01:30:00.000Z'))).toBe(true);
 
-      process.env.ECIENCIA_SERVICE_CUTOFF_HOUR = 'off';
+      process.env.ECENCIA_SERVICE_CUTOFF_HOUR = 'off';
       expect(isAfterServiceCutoff(new Date('2026-06-27T01:30:00.000Z'))).toBe(false);
 
       // Valores invalidos caen al default de las 15:00.
-      process.env.ECIENCIA_SERVICE_CUTOFF_HOUR = 'manana';
+      process.env.ECENCIA_SERVICE_CUTOFF_HOUR = 'manana';
       expect(isAfterServiceCutoff(new Date('2026-06-26T20:00:00.000Z'))).toBe(true);
     } finally {
-      delete process.env.ECIENCIA_SERVICE_CUTOFF_HOUR;
+      delete process.env.ECENCIA_SERVICE_CUTOFF_HOUR;
     }
   });
 
   it('con el corte desactivado el cierre automatico no cancela nada', async () => {
-    process.env.ECIENCIA_SERVICE_CUTOFF_HOUR = 'off';
+    process.env.ECENCIA_SERVICE_CUTOFF_HOUR = 'off';
     try {
       const client = makeClient([
         { id_orden: 'order-1', id_cliente: 'client-1', id_estado: 1, created_at: '2026-06-26T15:30:00.000Z' },
@@ -115,7 +115,7 @@ describe('cierre automatico de reservas', () => {
       expect(result).toMatchObject({ skipped: true, reason: 'cutoff_disabled', closed: 0 });
       expect(client.state.orders[0].id_estado).toBe(1);
     } finally {
-      delete process.env.ECIENCIA_SERVICE_CUTOFF_HOUR;
+      delete process.env.ECENCIA_SERVICE_CUTOFF_HOUR;
     }
   });
 

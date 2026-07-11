@@ -12,7 +12,7 @@ const requireInternalWebhookSecret = (req, res, next) => {
     return res.status(503).json({ error: 'El endpoint interno no esta configurado.' });
   }
 
-  const receivedSecret = req.get('X-Eciencia-Webhook-Secret');
+  const receivedSecret = req.get('X-Ecencia-Webhook-Secret');
   if (!secureEquals(receivedSecret, expectedSecret)) {
     return res.status(401).json({ error: 'Endpoint interno no autorizado.' });
   }

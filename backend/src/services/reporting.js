@@ -2,7 +2,7 @@ const DEFAULT_TIME_ZONE = 'America/Bogota';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const getReportTimeZone = () =>
-  process.env.REPORT_TIMEZONE || process.env.N8N_ECIENCIA_TIMEZONE || DEFAULT_TIME_ZONE;
+  process.env.REPORT_TIMEZONE || process.env.N8N_ECENCIA_TIMEZONE || DEFAULT_TIME_ZONE;
 
 const getLunchCategoryIds = () => {
   const ids = String(process.env.REPORT_LUNCH_CATEGORY_IDS || '1')

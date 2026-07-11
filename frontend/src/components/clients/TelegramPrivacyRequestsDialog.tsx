@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, RefreshCw, ShieldCheck, AlertTriangle } from 'lucide-react';
 import type { TelegramPrivacyRequest } from '@/types';
 import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface TelegramPrivacyRequestsDialogProps {
   open: boolean;
@@ -69,6 +71,40 @@ export function TelegramPrivacyRequestsDialog({
     onResolved();
   };
 
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [clientToHardDelete, setClientToHardDelete] = useState<{request: TelegramPrivacyRequest, clientId: string} | null>(null);
+
+  const hardDeleteClient = async (request: TelegramPrivacyRequest, clientId: string) => {
+    setClientToHardDelete({ request, clientId });
+    setConfirmOpen(true);
+  };
+
+  const confirmHardDelete = async () => {
+    if (!clientToHardDelete) return;
+    const { clientId } = clientToHardDelete;
+    
+    setLoading(true);
+    try {
+      const response = await apiFetch(`/clientes/${clientId}/hard-delete`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        toast.error(data.error || 'No se pudo eliminar el cliente.');
+        return;
+      }
+      toast.success('Cliente eliminado permanentemente.');
+      await loadRequests();
+      onResolved();
+    } catch (error) {
+      toast.error('Error al intentar eliminar el cliente.');
+    } finally {
+      setLoading(false);
+      setClientToHardDelete(null);
+    }
+  };
+
   const activeRequests = requests.filter((request) => ['pending', 'in_review'].includes(request.status));
 
   return (
@@ -84,6 +120,17 @@ export function TelegramPrivacyRequestsDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <Alert variant="destructive" className="mt-4 mb-2">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Opciones de Resolución</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc pl-4 space-y-1 mt-2">
+              <li><strong>Solo Revocar Acceso:</strong> El usuario pierde el acceso al bot pero conservas su historial contable y sus pedidos en el sistema.</li>
+              <li><strong>Borrado Completo:</strong> Elimina al cliente, sus pedidos, deudas y suscripciones. Esta acción es <strong>irreversible</strong> y cumple a cabalidad con la eliminación de datos.</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+
         <div className="space-y-4">
           <Button variant="outline" size="sm" onClick={loadRequests} disabled={loading} className="gap-2">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -98,7 +145,8 @@ export function TelegramPrivacyRequestsDialog({
           )}
 
           {activeRequests.map((request) => {
-            const client = request.clientes;
+            const client = request.clientes as any; // Cast as any because we added dynamic fields
+            const orderCount = client?.ordenes?.[0]?.count || 0;
             return (
               <div key={request.id} className="space-y-3 rounded-xl border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -109,12 +157,15 @@ export function TelegramPrivacyRequestsDialog({
                     <p className="text-xs text-muted-foreground">
                       {new Date(request.requested_at).toLocaleString()} | {request.id}
                     </p>
+                    {client && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant="secondary">C.I: {client.cedula}</Badge>
+                        <Badge variant={orderCount > 0 ? "default" : "secondary"}>Total Pedidos en Sistema: {orderCount}</Badge>
+                      </div>
+                    )}
                   </div>
                   <Badge variant="outline">{request.status === 'pending' ? 'Pendiente' : 'En revision'}</Badge>
                 </div>
-                <p className="text-sm">
-                  Pedidos que requieren revision: <strong>{request.retained_order_count}</strong>
-                </p>
                 <Textarea
                   placeholder="Notas de revision o fundamento de la resolucion"
                   value={notes[request.id] || ''}
@@ -130,15 +181,30 @@ export function TelegramPrivacyRequestsDialog({
                   <Button variant="outline" onClick={() => updateRequest(request, 'rejected')}>
                     Rechazar
                   </Button>
-                  <Button onClick={() => updateRequest(request, 'resolved')}>
-                    Resolver
+                  <Button variant="secondary" onClick={() => updateRequest(request, 'resolved')}>
+                    Solo Revocar Acceso
                   </Button>
+                  {client?.id_cliente && (
+                    <Button variant="destructive" onClick={() => hardDeleteClient(request, client.id_cliente)}>
+                      Borrado Completo
+                    </Button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       </DialogContent>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="¿Borrado Permanente?"
+        description="Esta acción NO se puede deshacer y borrará todos los registros financieros de este cliente. ¿Estás SEGURO?"
+        onConfirm={confirmHardDelete}
+        confirmText="Sí, Borrar Permanentemente"
+        variant="destructive"
+      />
     </Dialog>
   );
 }

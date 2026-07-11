@@ -84,13 +84,13 @@ const buildInvitationEmail = async ({ client, onboarding }) => {
   });
 
   return {
-    subject: 'Activa tus reservas de Eciencia Andina en Telegram',
+    subject: 'Activa tus reservas de Ecencia Andina en Telegram',
     text:
       `Hola ${clientName || 'cliente'}.\n\n` +
-      'Activa tu acceso al bot de Eciencia Andina usando este enlace privado:\n' +
+      'Activa tu acceso al bot de Ecencia Andina usando este enlace privado:\n' +
       `${onboarding.onboarding_url}\n\n` +
       `El enlace vence ${expiresLabel || 'en 7 dias'} y solo puede reclamarse una vez.\n` +
-      'No reenvies este correo. Si no solicitaste el registro, contacta a Eciencia Andina.',
+      'No reenvies este correo. Si no solicitaste el registro, contacta a Ecencia Andina.',
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; color: #1a1a1a; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
         <!-- Simple Header -->
@@ -165,7 +165,7 @@ const sendTelegramReactivationEmail = async (
     const botUrl = `https://t.me/${botUsername}`;
 
     const info = await transporter.sendMail({
-      from: `"Eciencia Andina" <${user}>`,
+      from: `"Ecencia Andina" <${user}>`,
       to: recipient,
       replyTo: replyTo || undefined,
       subject: 'Renueva tu acceso al bot de Ecencia Andina',
@@ -266,7 +266,7 @@ const sendTelegramInvitationEmail = async (
     const transporter = getTransporter();
     
     const info = await transporter.sendMail({
-      from: `"Eciencia Andina" <${user}>`,
+      from: `"Ecencia Andina" <${user}>`,
       to: recipient,
       replyTo: replyTo || undefined,
       subject: content.subject,
@@ -324,7 +324,7 @@ const sendPrivacyRequestNotificationEmail = async (
   try {
     const transporter = getTransporter();
     await transporter.sendMail({
-      from: `"Eciencia Andina Privacidad" <${user}>`,
+      from: `"Ecencia Andina Privacidad" <${user}>`,
       to: recipient,
       subject: `Nueva Solicitud de Eliminacion de Datos - ${clientName}`,
       html: `
