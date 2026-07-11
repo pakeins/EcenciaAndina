@@ -8,7 +8,7 @@ const { getAdminClient } = require('./src/config/supabase'); // Configuración d
 const authRoutes = require('./src/routes/auth'); // Importamos las nuevas rutas de login
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { validateTelegramEnvironment } = require('./src/services/telegramConsent');
+
 
 const app = express();
 
@@ -69,12 +69,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const telegramLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: Number(process.env.TELEGRAM_WEBHOOK_RATE_LIMIT || 300),
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -122,7 +117,7 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth', authRoutes);
-app.use('/api/telegram', telegramLimiter, require('./src/routes/telegram'));
+
 app.use('/api/productos', require('./src/routes/productos'));
 app.use('/api/clientes', require('./src/routes/clientes'));
 app.use('/api/ordenes', require('./src/routes/ordenes'));
@@ -155,9 +150,6 @@ app.use((error, req, res, next) => {
 });
 
 if (require.main === module) {
-  if (process.env.NODE_ENV === 'production') {
-    validateTelegramEnvironment();
-  }
   // --- INICIO DEL SERVIDOR ---
   const PORT = process.env.PORT || 3001;
   const server = app.listen(PORT, () => {
@@ -168,21 +160,6 @@ if (require.main === module) {
     const { initScheduler } = require('./src/services/scheduler');
     initScheduler();
     
-    // Configurar webhook de Telegram automáticamente en Producción
-    if (process.env.NODE_ENV === 'production') {
-      try {
-        console.log('Iniciando configuracion automatica del webhook de Telegram...');
-        require('child_process').exec('node scripts/set-telegram-webhook.js', (err, stdout, stderr) => {
-          if (err) {
-            console.error('Error al configurar webhook de Telegram:', err.message);
-          } else {
-            console.log(stdout.trim());
-          }
-        });
-      } catch (e) {
-        console.error('No se pudo ejecutar script de webhook:', e.message);
-      }
-    }
   });
 
   process.on('SIGINT', () => {

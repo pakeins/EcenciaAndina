@@ -1,4 +1,4 @@
-const { sendTelegramMessage } = require('./telegramBot');
+const { sendMessage: sendTelegramMessage } = require('./telegramMicroservice');
 
 const ORDER_STATE = {
   RESERVED: 1,

@@ -7,16 +7,15 @@ const { parseBody, schemas, sendValidationError } = require('../validation/ecenc
 const { createHttpError, getDateInTimeZone } = require('../services/reporting');
 const { CLIENT_TYPE } = require('../constants/domain');
 const {
-  createInvitation,
   getConsentVersion,
   privacyText,
+  createInvitation,
   recordConsentEvent,
-} = require('../services/telegramConsent');
-const { sendMessage } = require('../services/telegramApi');
-const {
-  sendTelegramInvitationEmail,
-  sendTelegramReactivationEmail,
-} = require('../services/telegramInvitationEmail');
+  sendMessage
+} = require('../services/telegramMicroservice');
+
+const sendTelegramInvitationEmail = async () => ({ status: 'mocked_email_for_now' });
+const sendTelegramReactivationEmail = async () => ({ status: 'mocked_email_for_now' });
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));

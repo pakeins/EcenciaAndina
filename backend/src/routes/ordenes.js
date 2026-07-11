@@ -6,7 +6,7 @@ const roleMiddleware = require('../middlewares/roleMiddleware');
 const { parseBody, schemas, sendValidationError } = require('../validation/ecencia');
 const { ORDER_STATE, CLIENT_TYPE } = require('../constants/domain');
 const { zonedStartOfDay, getDateInTimeZone } = require('../services/reporting');
-const { sendMessage } = require('../services/telegramApi');
+const { sendMessage } = require('../services/telegramMicroservice');
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
