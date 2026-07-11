@@ -4,14 +4,14 @@ const sharp = require('sharp');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 const { getAdminClient } = require('../config/supabase');
-const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { parseBody, schemas, sendValidationError } = require('../validation/ecencia');
 const { cleanupOldMenuImages } = require('../services/menuImageCleanup');
 const { findOrCreateFood } = require('../services/menuCatalog');
 
 const router = express.Router();
 
-const DEFAULT_N8N_MENU_WEBHOOK_URL = 'http://localhost:7000/webhook/eciencia-enviar-menu-manual';
-const MENU_ASSETS_BUCKET = 'eciencia-menu-assets';
+const DEFAULT_N8N_MENU_WEBHOOK_URL = 'http://localhost:7000/webhook/ecencia-enviar-menu-manual';
+const MENU_ASSETS_BUCKET = 'ecencia-menu-assets';
 const TIMEZONE = 'America/Bogota';
 const DEFAULT_IMAGE_RETENTION_DAYS = 14;
 const MAX_MENU_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -401,7 +401,7 @@ const saveDailyMenu = async (adminClient, opciones, imageUrl, userId, fecha = to
 
   for (const [catId, options] of Object.entries(opciones)) {
     for (const option of cleanOptions(options)) {
-      alimentosIds.push(await ensureAlimento(adminClient, parseInt(catId), option, userId));
+      alimentosIds.push(await ensureAlimento(adminClient, Number.parseInt(catId), option, userId));
     }
   }
 
@@ -428,7 +428,7 @@ const requireN8nCleanupSecret = (req, res, next) => {
     return res.status(503).json({ error: 'La limpieza programada no esta configurada.' });
   }
 
-  const receivedSecret = req.get('X-Eciencia-Webhook-Secret');
+  const receivedSecret = req.get('X-Ecencia-Webhook-Secret');
   if (!secureEquals(receivedSecret, expectedSecret)) {
     return res.status(401).json({ error: 'Limpieza programada no autorizada.' });
   }
@@ -469,7 +469,7 @@ router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
 
 router.get('/config', (req, res) => {
-  res.json({ editAfterSend: !!process.env.ECIENCIA_MENU_EDIT_AFTER_SEND });
+  res.json({ editAfterSend: !!process.env.ECENCIA_MENU_EDIT_AFTER_SEND });
 });
 
 router.get('/', async (req, res) => {
@@ -526,7 +526,7 @@ router.put('/:fecha', async (req, res) => {
       .eq('fecha', fecha)
       .maybeSingle();
 
-    if (envioExistente && !process.env.ECIENCIA_MENU_EDIT_AFTER_SEND) {
+    if (envioExistente && !process.env.ECENCIA_MENU_EDIT_AFTER_SEND) {
       return res.status(409).json({
         error: 'Este menu ya fue enviado. No se permite editar el menu despues del envio.',
         sentAt: envioExistente.last_sent_at,
@@ -624,7 +624,7 @@ router.post('/enviar', async (req, res) => {
     if (envioHoy) {
       isMenuDifferent = !menuPayloadEquals(payload, envioHoy.menu_payload);
 
-      if (isMenuDifferent && !payload.force && !process.env.ECIENCIA_MENU_EDIT_AFTER_SEND) {
+      if (isMenuDifferent && !payload.force && !process.env.ECENCIA_MENU_EDIT_AFTER_SEND) {
         return res.status(409).json({
           error: 'Ya se envio un menu diferente hoy. ¿Deseas reenviarlo y cancelar los pedidos de Telegram actuales?',
           code: 'ALREADY_SENT_CONFIRM_REQUIRED',
@@ -694,7 +694,7 @@ router.post('/enviar', async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         ...(process.env.N8N_MENU_WEBHOOK_SECRET
-          ? { 'X-Eciencia-Webhook-Secret': process.env.N8N_MENU_WEBHOOK_SECRET }
+          ? { 'X-Ecencia-Webhook-Secret': process.env.N8N_MENU_WEBHOOK_SECRET }
           : {}),
       },
       body: JSON.stringify({

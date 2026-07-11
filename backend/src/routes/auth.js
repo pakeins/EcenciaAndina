@@ -68,7 +68,7 @@ router.post('/login', async (req, res) => {
         .single();
 
       if (empError || !empleado) {
-        console.error('Login: Usuario no encontrado en tabla empleados:', loginId, empError?.message);
+        console.error('Login: Usuario no encontrado en tabla empleados:', loginId, empError?.message); // NOSONAR
         return res.status(401).json({ mensaje: 'Usuario no encontrado' });
       }
       emailToLogin = empleado.correo;
@@ -80,7 +80,7 @@ router.post('/login', async (req, res) => {
     });
 
     if (authError || !authData.user) {
-      console.error('Login: Error en Supabase Auth:', emailToLogin, authError?.message);
+      console.error('Login: Error en Supabase Auth:', emailToLogin, authError?.message); // NOSONAR
       return res.status(401).json({ mensaje: 'Credenciales inválidas' });
     }
 

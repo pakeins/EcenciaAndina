@@ -30,7 +30,7 @@ export default function Privacidad() {
           <div>
             <h1 className="text-3xl font-bold">Politica de privacidad de Telegram</h1>
             <p className="text-muted-foreground">
-              Eciencia Andina {config?.version ? `| Version ${config.version}` : ''}
+              Ecencia Andina {config?.version ? `| Version ${config.version}` : ''}
             </p>
           </div>
         </div>
@@ -63,13 +63,13 @@ export default function Privacidad() {
               reciben menus.
             </p>
             <p>
-              Los identificadores Telegram se eliminan cuando el titular usa
+              Los identificadores Telegram se eliminan cuando el titular usa{' '}
               <code className="mx-1 rounded bg-muted px-1">/eliminarmisdatos</code>.
               Los pedidos sujetos a obligaciones administrativas pueden conservarse durante el
               plazo legal aplicable y son revisados por un administrador.
             </p>
             <p>
-              Los datos operativos se procesan mediante Telegram, el backend de Eciencia Andina,
+              Los datos operativos se procesan mediante Telegram, el backend de Ecencia Andina,
               Supabase y la infraestructura contratada para prestar el servicio.
             </p>
           </CardContent>
@@ -86,12 +86,12 @@ export default function Privacidad() {
               Datos Personales de Ecuador.
             </p>
             <p>
-              En Telegram usa <code className="rounded bg-muted px-1">/misdatos</code>,
-              <code className="mx-1 rounded bg-muted px-1">/eliminarmisdatos</code> o
+              En Telegram usa <code className="rounded bg-muted px-1">/misdatos</code>,{' '}
+              <code className="mx-1 rounded bg-muted px-1">/eliminarmisdatos</code> o{' '}
               <code className="ml-1 rounded bg-muted px-1">/revocar</code>.
             </p>
             <p>
-              Contacto de privacidad: <strong>{config?.contact || 'Consulte al administrador de Eciencia Andina.'}</strong>
+              Contacto de privacidad: <strong>{config?.contact || 'Consulte al administrador de Ecencia Andina.'}</strong>
             </p>
           </CardContent>
         </Card>

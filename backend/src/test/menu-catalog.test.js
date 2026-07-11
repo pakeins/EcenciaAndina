@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
+import menuCatalog from '../services/menuCatalog.js';
 
-const require = createRequire(import.meta.url);
-const { findOrCreateFood, normalizeFoodName } = require('../services/menuCatalog.js');
+const { findOrCreateFood, normalizeFoodName } = menuCatalog;
 
 const foodRow = {
   id_alimento: 8,

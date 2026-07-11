@@ -1,9 +1,9 @@
-project_id     = "eciencia-andina-preprod"
+project_id     = "ecencia-andina-preprod"
 region         = "us-central1"
-gar_repository = "eciencia"
+gar_repository = "ecencia"
 
-backend_image  = "us-central1-docker.pkg.dev/eciencia-andina-preprod/eciencia/backend:REPLACE_ME"
-frontend_image = "us-central1-docker.pkg.dev/eciencia-andina-preprod/eciencia/frontend:REPLACE_ME"
+backend_image  = "us-central1-docker.pkg.dev/ecencia-andina-preprod/ecencia/backend:REPLACE_ME"
+frontend_image = "us-central1-docker.pkg.dev/ecencia-andina-preprod/ecencia/frontend:REPLACE_ME"
 n8n_image      = "docker.io/n8nio/n8n:2.26.5"
 
 supabase_url        = "https://REPLACE_ME.supabase.co"

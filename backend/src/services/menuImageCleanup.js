@@ -1,4 +1,4 @@
-const MENU_ASSETS_BUCKET = 'eciencia-menu-assets';
+const MENU_ASSETS_BUCKET = 'ecencia-menu-assets';
 const MENU_IMAGES_FOLDER = 'telegram';
 const DEFAULT_IMAGE_RETENTION_DAYS = 14;
 const MAX_IMAGE_RETENTION_DAYS = 365;

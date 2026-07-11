@@ -82,7 +82,7 @@ const TODAY = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 }).format(new Date());
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.SUPABASE_URL = 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
   process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
@@ -96,7 +96,7 @@ beforeAll(() => {
   injectModule('../services/menuImageCleanup.js', { cleanupOldMenuImages: async () => ({ removed: 0 }) });
 
   delete require.cache[require.resolve('../routes/menu.js')];
-  const menuRouter = require('../routes/menu.js');
+  const menuRouter = (await import('../routes/menu.js')).default;
   app = express();
   app.use(express.json());
   app.use('/api/menu', menuRouter);
@@ -149,7 +149,7 @@ describe('routes/menu — sistema y dashboard', () => {
 
     const res = await request(app)
       .post('/api/menu/system/expirar-activo')
-      .set('X-Eciencia-Webhook-Secret', 'secret-test')
+      .set('X-Ecencia-Webhook-Secret', 'secret-test')
       .send({});
 
     expect(res.status).toBe(200);
@@ -238,17 +238,17 @@ describe('routes/menu — sistema y dashboard', () => {
     expect(off.status).toBe(200);
     expect(off.body).toEqual({ editAfterSend: false });
 
-    process.env.ECIENCIA_MENU_EDIT_AFTER_SEND = 'true';
+    process.env.ECENCIA_MENU_EDIT_AFTER_SEND = 'true';
     try {
       const on = await request(app).get('/api/menu/config');
       expect(on.body).toEqual({ editAfterSend: true });
     } finally {
-      delete process.env.ECIENCIA_MENU_EDIT_AFTER_SEND;
+      delete process.env.ECENCIA_MENU_EDIT_AFTER_SEND;
     }
   });
 
-  it('PUT /:fecha permite editar un menu enviado con ECIENCIA_MENU_EDIT_AFTER_SEND=true', async () => {
-    process.env.ECIENCIA_MENU_EDIT_AFTER_SEND = 'true';
+  it('PUT /:fecha permite editar un menu enviado con ECENCIA_MENU_EDIT_AFTER_SEND=true', async () => {
+    process.env.ECENCIA_MENU_EDIT_AFTER_SEND = 'true';
     try {
       store.menu_envios = [{ fecha: '2026-06-25', last_sent_at: '2026-06-25T12:00:00.000Z' }];
       store.categorias_menu = [
@@ -261,12 +261,12 @@ describe('routes/menu — sistema y dashboard', () => {
 
       expect(res.status).toBe(200);
     } finally {
-      delete process.env.ECIENCIA_MENU_EDIT_AFTER_SEND;
+      delete process.env.ECENCIA_MENU_EDIT_AFTER_SEND;
     }
   });
 
   it('POST /enviar reenvia con cambios cuando el modo pruebas esta activo', async () => {
-    process.env.ECIENCIA_MENU_EDIT_AFTER_SEND = 'true';
+    process.env.ECENCIA_MENU_EDIT_AFTER_SEND = 'true';
     process.env.N8N_MENU_WEBHOOK_URL = 'https://n8n.example.test/webhook/menu';
     const originalFetch = global.fetch;
     global.fetch = async () => ({ ok: true, status: 200, text: async () => 'ok' });
@@ -292,7 +292,7 @@ describe('routes/menu — sistema y dashboard', () => {
       expect(res.body.reenvio).toBe(true);
     } finally {
       global.fetch = originalFetch;
-      delete process.env.ECIENCIA_MENU_EDIT_AFTER_SEND;
+      delete process.env.ECENCIA_MENU_EDIT_AFTER_SEND;
       delete process.env.N8N_MENU_WEBHOOK_URL;
     }
   });

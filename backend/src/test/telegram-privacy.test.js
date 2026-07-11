@@ -54,10 +54,10 @@ const injectModule = (relPath, exportsObj) => {
   require.cache[filename] = { id: filename, filename, loaded: true, exports: exportsObj, children: [], paths: [] };
 };
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.SUPABASE_URL = 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
-  process.env.TELEGRAM_BOT_USERNAME = 'eciencia_test_bot';
+  process.env.TELEGRAM_BOT_USERNAME = 'ecencia_test_bot';
   process.env.TELEGRAM_PRIVACY_CONTACT = 'privacy@example.test';
   process.env.TELEGRAM_PRIVACY_POLICY_URL = 'https://example.test/privacidad';
   process.env.TELEGRAM_CONSENT_VERSION = 'EC-LOPDP-TEST';
@@ -82,13 +82,8 @@ beforeAll(() => {
     updateOrderTrace: async () => true,
   });
 
-  // Re-require telegram routes to use mocks
-  delete require.cache[require.resolve('../services/orderNotifications.js')];
-  delete require.cache[require.resolve('../services/orderLifecycle.js')];
-  delete require.cache[require.resolve('../services/telegramConsent.js')];
   delete require.cache[require.resolve('../routes/telegram.js')];
-  
-  const telegramRouter = require('../routes/telegram.js');
+  const telegramRouter = (await import('../routes/telegram.js')).default;
   handleTelegramUpdate = telegramRouter.handleTelegramUpdate;
 });
 

@@ -100,7 +100,7 @@ const injectModule = (relPath, exportsObj) => {
   require.cache[filename] = { id: filename, filename, loaded: true, exports: exportsObj, children: [], paths: [] };
 };
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.SUPABASE_URL = 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
   process.env.TELEGRAM_PRIVACY_CONTACT = 'privacidad@ecencia.test';
@@ -125,11 +125,8 @@ beforeAll(() => {
     updateOrderTrace: async () => true,
   });
 
-  delete require.cache[require.resolve('../services/orderNotifications.js')];
-  delete require.cache[require.resolve('../services/orderLifecycle.js')];
-  delete require.cache[require.resolve('../services/telegramConsent.js')];
   delete require.cache[require.resolve('../routes/telegram.js')];
-  const telegramRouter = require('../routes/telegram.js');
+  const telegramRouter = (await import('../routes/telegram.js')).default;
   handleTelegramUpdate = telegramRouter.handleTelegramUpdate;
 });
 
@@ -389,20 +386,20 @@ describe('cancelacion de la reserva real', () => {
     expect(writes.some((w) => w.table === 'ordenes' && w.op === 'update')).toBe(false);
   });
 
-  it('con ECIENCIA_BUSINESS_DAYS_ONLY=false el bot atiende /menu en fin de semana', async () => {
+  it('con ECENCIA_BUSINESS_DAYS_ONLY=false el bot atiende /menu en fin de semana', async () => {
     // 2026-07-04 es sabado en America/Bogota.
     vi.setSystemTime(new Date('2026-07-04T15:00:00Z'));
 
     await handleTelegramUpdate(textUpdate(100, '/menu'));
     expect(lastMessage()[1]).toContain('lunes a viernes');
 
-    process.env.ECIENCIA_BUSINESS_DAYS_ONLY = 'false';
+    process.env.ECENCIA_BUSINESS_DAYS_ONLY = 'false';
     try {
       sendTelegramMessage.mockClear();
       await handleTelegramUpdate(textUpdate(100, '/menu'));
       expect(lastMessage()[1]).toContain('Menú del día');
     } finally {
-      delete process.env.ECIENCIA_BUSINESS_DAYS_ONLY;
+      delete process.env.ECENCIA_BUSINESS_DAYS_ONLY;
     }
   });
 });

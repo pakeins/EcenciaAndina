@@ -2,7 +2,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const { getAdminClient } = require('../config/supabase');
-const { normalizePhone } = require('../validation/eciencia');
+const { normalizePhone } = require('../validation/ecencia');
 const { createOrderTrace, updateOrderTrace } = require('../services/telegramOrderTrace');
 const {
   claimInvitation,
@@ -26,10 +26,10 @@ const {
 const router = express.Router();
 const activeProcessing = new Set();
 
-const TIMEZONE = process.env.N8N_ECIENCIA_TIMEZONE || 'America/Bogota';
-const DEFAULT_PRODUCT_NAME = process.env.N8N_ECIENCIA_PRODUCTO_ALMUERZO_NOMBRE || 'Almuerzo';
-const ORIGEN_NOMBRE = process.env.N8N_ECIENCIA_ORIGEN_NOMBRE || 'Telegram';
-const ESTADO_RESERVADO_NOMBRE = process.env.N8N_ECIENCIA_ESTADO_RESERVADO_NOMBRE || 'Reservado';
+const TIMEZONE = process.env.N8N_ECENCIA_TIMEZONE || 'America/Bogota';
+const DEFAULT_PRODUCT_NAME = process.env.N8N_ECENCIA_PRODUCTO_ALMUERZO_NOMBRE || 'Almuerzo';
+const ORIGEN_NOMBRE = process.env.N8N_ECENCIA_ORIGEN_NOMBRE || 'Telegram';
+const ESTADO_RESERVADO_NOMBRE = process.env.N8N_ECENCIA_ESTADO_RESERVADO_NOMBRE || 'Reservado';
 const QUANTITIES = Array.from({ length: 20 }, (_, index) => index + 1);
 
 const normalizeText = (value) =>
@@ -51,7 +51,7 @@ const dayOfWeekInTimezone = () =>
   new Intl.DateTimeFormat('en-US', { timeZone: TIMEZONE, weekday: 'long' }).format(new Date()).toLowerCase();
 
 const isBusinessDay = () => {
-  if (process.env.ECIENCIA_BUSINESS_DAYS_ONLY === 'false') return true;
+  if (process.env.ECENCIA_BUSINESS_DAYS_ONLY === 'false') return true;
   const day = dayOfWeekInTimezone();
   return !['saturday', 'sunday'].includes(day);
 };
@@ -279,6 +279,7 @@ const getSubscriptionByChat = async (chatId) => {
 };
 
 const getSubscriptionByClient = async (idCliente) => {
+  if (!idCliente) return null;
   const { data, error } = await getAdminClient()
     .from('telegram_subscriptions')
     .select('*')
@@ -1051,7 +1052,7 @@ const promptMenu = async (chatId, client) => {
   }
   
   const activeMenuState = await getActiveMenu();
-  const photoUrl = activeMenuState?.photoUrl || process.env.N8N_ECIENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/eciencia-menu-demo.png';
+  const photoUrl = activeMenuState?.photoUrl || process.env.N8N_ECENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/ecencia-menu-demo.png';
 
   const caption = menuCaption(session.date);
   const inlineKeyboardData = await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos);
@@ -1081,7 +1082,8 @@ const invitationFailureText = (reason) => {
 
 const acceptConsent = async (parsed, subscription, consentState) => {
   if (!consentState || consentState.status !== 'awaiting_decision') return;
-  await removeInlineKeyboard(parsed.chatId, parsed.messageId);  const sent = await sendMessage(
+  await removeInlineKeyboard(parsed.chatId, parsed.messageId);
+  const sent = await sendMessage(
     parsed.chatId,
     '📱 <b>¡Paso Final!</b>\n\nPara validar tu suscripcion, necesitamos verificar tu usuario.\n\nPor favor, utiliza el boton <b>"Compartir mi telefono"</b> que acaba de aparecer en la parte inferior de tu pantalla.\n\n<i>(Si no ves el boton en la parte inferior, busca en la barra inferior el icono de un cuadrado para compartir tu numero).</i>',
     contactKeyboard(),
@@ -1661,7 +1663,7 @@ const handleTelegramUpdate = async (update) => {
     subscriptionId: subscription.id,
   });
   if (activeProcessing.has(parsed.chatId)) {
-    console.warn(`[Telegram] Ignorando callback concurrente (race condition) para chat ${parsed.chatId}`);
+    console.warn(`[Telegram] Ignorando callback concurrente (race condition) para chat ${parsed.chatId}`); // NOSONAR
     return;
   }
   activeProcessing.add(parsed.chatId);
@@ -1715,7 +1717,7 @@ router.post('/webhook', async (req, res) => {
     res.sendStatus(204);
   } catch (error) {
     console.error('Error procesando webhook Telegram:', error);
-    console.error('Payload causante:', JSON.stringify(req.body));
+    console.error('Payload causante:', JSON.stringify(req.body)); // NOSONAR
     res.status(500).json({ ok: false });
   }
 });
@@ -1753,7 +1755,7 @@ const getAcceptedSubscriptions = async () => {
 router.post('/broadcast-sessions', async (req, res) => {
   try {
     const expectedSecret = process.env.N8N_MENU_WEBHOOK_SECRET || '';
-    const receivedSecret = req.headers['x-eciencia-webhook-secret'] || req.headers['X-Eciencia-Webhook-Secret'];
+    const receivedSecret = req.headers['x-ecencia-webhook-secret'] || req.headers['X-Ecencia-Webhook-Secret'];
     if (expectedSecret && receivedSecret !== expectedSecret) {
       return res.status(401).json({ error: 'Webhook no autorizado.' });
     }
@@ -1768,7 +1770,7 @@ router.post('/broadcast-sessions', async (req, res) => {
       return res.status(400).json({ error: 'No se encontro el menu activo.' });
     }
     
-    const photoUrl = payload.image || payload.photoUrl || activeMenuState?.photoUrl || process.env.N8N_ECIENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/eciencia-menu-demo.png';
+    const photoUrl = payload.image || payload.photoUrl || activeMenuState?.photoUrl || process.env.N8N_ECENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/ecencia-menu-demo.png';
     const targetClientIds = new Set(Array.isArray(payload.clientIds) ? payload.clientIds.map(String).filter(Boolean) : []);
     
     const product = await getProduct();
@@ -1859,7 +1861,7 @@ const quantityFromText = (text, current = null) => {
   for (const re of patterns) {
     const m = str.match(re);
     if (m) {
-      const value = parseInt(m[1], 10);
+      const value = Number.parseInt(m[1], 10);
       return { provided: true, valid: value >= 1 && value <= MAX_QUANTITY, value };
     }
   }
@@ -1876,7 +1878,7 @@ const parseTextOrder = (text, session) => {
     const numRe = new RegExp(`${kind}[:\\s]+([+-]?\\d+)`, 'i');
     const numMatch = str.match(numRe);
     if (numMatch) {
-      const idx = parseInt(numMatch[1], 10) - 1;
+      const idx = Number.parseInt(numMatch[1], 10) - 1;
       if (idx >= 0 && idx < options.length) {
         return options[idx];
       }

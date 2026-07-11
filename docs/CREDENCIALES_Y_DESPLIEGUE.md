@@ -6,13 +6,13 @@ Este archivo explica que valores debe entregar el administrador del proyecto par
 
 - `backend/.env.local`: credenciales del backend y URL del webhook de n8n.
 - `frontend/.env`: variables publicas del frontend.
-- `backend/n8n/eciencia-n8n.env`: variables del contenedor n8n.
+- `backend/n8n/ecencia-n8n.env`: variables del contenedor n8n.
 
 Usa estos ejemplos como plantilla:
 
 - `backend/.env.example`
 - `frontend/.env.example`
-- `backend/n8n/eciencia-n8n.env.example`
+- `backend/n8n/ecencia-n8n.env.example`
 
 ## Secretos que debes compartir por canal privado
 
@@ -54,7 +54,7 @@ https://t.me/NOMBRE_DEL_BOT?start=TOKEN_DE_UN_SOLO_USO
 Bot usado en pruebas locales:
 
 ```txt
-https://t.me/ECIENCIATESTEBOT?start=TOKEN
+https://t.me/ECENCIATESTEBOT?start=TOKEN
 ```
 
 Flujo de alta:

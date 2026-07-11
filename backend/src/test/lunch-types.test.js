@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const lunchTypes = require('../services/lunchTypes');
+import lunchTypes from '../services/lunchTypes.js';
 
 const {
   LUNCH_TYPE_CODES,

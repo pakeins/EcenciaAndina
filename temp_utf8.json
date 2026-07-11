@@ -1,0 +1,208 @@
+﻿{
+  "id": "ecienciaTelegramMenuReservas",
+  "name": "Eciencia - Telegram menu del dia y reservas",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eciencia-enviar-menu-manual",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "ea3529c4-91f1-4a3d-a3a8-69e0bd4deaf8",
+      "name": "Webhook - enviar menu manual",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -900,
+        -420
+      ],
+      "webhookId": "eciencia-enviar-menu-manual"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "d4c1624d-76cc-4d96-8d6c-2d9f47a7b101",
+      "name": "Enviar menu 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "96d20c5d-51ea-4c77-9726-1f77fe24cc37",
+      "name": "Limpiar imagenes 02:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function cfg(name, fallback = '') {\n  const vars = typeof $vars === 'undefined' ? {} : $vars;\n  const env = typeof process === 'undefined' ? {} : process.env;\n  return env[name] || vars[name] || fallback;\n}\n\nconst backendUrl = (cfg('N8N_ECIENCIA_BACKEND_URL') || cfg('PUBLIC_BACKEND_URL')).replace(/\\/$/, '');\nconst cleanupSecret = cfg('N8N_MENU_WEBHOOK_SECRET');\n\nif (!backendUrl || !cleanupSecret) {\n  throw new Error('Faltan N8N_ECIENCIA_BACKEND_URL y N8N_MENU_WEBHOOK_SECRET.');\n}\n\nconst result = await helpers.httpRequest({\n  method: 'POST',\n  url: backendUrl + '/api/menu/system/limpiar-imagenes',\n  headers: {\n    'X-Eciencia-Webhook-Secret': cleanupSecret,\n  },\n  body: {},\n  json: true,\n});\n\nreturn [\n  {\n    json: {\n      ...result,\n      executedAt: new Date().toISOString(),\n    },\n  },\n];"
+      },
+      "id": "b3704e66-9a5a-4e33-b922-b8668a592a25",
+      "name": "Limpiar imagenes antiguas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function cfg(name, fallback = '') {\n  const vars = typeof $vars === 'undefined' ? {} : $vars;\n  const env = typeof process === 'undefined' ? {} : process.env;\n  return env[name] || vars[name] || fallback;\n}\n\nconst SUPABASE_URL = cfg('SUPABASE_URL').replace(/\\/$/, '');\nconst SUPABASE_KEY = cfg('SUPABASE_SERVICE_ROLE_KEY') || cfg('SUPABASE_KEY');\nif (!SUPABASE_URL || !SUPABASE_KEY) {\n  throw new Error('Faltan SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en n8n.');\n}\n\nconst CONFIG = {\n  timezone: cfg('N8N_ECIENCIA_TIMEZONE', 'America/Bogota'),\n  consentVersion: cfg('TELEGRAM_CONSENT_VERSION'),\n  menuImageUrl: cfg(\n    'N8N_ECIENCIA_MENU_IMAGE_URL',\n    'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/eciencia-menu-demo.png'\n  ),\n  defaultProductName: cfg('N8N_ECIENCIA_PRODUCTO_ALMUERZO_NOMBRE', 'Almuerzo Telegram'),\n  origenName: cfg('N8N_ECIENCIA_ORIGEN_NOMBRE', 'Telegram'),\n  estadoReservadoName: cfg('N8N_ECIENCIA_ESTADO_RESERVADO_NOMBRE', 'Reservado'),\n};\nif (!CONFIG.consentVersion) {\n  throw new Error('Falta TELEGRAM_CONSENT_VERSION en n8n.');\n}\n\nfunction todayInTimezone(timeZone) {\n  return new Intl.DateTimeFormat('en-CA', {\n    timeZone,\n    year: 'numeric',\n    month: '2-digit',\n    day: '2-digit',\n  }).format(new Date());\n}\n\nfunction normalizeText(value) {\n  return String(value || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .trim();\n}\n\nfunction normalizePhone(value) {\n  const digits = String(value || '').replace(/[^\\d]/g, '').replace(/^00/, '');\n  if (!digits) return '';\n  if (digits.startsWith('0') && digits.length >= 9) return '593' + digits.slice(1);\n  return digits;\n}\n\nfunction phoneCandidates(value) {\n  const normalized = normalizePhone(value);\n  const out = new Set([normalized]);\n  if (normalized.startsWith('593')) out.add('0' + normalized.slice(3));\n  return [...out].filter(Boolean);\n}\n\nfunction queryString(entries) {\n  return entries\n    .filter((entry) => entry[1] !== undefined && entry[1] !== null)\n    .map(([key, value]) => encodeURIComponent(key) + '=' + encodeURIComponent(String(value)))\n    .join('&');\n}\n\nasync function supa(path, options = {}) {\n  try {\n    return await helpers.httpRequest({\n      method: options.method || 'GET',\n      url: SUPABASE_URL + '/rest/v1' + path,\n      headers: {\n        apikey: SUPABASE_KEY,\n        Authorization: 'Bearer ' + SUPABASE_KEY,\n        'Content-Type': 'application/json',\n        ...(options.headers || {}),\n      },\n      body: options.body,\n      json: true,\n    });\n  } catch (error) {\n    throw new Error((options.method || 'GET') + ' ' + path + ' fallo: ' + (error.message || error));\n  }\n}\n\nasync function getState(key) {\n  const rows = await supa('/telegram_bot_state?' + queryString([\n    ['select', 'value'],\n    ['key', 'eq.' + key],\n    ['limit', '1'],\n  ]));\n  return rows[0]?.value || null;\n}\n\nasync function setState(key, value) {\n  await supa('/telegram_bot_state?on_conflict=key', {\n    method: 'POST',\n    body: {\n      key,\n      value: {\n        ...(value || {}),\n        updatedAt: new Date().toISOString(),\n      },\n    },\n    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },\n  });\n}\n\nasync function saveLatestMenu(today, value) {\n  await setState('latest-menu:' + today, value);\n}\n\nasync function saveActiveMenu(value) {\n  await setState('latest-menu:active', value);\n}\n\nasync function getActiveMenu() {\n  const activeMenu = await getState('latest-menu:active');\n  if (!activeMenu?.menu) return null;\n  return {\n    date: activeMenu.date || todayInTimezone(CONFIG.timezone),\n    menu: compactMenu(activeMenu.menu),\n    photoUrl: activeMenu.photoUrl || '',\n  };\n}\n\nasync function saveSession(chatId, session) {\n  await setState('session:' + chatId, session);\n}\n\nfunction cleanOptions(options) {\n  return Array.isArray(options)\n    ? options.map((option) => String(option || '').trim()).filter(Boolean)\n    : [];\n}\n\nfunction compactMenu(menu) {\n  return {\n    sopas: cleanOptions(menu.sopas).slice(0, 8),\n    segundos: cleanOptions(menu.segundos).slice(0, 8),\n    guarniciones: cleanOptions(menu.guarniciones).slice(0, 8),\n  };\n}\n\nfunction menuFromPayload(payload) {\n  const source = payload?.menu || payload || {};\n  const menu = compactMenu({\n    sopas: source.sopas,\n    segundos: source.segundos,\n    guarniciones: source.guarniciones,\n  });\n  if (!menu.sopas.length || !menu.segundos.length || !menu.guarniciones.length) return null;\n  return menu;\n}\n\nfunction ensureHttpsImageUrl(value, label) {\n  const imageUrl = String(value || '').trim();\n  if (!imageUrl) return '';\n  if (!/^https:\\/\\//i.test(imageUrl)) {\n    throw new Error((label || 'La imagen del menu') + ' debe usar una URL HTTPS publica.');\n  }\n  return imageUrl;\n}\n\nfunction imageUrlFromPayload(payload) {\n  return ensureHttpsImageUrl(payload?.photoUrl || payload?.menuImageUrl || payload?.imageUrl, 'La imagen enviada al webhook');\n}\n\nfunction buttonRows(buttons) {\n  return {\n    inline_keyboard: buttons.map((button) => [\n      {\n        text: button.text,\n        callback_data: button.callbackData,\n      },\n    ]),\n  };\n}\n\nfunction optionsKeyboard(kind, options) {\n  return buttonRows(\n    options.map((option, index) => ({\n      text: option,\n      callbackData: kind + ':' + index,\n    }))\n  );\n}\n\nfunction menuCaption(today) {\n  return trimTelegramCaption(\n    'Ecencia Andina - Menu del dia ' + today + '\\n\\n' +\n      'Realiza toda la reserva con los botones. Primero elige una sopa.'\n  );\n}\n\nfunction trimTelegramCaption(text) {\n  const value = String(text || '');\n  return value.length <= 1000 ? value : value.slice(0, 997) + '...';\n}\n\nasync function getMenuFromSupabase() {\n  if (cfg('N8N_ECIENCIA_MENU_JSON')) {\n    const parsed = JSON.parse(cfg('N8N_ECIENCIA_MENU_JSON'));\n    return compactMenu({\n      sopas: (parsed.sopas || []).map(String).filter(Boolean),\n      segundos: (parsed.segundos || []).map(String).filter(Boolean),\n      guarniciones: (parsed.guarniciones || []).map(String).filter(Boolean),\n    });\n  }\n\n  const rows = await supa('/alimentos?' + queryString([\n    ['select', 'id_alimento,nombre_alimento,categorias_menu(nombre_categoria)'],\n    ['order', 'id_alimento.asc'],\n  ]));\n  const grouped = { sopas: [], segundos: [], guarniciones: [] };\n\n  for (const row of rows) {\n    const category = normalizeText(row.categorias_menu?.nombre_categoria || '');\n    const name = row.nombre_alimento;\n    if (!name) continue;\n    if (category.includes('sopa')) grouped.sopas.push(name);\n    else if (category.includes('segundo') || category.includes('plato')) grouped.segundos.push(name);\n    else if (category.includes('guarn')) grouped.guarniciones.push(name);\n  }\n\n  const menu = compactMenu(grouped);\n  if (!menu.sopas.length || !menu.segundos.length || !menu.guarniciones.length) {\n    throw new Error('El menu debe tener sopas, segundos y guarniciones en Supabase.');\n  }\n  return menu;\n}\n\nasync function getProduct() {\n  const rows = await supa('/productos?' + queryString([\n    ['select', 'id_producto,nombre_producto,precio_unitario,esta_activo'],\n    ['order', 'id_producto.asc'],\n  ]));\n  const active = rows.filter((row) => row.esta_activo !== false);\n  const exact = active.find((row) => normalizeText(row.nombre_producto) === normalizeText(CONFIG.defaultProductName));\n  const lunch = active.find((row) => normalizeText(row.nombre_producto).includes('almuerzo'));\n  const product = exact || lunch || active[0];\n  if (!product) throw new Error('No hay producto activo para registrar la reserva.');\n  return {\n    id_producto: product.id_producto,\n    nombre_producto: product.nombre_producto,\n    precio_unitario: Number(product.precio_unitario || 0),\n  };\n}\n\nasync function getLookupId(table, idField, nameField, value) {\n  const rows = await supa('/' + table + '?' + queryString([\n    ['select', idField + ',' + nameField],\n    [nameField, 'ilike.' + value],\n    ['limit', '1'],\n  ]));\n  if (rows[0]?.[idField]) return rows[0][idField];\n  throw new Error('No encontre ' + value + ' en ' + table + '.');\n}\n\nasync function getClients() {\n  return supa('/clientes?' + queryString([\n    [\n      'select',\n      'id_cliente,cedula,nombre,apellido,telefono,esta_activo,clientes_convenios(id_convenio,convenios(id_convenio,nombre_empresa,esta_activo,fecha_caducidad))',\n    ],\n    ['esta_activo', 'eq.true'],\n  ]));\n}\n\nasync function getAcceptedSubscriptions() {\n  return supa('/telegram_subscriptions?' + queryString([\n    ['select', 'id,id_cliente,phone_normalized,chat_id,consent_status,is_active,consent_notice_version'],\n    ['consent_status', 'eq.accepted'],\n    ['is_active', 'eq.true'],\n    ['consent_notice_version', 'eq.' + CONFIG.consentVersion],\n    ['chat_id', 'not.is.null'],\n  ]));\n}\n\nfunction activeConvenio(client, today) {\n  const links = client.clientes_convenios || [];\n  for (const link of links) {\n    const convenio = Array.isArray(link.convenios) ? link.convenios[0] : link.convenios;\n    if (convenio?.esta_activo !== false && (!convenio?.fecha_caducidad || convenio.fecha_caducidad >= today)) {\n      return {\n        id_convenio: convenio.id_convenio || link.id_convenio,\n        nombre_empresa: convenio.nombre_empresa || 'Convenio',\n      };\n    }\n  }\n  return { id_convenio: null, nombre_empresa: 'Cliente directo' };\n}\n\nconst today = todayInTimezone(CONFIG.timezone);\nconst rawInput = items[0]?.json || {};\nconst expectedWebhookSecret = cfg('N8N_MENU_WEBHOOK_SECRET');\nif (expectedWebhookSecret && (rawInput.headers || rawInput.body)) {\n  const headers = rawInput.headers || {};\n  const receivedSecret =\n    headers['x-eciencia-webhook-secret'] ||\n    headers['X-Eciencia-Webhook-Secret'] ||\n    headers['X-ECIENCIA-WEBHOOK-SECRET'];\n  if (receivedSecret !== expectedWebhookSecret) {\n    throw new Error('Webhook manual no autorizado.');\n  }\n}\nconst payload = rawInput.body || rawInput || {};\nconst payloadMenu = menuFromPayload(payload);\nconst activeMenu = payloadMenu ? null : await getActiveMenu();\nconst menu = payloadMenu || activeMenu?.menu || await getMenuFromSupabase();\nconst photoUrl = ensureHttpsImageUrl(imageUrlFromPayload(payload) || activeMenu?.photoUrl || CONFIG.menuImageUrl);\nconst targetClientIds = new Set(cleanOptions(payload.clientIds));\nconst product = await getProduct();\nconst estadoReservadoId = await getLookupId('estados_orden', 'id_estado', 'nombre_estado', CONFIG.estadoReservadoName);\nconst origenTelegramId = await getLookupId('origenes_pedido', 'id_origen', 'nombre_origen', CONFIG.origenName);\nconst clients = await getClients();\nconst subscriptions = await getAcceptedSubscriptions();\nconst output = [];\n\nconst subscriptionByClient = new Map();\nconst subscriptionByPhone = new Map();\nfor (const subscription of subscriptions) {\n  if (subscription.id_cliente) subscriptionByClient.set(subscription.id_cliente, subscription);\n  if (subscription.phone_normalized) subscriptionByPhone.set(subscription.phone_normalized, subscription);\n}\n\nawait saveLatestMenu(today, {\n  date: today,\n  menu,\n  photoUrl,\n  source: payload?.source || 'n8n',\n});\nawait saveActiveMenu({\n  date: today,\n  menu,\n  photoUrl,\n  source: payload?.source || 'n8n',\n});\n\nfor (const client of clients) {\n  if (targetClientIds.size && !targetClientIds.has(String(client.id_cliente))) continue;\n\n  const subscription =\n    subscriptionByClient.get(client.id_cliente) ||\n    phoneCandidates(client.telefono).map((phone) => subscriptionByPhone.get(phone)).find(Boolean);\n\n  if (!subscription?.chat_id) continue;\n\n  const chatId = String(subscription.chat_id);\n  const convenio = activeConvenio(client, today);\n  const session = {\n    step: 'sopa',\n    date: today,\n    menuDate: activeMenu?.date || today,\n    menu,\n    quantity: null,\n    cliente: {\n      id_cliente: client.id_cliente,\n      nombre: client.nombre,\n      apellido: client.apellido,\n    },\n    convenio,\n    product,\n    estadoReservadoId,\n    origenTelegramId,\n    createdAt: new Date().toISOString(),\n  };\n  await saveSession(chatId, session);\n\n  output.push({\n    json: {\n      chatId,\n      subscriptionId: subscription.id,\n      photoUrl,\n      caption: menuCaption(today),\n      inlineKeyboard: optionsKeyboard('sopa', menu.sopas),\n    },\n  });\n}\n\nreturn output;"
+      },
+      "id": "3799ce6e-4a74-456e-b36d-f5210e98a8bc",
+      "name": "Preparar foto y sesiones",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function cfg(name, fallback = '') {\n  const vars = typeof $vars === 'undefined' ? {} : $vars;\n  const env = typeof process === 'undefined' ? {} : process.env;\n  return env[name] || vars[name] || fallback;\n}\n\nconst TELEGRAM_BOT_TOKEN = cfg('TELEGRAM_BOT_TOKEN');\nif (!TELEGRAM_BOT_TOKEN) {\n  throw new Error('Falta TELEGRAM_BOT_TOKEN en n8n.');\n}\n\nconst SUPABASE_URL = cfg('SUPABASE_URL').replace(/\\/$/, '');\nconst SUPABASE_KEY = cfg('SUPABASE_SERVICE_ROLE_KEY') || cfg('SUPABASE_KEY');\n\nfunction cleanInlineReplyMarkup(markup) {\n  const keyboard = markup?.inline_keyboard || [];\n  const rows = keyboard\n    .map((row) => (Array.isArray(row) ? row : []))\n    .map((row) => row.filter((button) => button?.text && button?.callback_data))\n    .filter((row) => row.length);\n  return rows.length ? { inline_keyboard: rows } : null;\n}\n\nasync function markMenuSent(subscriptionId) {\n  if (!subscriptionId || !SUPABASE_URL || !SUPABASE_KEY) return;\n\n  await helpers.httpRequest({\n    method: 'PATCH',\n    url: SUPABASE_URL + '/rest/v1/telegram_subscriptions?id=eq.' + encodeURIComponent(subscriptionId),\n    headers: {\n      apikey: SUPABASE_KEY,\n      Authorization: 'Bearer ' + SUPABASE_KEY,\n      'Content-Type': 'application/json',\n      Prefer: 'return=minimal',\n    },\n    body: { last_menu_sent_at: new Date().toISOString() },\n    json: true,\n  });\n}\n\nconst output = [];\nfor (const item of items) {\n  const data = item.json || {};\n  const body = {\n    chat_id: data.chatId,\n    photo: data.photoUrl,\n    caption: data.caption || '',\n  };\n  const replyMarkup = cleanInlineReplyMarkup(data.inlineKeyboard);\n  if (replyMarkup) body.reply_markup = replyMarkup;\n\n  const response = await helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/sendPhoto',\n    body,\n    json: true,\n  });\n\n  if (response.ok === true) await markMenuSent(data.subscriptionId);\n\n  output.push({\n    json: {\n      ...data,\n      telegramOk: response.ok === true,\n      telegramMessageId: response.result?.message_id || null,\n    },\n  });\n}\n\nreturn output;"
+      },
+      "id": "8e2f527a-fb64-45d6-a7b2-6a6a0292588a",
+      "name": "Telegram - enviar foto menu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "59 23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger-expirar-menu",
+      "name": "Expirar menu activo 23:59",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function cfg(name, fallback = '') {\n  const vars = typeof $vars === 'undefined' ? {} : $vars;\n  const env = typeof process === 'undefined' ? {} : process.env;\n  return env[name] || vars[name] || fallback;\n}\n\nconst backendUrl = (cfg('N8N_ECIENCIA_BACKEND_URL') || cfg('PUBLIC_BACKEND_URL')).replace(/\\/$/, '');\nconst cleanupSecret = cfg('N8N_MENU_WEBHOOK_SECRET');\n\nif (!backendUrl || !cleanupSecret) {\n  throw new Error('Faltan N8N_ECIENCIA_BACKEND_URL y N8N_MENU_WEBHOOK_SECRET.');\n}\n\nconst result = await helpers.httpRequest({\n  method: 'POST',\n  url: backendUrl + '/api/menu/system/expirar-activo',\n  headers: {\n    'X-Eciencia-Webhook-Secret': cleanupSecret,\n  },\n  body: {},\n  json: true,\n});\n\nreturn [\n  {\n    json: {\n      ...result,\n      executedAt: new Date().toISOString(),\n    },\n  },\n];"
+      },
+      "id": "code-expirar-menu",
+      "name": "Expirar menu en backend",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        180
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - enviar menu manual": {
+      "main": [
+        [
+          {
+            "node": "Preparar foto y sesiones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar menu 09:00": {
+      "main": [
+        [
+          {
+            "node": "Preparar foto y sesiones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar imagenes 02:30": {
+      "main": [
+        [
+          {
+            "node": "Limpiar imagenes antiguas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar foto y sesiones": {
+      "main": [
+        [
+          {
+            "node": "Telegram - enviar foto menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expirar menu activo 23:59": {
+      "main": [
+        [
+          {
+            "node": "Expirar menu en backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  },
+  "versionId": "b89f7ddd-7067-469b-9c05-bfe437543f9c",
+  "versionCounter": 53,
+  "exportedAt": "2026-06-10T00:00:00.000Z",
+  "note": "Export without credentials. Fill environment variables from backend/n8n/eciencia-n8n.env.example before running."
+}

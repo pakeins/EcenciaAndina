@@ -1,8 +1,8 @@
 const crypto = require('node:crypto');
 
-const ACCESS_COOKIE = 'eciencia_access_token';
-const REFRESH_COOKIE = 'eciencia_refresh_token';
-const CSRF_COOKIE = 'eciencia_csrf_token';
+const ACCESS_COOKIE = 'ecencia_access_token';
+const REFRESH_COOKIE = 'ecencia_refresh_token';
+const CSRF_COOKIE = 'ecencia_csrf_token';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const sameSite = process.env.COOKIE_SAME_SITE || (isProduction ? 'none' : 'lax');

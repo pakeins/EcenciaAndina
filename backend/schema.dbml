@@ -1,0 +1,393 @@
+// -- Diagrama ER ECencia Andina (LIVE) --
+
+Table saldos_servicio {
+  id_cliente uuid [primary key, ref: > clientes.id_cliente]
+  id_producto bigint [primary key, ref: > productos.id_producto]
+  cantidad_disponible integer
+  updated_at timestamp
+  updated_by uuid
+}
+
+Table productos {
+  id_producto bigint [primary key]
+  id_categoria bigint [ref: > categorias_productos.id_categoria]
+  nombre_producto text
+  precio_unitario numeric
+  created_at timestamp
+  created_by uuid
+  updated_at timestamp
+  updated_by uuid
+  esta_activo boolean
+  descripcion text
+  id_tipo_almuerzo_default bigint [ref: > tipos_almuerzo.id_tipo_almuerzo]
+}
+
+Table telegram_privacy_requests {
+  id uuid [primary key]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  subscription_id uuid [ref: > telegram_subscriptions.id]
+  request_type text
+  status text
+  source text
+  retained_order_count integer
+  details jsonb
+  requested_at timestamp
+  resolved_at timestamp
+  resolved_by uuid [ref: > empleados.id]
+  resolution_notes text
+}
+
+Table categorias_productos {
+  id_categoria bigint [primary key]
+  nombre_categoria text
+  created_at timestamp
+  created_by uuid
+}
+
+Table detalle_orden {
+  id_detalle uuid [primary key]
+  id_orden uuid [ref: > ordenes.id_orden]
+  id_producto bigint [ref: > productos.id_producto]
+  cantidad integer
+  precio_aplicado numeric
+  updated_at timestamp
+  created_by uuid [ref: > empleados.id]
+  updated_by uuid [ref: > empleados.id]
+  opciones jsonb
+  id_tipo_almuerzo bigint [ref: > tipos_almuerzo.id_tipo_almuerzo]
+  observaciones_tipo text
+}
+
+Table menu_settings {
+  id smallint [primary key]
+  active_date date
+  image_retention_days integer
+  updated_at timestamp
+  updated_by uuid
+}
+
+Table clientes_convenios {
+  id_cliente uuid [primary key, ref: > clientes.id_cliente]
+  id_convenio uuid [primary key, ref: > convenios.id_convenio]
+  created_at timestamp
+  created_by uuid
+}
+
+Table ordenes {
+  id_orden uuid [primary key]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  id_estado bigint [ref: > estados_orden.id_estado]
+  id_origen bigint [ref: > origenes_pedido.id_origen]
+  canal_origen text
+  created_at timestamp
+  created_by uuid
+  observaciones text
+  id_empleado_atiende uuid [ref: > empleados.id]
+  metodo_pago text
+  updated_at timestamp
+  updated_by uuid
+  consumed_at timestamp
+  numero_orden bigint
+}
+
+Table telegram_privacy_audits {
+  id uuid [primary key]
+  chat_id text
+  subscription_id uuid [ref: > telegram_subscriptions.id]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  action text
+  outcome text
+  metadata jsonb
+  created_at timestamp
+}
+
+Table orden_notificacion_auditoria {
+  id uuid [primary key]
+  id_orden uuid [ref: > ordenes.id_orden]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  subscription_id uuid [ref: > telegram_subscriptions.id]
+  notification_kind text
+  channel text
+  status text
+  reason text
+  chat_id text
+  telegram_message_id bigint
+  error_message text
+  created_by uuid
+  created_at timestamp
+}
+
+Table menu_diario {
+  id_menu_diario uuid [primary key]
+  fecha date
+  id_alimento bigint [ref: > alimentos.id_alimento]
+  created_at timestamp
+  created_by uuid
+  id_tipo_almuerzo bigint [ref: > tipos_almuerzo.id_tipo_almuerzo]
+  imagen_url text
+}
+
+Table menu_envios {
+  fecha date [primary key]
+  menu_payload jsonb
+  image_url text
+  first_sent_at timestamp
+  last_sent_at timestamp
+  send_count integer
+  created_by uuid
+  updated_by uuid
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table conveniohistorial {
+  id uuid [primary key]
+  id_convenio uuid [ref: > convenios.id_convenio]
+  fecha_inicio date
+  fecha_caducidad date
+  archivo_firmado text
+  fecha_registro timestamp
+}
+
+Table origenes_pedido {
+  id_origen bigint [primary key]
+  nombre_origen text
+}
+
+Table telegram_convenio_invitaciones {
+  id uuid [primary key]
+  id_convenio uuid [ref: > convenios.id_convenio]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  subscription_id uuid [ref: > telegram_subscriptions.id]
+  phone_normalized text
+  token text
+  invite_link text
+  invitation_message text
+  status text
+  telegram_message_id bigint
+  error_message text
+  created_by uuid
+  created_at timestamp
+  updated_at timestamp
+  email_to text
+  email_status text
+  email_error_message text
+  email_sent_at timestamp
+  email_provider_request_id text
+}
+
+Table monederos_cliente {
+  id_cliente uuid [primary key, ref: > clientes.id_cliente]
+  saldo_disponible numeric
+  updated_by uuid
+  updated_at timestamp
+}
+
+Table telegram_order_traces {
+  id uuid [primary key]
+  chat_id text
+  update_id bigint
+  id_cliente uuid [ref: > clientes.id_cliente]
+  id_orden uuid [ref: > ordenes.id_orden]
+  subscription_id uuid [ref: > telegram_subscriptions.id]
+  phone_normalized text
+  original_message jsonb
+  interpreted_payload jsonb
+  outcome text
+  error_message text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table telegram_invitations {
+  id uuid [primary key]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  token_hmac text
+  expires_at timestamp
+  claimed_at timestamp
+  claimed_chat_id text
+  claimed_telegram_user_id text
+  consumed_at timestamp
+  revoked_at timestamp
+  created_at timestamp
+  created_by uuid [ref: > empleados.id]
+  email_delivery_status text
+  email_recipient text
+  email_provider_id text
+  email_attempted_at timestamp
+  email_sent_at timestamp
+}
+
+Table tipos_cliente {
+  id_tipo_cliente bigint [primary key]
+  nombre_tipo text
+}
+
+Table alimentos {
+  id_alimento bigint [primary key]
+  id_categoria_menu bigint [ref: > categorias_menu.id_categoria_menu]
+  nombre_alimento text
+  created_at timestamp
+  created_by uuid
+  updated_at timestamp
+  updated_by uuid
+  nombre_normalizado text
+}
+
+Table recargas_saldo {
+  id_recarga uuid [primary key]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  id_producto bigint [ref: > productos.id_producto]
+  cantidad_comprada integer
+  monto_total numeric
+  created_at timestamp
+  created_by uuid
+  updated_at timestamp
+  updated_by uuid
+  numero_factura character varying
+}
+
+Table categorias_menu {
+  id_categoria_menu bigint [primary key]
+  nombre_categoria text
+  created_at timestamp
+  created_by uuid
+  updated_at timestamp
+  updated_by uuid
+}
+
+Table convenios {
+  id_convenio uuid [primary key]
+  ruc text
+  nombre_empresa text
+  representante text
+  telefono text
+  email text
+  fecha_inicio date
+  fecha_caducidad date
+  esta_activo boolean
+  created_at timestamp
+  created_by uuid
+  updated_at timestamp
+  updated_by uuid
+  cupo_maximo integer
+  archivo_firmado text
+  id_tipo_almuerzo bigint [ref: > tipos_almuerzo.id_tipo_almuerzo]
+  tipos_almuerzo_permitidos jsonb
+}
+
+Table orden_estado_auditoria {
+  id uuid [primary key]
+  id_orden uuid [ref: > ordenes.id_orden]
+  estado_anterior bigint [ref: > estados_orden.id_estado]
+  estado_nuevo bigint [ref: > estados_orden.id_estado]
+  motivo text
+  monto_ajustado numeric
+  created_by uuid
+  created_at timestamp
+}
+
+Table clientes {
+  id_cliente uuid [primary key]
+  id_tipo_cliente bigint [ref: > tipos_cliente.id_tipo_cliente]
+  cedula text
+  nombre text
+  apellido text
+  telefono text
+  esta_activo boolean
+  created_at timestamp
+  created_by uuid
+  updated_at timestamp
+  updated_by uuid
+  email text
+  correo text
+}
+
+Table telegram_consent_events {
+  id uuid [primary key]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  subscription_id uuid [ref: > telegram_subscriptions.id]
+  invitation_id uuid [ref: > telegram_invitations.id]
+  event_type text
+  consent_version text
+  notice_sha256 text
+  notice_text text
+  method text
+  telegram_user_id_hmac text
+  chat_id_hmac text
+  phone_hmac text
+  evidence jsonb
+  occurred_at timestamp
+}
+
+Table telegram_subscriptions {
+  id uuid [primary key]
+  id_cliente uuid [ref: > clientes.id_cliente]
+  phone_normalized text
+  chat_id text
+  consent_status text
+  is_active boolean
+  accepted_at timestamp
+  rejected_at timestamp
+  linked_at timestamp
+  last_menu_sent_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  consent_notice_version text
+  consent_notice_text text
+  revoked_at timestamp
+  telegram_user_id text
+  telegram_username text
+  consent_method text
+  deletion_requested_at timestamp
+}
+
+Table roles {
+  id_rol bigint [primary key]
+  nombre_rol text
+  created_at timestamp
+  created_by uuid
+  updated_at timestamp
+  updated_by uuid
+}
+
+Table empleados {
+  id uuid [primary key]
+  id_rol bigint [ref: > roles.id_rol]
+  nombre text
+  apellido text
+  nombre_usuario text
+  correo text
+  esta_activo boolean
+  created_at timestamp
+  created_by uuid
+  updated_at timestamp
+  updated_by uuid
+}
+
+Table estados_orden {
+  id_estado bigint [primary key]
+  nombre_estado text
+}
+
+Table tipos_almuerzo {
+  id_tipo_almuerzo bigint [primary key]
+  codigo text
+  nombre text
+  descripcion text
+  orden integer
+  es_principal boolean
+  requiere_observaciones boolean
+  permite_extras boolean
+  esta_activo boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table telegram_bot_state {
+  key text [primary key]
+  value jsonb
+  created_at timestamp
+  updated_at timestamp
+}
+

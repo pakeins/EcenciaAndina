@@ -14,14 +14,13 @@ if (!token) {
 }
 
 const BOT_COMMANDS = [
-  { command: 'menu', description: 'Ver el menu del dia y reservar' },
-  { command: 'pedido', description: 'Consultar, modificar o cancelar tu reserva de hoy' },
-  { command: 'cancelar', description: 'Descartar la seleccion en curso' },
-  { command: 'ayuda', description: 'Ver los comandos disponibles' },
-  { command: 'privacidad', description: 'Aviso de privacidad y consentimiento' },
-  { command: 'misdatos', description: 'Conocer que categorias de datos tratamos' },
-  { command: 'eliminarmisdatos', description: 'Solicitar la eliminacion de tus datos' },
-  { command: 'revocar', description: 'Revocar tu consentimiento' },
+  { command: 'start', description: 'Activar o revisar la suscripción' },
+  { command: 'menu', description: 'Abrir menú y reservar almuerzo' },
+  { command: 'privacidad', description: 'Consultar el aviso de privacidad' },
+  { command: 'mis_datos', description: 'Consultar los datos de Telegram vinculados' },
+  { command: 'eliminar_mis_datos', description: 'Solicitar eliminación de datos' },
+  { command: 'revocar', description: 'Revocar el consentimiento' },
+  { command: 'ayuda', description: 'Ver ayuda y canales de contacto' },
 ];
 
 async function telegramRequest(method, body = undefined) {

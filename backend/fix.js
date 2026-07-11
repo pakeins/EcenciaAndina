@@ -20,8 +20,8 @@ removeLine('src/test/reportes.test.js', /let fetchSpy;/);
 removeLine('src/test/clientes.test.js', /const isDescuentos =/);
 removeLine('src/test/reportes.test.js', /const method =/);
 removeLine('src/test/telegram-convenio-flow.test.js', /const TELEGRAM_LUNCH_TYPE_BY_ID =/);
-removeLine('src/test/validation-eciencia.test.js', /const MAX_LENGTHS =/);
-removeLine('src/test/validation-eciencia.test.js', /const data =/);
+removeLine('src/test/validation-ecencia.test.js', /const MAX_LENGTHS =/);
+removeLine('src/test/validation-ecencia.test.js', /const data =/);
 removeLine('src/services/telegramConsent.js', /const fs = require\('fs'\);/);
 removeLine('src/services/telegramConsent.js', /const path = require\('path'\);/);
 

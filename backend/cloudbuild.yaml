@@ -1,7 +1,7 @@
 substitutions:
-  _PROJECT_ID: eciencia-andina-preprod
+  _PROJECT_ID: ecencia-andina-preprod
   _REGION: us-central1
-  _REPO: eciencia
+  _REPO: ecencia
   _IMAGE: backend
   _TAG: preprod
 

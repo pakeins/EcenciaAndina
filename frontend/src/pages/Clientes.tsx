@@ -52,6 +52,7 @@ import { CLIENT_TYPE } from '@/constants/domain';
 import { useAuth } from '@/contexts/AuthContext';
 import { TelegramOnboardingDialog } from '@/components/clients/TelegramOnboardingDialog';
 import { TelegramPrivacyRequestsDialog } from '@/components/clients/TelegramPrivacyRequestsDialog';
+import { TelegramActionDialog } from '@/components/clients/TelegramActionDialog';
 
 const telegramStatusLabel: Record<TelegramStatus, string> = {
   no_invitation: 'Sin invitacion',
@@ -92,7 +93,11 @@ export default function Clientes() {
   const [telegramClientId, setTelegramClientId] = useState('');
   const [telegramDialogOpen, setTelegramDialogOpen] = useState(false);
   const [privacyRequestsOpen, setPrivacyRequestsOpen] = useState(false);
-  const [reinvitingClientId, setReinvitingClientId] = useState<string | null>(null);
+  
+  // --- NUEVO: ESTADO PARA TELEGRAM ACTIONS ---
+  const [telegramActionOpen, setTelegramActionOpen] = useState(false);
+  const [telegramActionClient, setTelegramActionClient] = useState<Client | null>(null);
+  const [telegramActionLoading, setTelegramActionLoading] = useState(false);
 
   // Confirmación para toggle activo/inactivo
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -256,10 +261,10 @@ export default function Clientes() {
     setTelegramDialogOpen(true);
   };
 
-  const handleTelegramReinvite = async (client: Client) => {
-    setReinvitingClientId(client.id);
+  const handleTelegramReinvite = async (clientId: string) => {
+    setTelegramActionLoading(true);
     try {
-      const response = await apiFetch(`/clientes/${client.id}/telegram/invitacion`, {
+      const response = await apiFetch(`/clientes/${clientId}/telegram/invitacion`, {
         method: 'POST',
       });
       const data = await response.json();
@@ -268,12 +273,31 @@ export default function Clientes() {
       toast.success(
         data.telegram_onboarding?.status === 'sent'
           ? 'Aviso enviado al chat vinculado.'
-          : 'Nueva invitacion Telegram generada.',
+          : 'Nueva invitación Telegram generada.',
       );
+      setTelegramActionOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo reinvitar al cliente.');
     } finally {
-      setReinvitingClientId(null);
+      setTelegramActionLoading(false);
+    }
+  };
+
+  const handleTelegramRevoke = async (clientId: string) => {
+    setTelegramActionLoading(true);
+    try {
+      const response = await apiFetch(`/clientes/${clientId}/telegram/revocar`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'No se pudo revocar al cliente.');
+      await fetchClientes();
+      toast.success('Acceso revocado correctamente.');
+      setTelegramActionOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo revocar al cliente.');
+    } finally {
+      setTelegramActionLoading(false);
     }
   };
 
@@ -366,7 +390,7 @@ export default function Clientes() {
     if (!telegramClientId) return;
     const client = clients.find((item) => item.id === telegramClientId);
     if (!client) return;
-    await handleTelegramReinvite(client);
+    await handleTelegramReinvite(client.id);
   };
 
   // --- TOGGLE ACTIVO/INACTIVO ---
@@ -712,16 +736,14 @@ export default function Clientes() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleTelegramReinvite(client)}
-                              disabled={reinvitingClientId === client.id}
-                              title="Reinvitar por Telegram"
+                              onClick={() => {
+                                setTelegramActionClient(client);
+                                setTelegramActionOpen(true);
+                              }}
+                              title="Gestionar Telegram"
                               className="hover:bg-[#24A1DE]/10 hover:text-[#24A1DE]"
                             >
-                              <Send
-                                className={`h-4 w-4 text-[#24A1DE] ${
-                                  reinvitingClientId === client.id ? 'animate-pulse' : ''
-                                }`}
-                              />
+                              <Send className="h-4 w-4 text-[#24A1DE]" />
                             </Button>
                           )}
                           <Switch
@@ -831,8 +853,8 @@ export default function Clientes() {
                   onValueChange={(value) =>
                     setFormData({
                       ...formData,
-                      id_tipo_cliente: parseInt(value),
-                      id_convenio: parseInt(value) === CLIENT_TYPE.AGREEMENT
+                      id_tipo_cliente: Number.parseInt(value),
+                      id_convenio: Number.parseInt(value) === CLIENT_TYPE.AGREEMENT
                         ? formData.id_convenio || (convenios.length > 0 ? convenios[0].id : '')
                         : '',
                     })
@@ -917,7 +939,7 @@ export default function Clientes() {
         clientName={telegramClientName}
         onboarding={telegramOnboarding}
         onRetryEmail={isAdmin ? retryTelegramEmail : undefined}
-        retryingEmail={Boolean(reinvitingClientId)}
+        retryingEmail={Boolean(telegramActionLoading)}
       />
 
       {isAdmin && (
@@ -927,6 +949,16 @@ export default function Clientes() {
         onResolved={fetchClientes}
       />
       )}
+
+      <TelegramActionDialog
+        open={telegramActionOpen}
+        onOpenChange={setTelegramActionOpen}
+        clientName={telegramActionClient ? `${telegramActionClient.nombre} ${telegramActionClient.apellido}` : ''}
+        clientId={telegramActionClient?.id || null}
+        onInvite={handleTelegramReinvite}
+        onRevoke={handleTelegramRevoke}
+        isLoading={telegramActionLoading}
+      />
 
       {/* AlertDialog for Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

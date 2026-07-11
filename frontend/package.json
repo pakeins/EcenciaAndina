@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" vitest run --coverage",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -83,6 +83,7 @@
     "@vitejs/plugin-react-swc": "^3.11.0",
     "@vitest/coverage-v8": "^4.1.9",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^10.1.0",
     "esbuild": "^0.28.1",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",

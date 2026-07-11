@@ -1,4 +1,4 @@
-import { afterEach, describe, it } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import request from 'supertest';
 import app from '../../index.js';
 
@@ -13,15 +13,15 @@ describe('Telegram webhook', () => {
   it('rechaza requests sin secret token correcto', async () => {
     process.env.TELEGRAM_WEBHOOK_SECRET = 'secret-test';
 
-    await request(app)
+    const res1 = await request(app)
       .post('/api/telegram/webhook')
-      .send({ update_id: 1 })
-      .expect(401);
+      .send({ update_id: 1 });
+    expect(res1.status).toBe(401);
 
-    await request(app)
+    const res2 = await request(app)
       .post('/api/telegram/webhook')
       .set('X-Telegram-Bot-Api-Secret-Token', 'otro')
-      .send({ update_id: 1 })
-      .expect(401);
+      .send({ update_id: 1 });
+    expect(res2.status).toBe(401);
   });
 });

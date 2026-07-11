@@ -4,8 +4,9 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 let telegramPrivate;
 
-beforeAll(() => {
-  const telegramRouter = require('../routes/telegram.js');
+beforeAll(async () => {
+  delete require.cache[require.resolve('../routes/telegram.js')];
+  const telegramRouter = (await import('../routes/telegram.js')).default;
   telegramPrivate = telegramRouter._private;
 });
 
@@ -34,7 +35,7 @@ describe('flujo Telegram exclusivamente por botones', () => {
       isStart: true,
       token: 'abc_DEF-123',
     });
-    expect(telegramPrivate.parseStartToken('/start@ECIENCIATESTEBOT token-123')).toEqual({
+    expect(telegramPrivate.parseStartToken('/start@ECENCIATESTEBOT token-123')).toEqual({
       isStart: true,
       token: 'token-123',
     });

@@ -161,13 +161,8 @@ const drawCombosBox = (
   const accent = COLORS.coffee;
   
   if (!combos || combos.length === 0) {
-    combos = [
-      { icon: "🍴", name: "Del Día Simple $3.99:", desc: "plato fuerte, bebida" },
-      { icon: "🥙", name: "Del Día $4.50:", desc: "sopa, plato fuerte, bebida" },
-      { icon: "🥗", name: "Ejecutivo Simple $4.50:", desc: "plato fuerte, bebida, postre" },
-      { icon: "🍛", name: "Ejecutivo sin Sopa $6.00:", desc: "entrada, plato fuerte, bebida, postre" },
-      { icon: "🍴", name: "Ejecutivo Completo $6.99:", desc: "entrada, sopa, plato fuerte, bebida, postre" }
-    ];
+    // If no combos are provided, we don't draw anything
+    return 0;
   }
 
   const rowHeight = 48;

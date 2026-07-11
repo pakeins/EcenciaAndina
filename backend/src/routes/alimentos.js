@@ -3,7 +3,7 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
-const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { parseBody, schemas, sendValidationError } = require('../validation/ecencia');
 const { findOrCreateFood } = require('../services/menuCatalog');
 
 router.use(authMiddleware);
@@ -49,7 +49,7 @@ router.post('/categorias', roleMiddleware(['administrador']), async (req, res) =
 // Eliminar categoria de menu
 router.delete('/categorias/:id', roleMiddleware(['administrador']), async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ error: 'ID de categoria invalido.' });
     }
@@ -132,7 +132,7 @@ router.post('/', roleMiddleware(['administrador', 'caja']), async (req, res) => 
 // Eliminar alimento
 router.delete('/:id', roleMiddleware(['administrador']), async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ error: 'ID de alimento invalido.' });
     }

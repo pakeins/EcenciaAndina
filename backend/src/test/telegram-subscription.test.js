@@ -1,12 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-let consent;
-
-beforeAll(() => {
-  consent = require('../services/telegramConsent.js');
-});
+import { describe, expect, it } from 'vitest';
+import consent from '../services/telegramConsent.js';
 
 const invitation = (patch = {}) => ({
   id: 'invite-1',
@@ -108,7 +101,7 @@ describe('invitaciones Telegram', () => {
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).not.toHaveProperty('token');
     expect(inserts[0].token_hmac).toMatch(/^[a-f0-9]{64}$/);
-    expect(result.onboarding_url).toMatch(/^https:\/\/t\.me\/eciencia_test_bot\?start=/);
+    expect(result.onboarding_url).toMatch(/^https:\/\/t\.me\/ecencia_test_bot\?start=/);
     expect(result.onboarding_url).not.toContain(inserts[0].token_hmac);
   });
 });

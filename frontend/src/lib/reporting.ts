@@ -153,7 +153,7 @@ export const buildReportCsv = ({
     ]);
   }
 
-  const totalRow = Array(headers.length).fill('');
+  const totalRow = new Array(headers.length).fill('');
   totalRow[headers.length - 2] = reportType === 'estados' && stateFilter === '3' ? 'Total cancelado' : 'Total neto';
   totalRow[headers.length - 1] = formatMoney(calculateReportTotal(reportType, data, stateFilter));
 

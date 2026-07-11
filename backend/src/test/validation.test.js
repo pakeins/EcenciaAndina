@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import validation from '../validation/eciencia.js';
+import validation from '../validation/ecencia.js';
 
 const { isValidCedula, isValidRuc, normalizePhone, parseBody, schemas } = validation;
 

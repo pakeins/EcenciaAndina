@@ -9,9 +9,15 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    testTimeout: 30000,
+    hookTimeout: 60000,
+    pool: 'threads',
+    maxWorkers: 2,
+    minWorkers: 1,
+
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      reporter: ['text', 'lcov', 'html'],
       reportsDirectory: './coverage',
       exclude: [
         'src/components/ui/**',

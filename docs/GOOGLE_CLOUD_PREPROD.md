@@ -2,9 +2,9 @@
 
 Configuracion objetivo:
 
-- Project ID: `eciencia-andina-preprod`
+- Project ID: `ecencia-andina-preprod`
 - Region: `us-central1`
-- Artifact Registry: `eciencia`
+- Artifact Registry: `ecencia`
 - Backend: Cloud Run, puerto `3001`
 - Frontend: Cloud Run, puerto `8080`
 - Base de datos y archivos persistentes: Supabase `lkffhdcavohaxdihvwlb`
@@ -26,7 +26,7 @@ Variables esenciales:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `AGREEMENT_DOCUMENTS_BUCKET=eciencia-agreement-documents`
+- `AGREEMENT_DOCUMENTS_BUCKET=ecencia-agreement-documents`
 - `CORS_ORIGINS`
 - `PASSWORD_RECOVERY_REDIRECT_URL`
 - `TELEGRAM_BOT_TOKEN`
@@ -73,18 +73,18 @@ Backend:
 
 ```powershell
 gcloud builds submit backend `
-  --project eciencia-andina-preprod `
+  --project ecencia-andina-preprod `
   --config backend/cloudbuild.yaml `
-  --substitutions "_PROJECT_ID=eciencia-andina-preprod,_REGION=us-central1,_REPO=eciencia,_TAG=preprod"
+  --substitutions "_PROJECT_ID=ecencia-andina-preprod,_REGION=us-central1,_REPO=ecencia,_TAG=preprod"
 ```
 
 Frontend:
 
 ```powershell
 gcloud builds submit frontend `
-  --project eciencia-andina-preprod `
+  --project ecencia-andina-preprod `
   --config frontend/cloudbuild.yaml `
-  --substitutions "_PROJECT_ID=eciencia-andina-preprod,_REGION=us-central1,_REPO=eciencia,_TAG=preprod,_VITE_API_BASE_URL=https://TU_BACKEND/api"
+  --substitutions "_PROJECT_ID=ecencia-andina-preprod,_REGION=us-central1,_REPO=ecencia,_TAG=preprod,_VITE_API_BASE_URL=https://TU_BACKEND/api"
 ```
 
 Antes de enviar cada contexto:

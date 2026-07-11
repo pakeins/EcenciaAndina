@@ -1,0 +1,1 @@
+alter table public.convenios add column if not exists tipos_almuerzo_permitidos text[] default '{}';

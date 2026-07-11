@@ -28,10 +28,12 @@ const clientWithConvenio = (overrides = {}) => ({
   ],
 });
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
-  const telegramRouter = require('../routes/telegram.js');
+  
+  delete require.cache[require.resolve('../routes/telegram.js')];
+  const telegramRouter = (await import('../routes/telegram.js')).default;
   activeConvenio = telegramRouter._private.activeConvenio;
   TELEGRAM_LUNCH_TYPE_BY_ID = telegramRouter._private.TELEGRAM_LUNCH_TYPE_BY_ID;
   buildComponentPlan = telegramRouter._private.buildComponentPlan;

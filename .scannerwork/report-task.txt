@@ -1,0 +1,6 @@
+projectKey=Ecencia-Andina
+serverUrl=http://localhost:9000
+serverVersion=26.7.0.124771
+dashboardUrl=http://localhost:9000/dashboard?id=Ecencia-Andina
+ceTaskId=1d669607-b1be-4be5-a368-20354b1b3d82
+ceTaskUrl=http://localhost:9000/api/ce/task?id=1d669607-b1be-4be5-a368-20354b1b3d82

@@ -70,8 +70,10 @@ describe('Rutas de Clientes Completo', () => {
         }
       }
 
-      if (isTelegramSubscriptions && method === 'PATCH') {
-        return new Response(JSON.stringify({ chat_id: 123456 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      if (isTelegramSubscriptions) {
+        if (method === 'PATCH' || method === 'GET') {
+          return new Response(JSON.stringify({ chat_id: 123456 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
       }
 
       if (isConvenios) {
@@ -100,7 +102,7 @@ describe('Rutas de Clientes Completo', () => {
       }
 
       if (isOrdenes) {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify([{ id_orden: 'order-1' }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
 
 
@@ -300,6 +302,18 @@ describe('Rutas de Clientes Completo', () => {
     it('DELETE /api/clientes/:id/convenio falla si hay error de BD', async () => {
       forceDbError = true;
       const res = await request(app).delete('/api/clientes/cli-1/convenio').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('DELETE /api/clientes/:id (soft delete) falla si hay error de BD', async () => {
+      forceDbError = true;
+      const res = await request(app).delete('/api/clientes/cli-1').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('DELETE /api/clientes/:id/hard-delete falla si hay error de BD', async () => {
+      forceDbError = true;
+      const res = await request(app).delete('/api/clientes/cli-1/hard-delete').set('Authorization', 'Bearer valid-token');
       expect(res.status).toBe(500);
     });
   });

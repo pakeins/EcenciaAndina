@@ -30,3 +30,7 @@ frontend/.env
 n8n-data.tar.gz
 backend/n8n/
 *.pem
+
+# Coverage reports (generated, should not be committed)
+backend/coverage/
+frontend/coverage/

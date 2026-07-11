@@ -6,10 +6,11 @@ let cleanupOldMenuImages;
 let buildCleanupPlan;
 
 const publicUrl = (name) =>
-  `https://example.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/${name}`;
+  `https://example.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/${name}`;
 
-beforeAll(() => {
-  const cleanupService = require('../services/menuImageCleanup.js');
+beforeAll(async () => {
+  delete require.cache[require.resolve('../services/menuImageCleanup.js')];
+  const cleanupService = (await import('../services/menuImageCleanup.js')).default;
   cleanupOldMenuImages = cleanupService.cleanupOldMenuImages;
   buildCleanupPlan = cleanupService._private.buildCleanupPlan;
 });
@@ -85,7 +86,7 @@ describe('limpieza de imagenes antiguas de menus', () => {
       activeDate: null,
       menuRows: [],
       files: [
-        { name: 'eciencia-menu-demo.png', created_at: '2025-01-01T00:00:00Z' },
+        { name: 'ecencia-menu-demo.png', created_at: '2025-01-01T00:00:00Z' },
         { name: 'contrato.pdf', created_at: '2025-01-01T00:00:00Z' },
       ],
     });

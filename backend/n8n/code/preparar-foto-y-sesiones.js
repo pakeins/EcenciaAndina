@@ -4,11 +4,11 @@ function cfg(name, fallback = '') {
   return env[name] || vars[name] || fallback;
 }
 
-const backendUrl = (cfg('N8N_ECIENCIA_BACKEND_URL') || cfg('PUBLIC_BACKEND_URL')).replace(/\/$/, '');
+const backendUrl = (cfg('N8N_ECENCIA_BACKEND_URL') || cfg('PUBLIC_BACKEND_URL')).replace(/\/$/, '');
 const secret = cfg('N8N_MENU_WEBHOOK_SECRET');
 
 if (!backendUrl || !secret) {
-  throw new Error('Faltan N8N_ECIENCIA_BACKEND_URL y N8N_MENU_WEBHOOK_SECRET en n8n.');
+  throw new Error('Faltan N8N_ECENCIA_BACKEND_URL y N8N_MENU_WEBHOOK_SECRET en n8n.');
 }
 
 const payload = items[0]?.json || {};
@@ -17,7 +17,7 @@ const result = await helpers.httpRequest({
   method: 'POST',
   url: backendUrl + '/api/telegram/broadcast-sessions',
   headers: {
-    'X-Eciencia-Webhook-Secret': secret,
+    'X-Ecencia-Webhook-Secret': secret,
     'Content-Type': 'application/json'
   },
   body: payload,
