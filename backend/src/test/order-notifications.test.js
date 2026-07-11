@@ -140,4 +140,21 @@ describe('notificaciones de estado por Telegram', () => {
     expect(result).toMatchObject({ status: 'failed', error: 'Unauthorized' });
     expect(client.audits[0]).toMatchObject({ status: 'failed', error_message: 'Unauthorized' });
   });
+  it('registra fallo de base de datos al buscar suscripcion', async () => {
+    const client = makeClient([]);
+    const originalFrom = client.from;
+    client.from = (table) => {
+      if (table === 'telegram_subscriptions') throw new Error('Database connection failed');
+      return originalFrom.call(client, table);
+    };
+
+    const result = await notifyOrderStatusChange(client, {
+      idOrden: 'order-1',
+      idCliente: 'client-1',
+      nextState: 2,
+    });
+
+    expect(result).toMatchObject({ status: 'failed', error: 'Database connection failed' });
+    expect(client.audits[0]).toMatchObject({ status: 'failed', error_message: 'Database connection failed' });
+  });
 });

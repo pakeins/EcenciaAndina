@@ -4,29 +4,14 @@ import express from 'express';
 import request from 'supertest';
 import { beforeAll } from 'vitest';
 
-let clientesRouter;
+import app from '../../index.js';
 
 describe('Rutas de Clientes Completo', () => {
-  let app;
   let fetchSpy;
   let forceDbError = false;
 
-  beforeAll(async () => {
-    const resolvedPath = require.resolve('../routes/clientes.js');
-    delete require.cache[resolvedPath];
-    clientesRouter = (await import('../routes/clientes.js')).default;
-  });
-
   beforeEach(() => {
     forceDbError = false;
-    app = express();
-    app.use(express.json());
-    // Mock user for adminOnly middleware
-    app.use((req, res, next) => {
-      req.user = { id: 'admin-id', rol: 'administrador', empleado_id: 'emp-1' };
-      next();
-    });
-    app.use('/api/clientes', clientesRouter);
 
     fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url, options) => {
       const urlStr = url.toString();
