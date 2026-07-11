@@ -74,4 +74,25 @@ describe('ProtectedRoute', () => {
     );
     expect(screen.getByText('Dashboard Admin')).toBeInTheDocument();
   });
+
+  it('redirige a /pedidos si no tiene los permisos necesarios (vendedor intentando entrar a ruta de administrador)', () => {
+    vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
+      user: { id: 2, email: 'vendedor@test.com', rol: 'vendedor', nombre: 'Vendedor', apellido: 'Test' },
+      isAuthenticated: true,
+      login: vi.fn(),
+      logout: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<ProtectedRoute allowedRoles={['administrador']} />}>
+            <Route path="/" element={<div>Contenido Protegido</div>} />
+          </Route>
+          <Route path="/pedidos" element={<div>Dashboard Vendedor</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(screen.getByText('Dashboard Vendedor')).toBeInTheDocument();
+  });
 });

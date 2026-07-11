@@ -45,4 +45,52 @@ describe('useClientsAndConvenios', () => {
     expect(result.current.clientes).toHaveLength(1);
     expect(result.current.convenios).toHaveLength(1);
   });
+
+  it('maneja error cuando falla la petición de clientes', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/clientes')) {
+        return Promise.resolve({ ok: false });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const { result } = renderHook(() => useClientsAndConvenios(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isError).toBe(true);
+    expect(result.current.error?.message).toContain('Error al obtener clientes');
+  });
+
+  it('maneja error cuando falla la petición de convenios', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/convenios')) {
+        return Promise.resolve({ ok: false });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const { result } = renderHook(() => useClientsAndConvenios(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isError).toBe(true);
+    expect(result.current.error?.message).toContain('Error al obtener convenios');
+  });
 });

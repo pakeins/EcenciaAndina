@@ -23,7 +23,6 @@ describe('ImageUpload', () => {
     const handleChange = vi.fn();
     render(<ImageUpload value="data:image/png;base64,mock" onChange={handleChange} />);
     
-    // Buscar el botón de eliminar por el icono o el rol
     const removeButton = screen.getByRole('button');
     fireEvent.click(removeButton);
     
@@ -44,7 +43,21 @@ describe('ImageUpload', () => {
     });
   });
 
-  it('maneja eventos drag and drop', () => {
+  it('ignora el cambio si el archivo no es una imagen', async () => {
+    const handleChange = vi.fn();
+    const { container } = render(<ImageUpload value={null} onChange={handleChange} />);
+    
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['hello world'], 'test.txt', { type: 'text/plain' });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // Wait a brief moment to ensure it is not called
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(handleChange).not.toHaveBeenCalled();
+  });
+
+  it('maneja eventos drag and drop con archivos de imagen', async () => {
     const handleChange = vi.fn();
     const { container } = render(<ImageUpload value={null} onChange={handleChange} />);
     
@@ -56,13 +69,32 @@ describe('ImageUpload', () => {
     fireEvent.dragLeave(dropzone);
     expect(dropzone.className).not.toContain('bg-primary/5');
 
-    const file = new File(['test'], 'test.png', { type: 'image/png' });
+    const file = new File(['test-drag'], 'test.png', { type: 'image/png' });
     fireEvent.drop(dropzone, {
       dataTransfer: {
         files: [file]
       }
     });
 
-    // HandleFile is called (async reading starts, handled in other test)
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalled();
+    });
+  });
+
+  it('ignora drag and drop si el archivo no es una imagen', async () => {
+    const handleChange = vi.fn();
+    const { container } = render(<ImageUpload value={null} onChange={handleChange} />);
+    
+    const dropzone = container.firstChild?.firstChild as HTMLElement;
+    const file = new File(['test-drag-plain'], 'test.txt', { type: 'text/plain' });
+    
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [file]
+      }
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(handleChange).not.toHaveBeenCalled();
   });
 });
