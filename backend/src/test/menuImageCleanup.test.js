@@ -61,7 +61,7 @@ describe('menuImageCleanup service', () => {
     });
 
     it('returns null if timestamp in name is invalid', () => {
-      const file = { name: `menu-dashboard-invalid.jpg` };
+      const file = { name: 'menu-dashboard-invalid.jpg' };
       expect(_private.managedFileDate(file)).toBeNull();
     });
   });
