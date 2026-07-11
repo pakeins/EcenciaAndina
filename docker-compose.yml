@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    image: ghcr.io/packeins/ecencia-backend:latest
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-pakeins}/ecencia-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
