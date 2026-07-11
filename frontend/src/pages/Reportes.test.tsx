@@ -119,5 +119,71 @@ describe('Reportes', () => {
     await waitFor(() => {
       expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
     });
+
+    // Clic en botones de exportación (Ventas)
+    const exportBtns = screen.getAllByRole('button').filter(b => 
+      b.textContent?.includes('Exportar PDF') || 
+      b.textContent?.includes('Exportar CSV') || 
+      b.textContent?.includes('Facturación (XML)')
+    );
+    exportBtns.forEach(btn => fireEvent.click(btn));
+  });
+
+  it('permite generar reporte de convenios y exportar', async () => {
+    const mockVentasConvenios = [{
+      cedula: '1234567890',
+      empleado: 'Juan Perez',
+      total: 110,
+      consumos: [
+        { fecha: '2026-07-01', producto: 'Almuerzo Ejecutivo', cantidad: 10, valor: 110 }
+      ]
+    }];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/reporte')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConvenios) });
+      if (url.includes('/convenios')) return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', nombre_empresa: 'Empresa A', activo: true }]) });
+      if (url.includes('/ventas/reporte-convenios')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConvenios) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    await renderComponent();
+
+    // Cambiar a la pestaña de convenios (via combobox)
+    const comboboxes = screen.getAllByRole('combobox');
+    fireEvent.click(comboboxes[0]); // El primer combobox es Tipo de Reporte
+    
+    // Seleccionar 'convenio'
+    const option = await screen.findByText('Consolidado por Convenio');
+    fireEvent.click(option);
+
+    // Debe aparecer el segundo combobox para elegir la empresa
+    await waitFor(() => {
+      expect(screen.getAllByRole('combobox').length).toBeGreaterThan(1);
+    });
+
+    // Cambiar el select del convenio
+    const convCombobox = screen.getAllByRole('combobox')[1];
+    fireEvent.click(convCombobox); // Abrir
+
+    // Esperar a que aparezca la opción de Empresa A y clickearla
+    const empOption = await screen.findByRole('option', { name: /Empresa A/i });
+    fireEvent.click(empOption);
+
+    // Click generar
+    const btnGenerar = screen.getAllByText('Generar Reporte')[0]; // Toma el primero visible
+    fireEvent.click(btnGenerar);
+
+    await waitFor(() => {
+      // Debe aparecer el resultado
+      expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
+    });
+
+    // Clic en botones de exportación (Convenios)
+    const exportBtns = screen.getAllByRole('button').filter(b => 
+      b.textContent?.includes('Exportar PDF') || 
+      b.textContent?.includes('Exportar CSV') || 
+      b.textContent?.includes('Facturación (XML)')
+    );
+    exportBtns.forEach(btn => fireEvent.click(btn));
   });
 });

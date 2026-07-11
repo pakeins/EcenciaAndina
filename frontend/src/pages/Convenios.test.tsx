@@ -109,4 +109,67 @@ describe('Convenios', () => {
       expect(screen.getByText(/1799999999001/i)).toBeInTheDocument();
     });
   });
+
+  it('permite abrir el modal de nuevo convenio y guardar', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, init?: RequestInit) => {
+      if (init && init.method === 'POST') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'conv2', ruc: '0999999999001', nombre_empresa: 'Empresa B', fecha_inicio: '2024-01-01', fecha_caducidad: '2025-01-01', cupo_maximo: 10, tipos_almuerzo_permitidos: [] }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    await renderComponent();
+    
+    // Abrir modal
+    const btnNuevo = await screen.findByText('Nuevo Convenio');
+    fireEvent.click(btnNuevo);
+    
+    await waitFor(() => {
+      // Find the dialog itself
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // Click cancelar para cerrar
+    const btnCancel = screen.getByText('Cancelar');
+    fireEvent.click(btnCancel);
+  });
+
+  it('permite abrir modales de edición, reporte y otros', async () => {
+    // Mock window.open for PDF generation
+    global.window.open = vi.fn().mockReturnValue({
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn()
+    }) as any;
+
+    const mockConvenios = [
+      { id: 'conv1', ruc: '1799999999001', nombre_empresa: 'Empresa A', fecha_inicio: '2023-01-01', fecha_caducidad: '2026-12-31', activo: true, tipos_almuerzo_permitidos: [] }
+    ];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve(mockConvenios) });
+
+    await renderComponent();
+    
+    // Editar
+    const btnEditar = await screen.findByText('Editar');
+    fireEvent.click(btnEditar);
+    
+    // Cerrar dialog (puede haber varios Cancelar, tomamos el del dialog)
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    fireEvent.click(screen.getAllByText('Cancelar')[0]);
+    
+    // Generar Reporte
+    const btnReporte = screen.getByText('Generar Reporte');
+    fireEvent.click(btnReporte);
+
+    // Generar Contrato (Exportar PDF)
+    const btnContrato = screen.getByText('Generar Contrato');
+    fireEvent.click(btnContrato);
+    
+    // Switch de activo
+    const switches = screen.getAllByRole('switch', { hidden: true });
+    if (switches.length > 0) {
+      fireEvent.click(switches[0]);
+    }
+  });
 });

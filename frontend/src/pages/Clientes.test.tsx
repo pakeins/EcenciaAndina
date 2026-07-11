@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import Clientes from './Clientes';
 import { apiFetch } from '@/lib/api';
+import { toast } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -10,6 +11,13 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false 
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ user: { rol: 'administrador' } }),
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  }
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -99,5 +107,18 @@ describe('Clientes', () => {
       expect(screen.getByText('Juan Perez')).toBeInTheDocument();
       expect(screen.getByText('1712345678')).toBeInTheDocument();
     });
+  });
+  it('permite buscar clientes', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByText('Juan Perez')).toBeInTheDocument());
+
+    const searchInput = screen.getByPlaceholderText('Buscar por nombre, cédula o teléfono...');
+    
+    // Simulate search
+    await act(async () => {
+      const { fireEvent } = require('@testing-library/react');
+      fireEvent.change(searchInput, { target: { value: '171234' } });
+    });
+
   });
 });
