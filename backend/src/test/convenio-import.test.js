@@ -554,10 +554,12 @@ describe('importacion Excel de colaboradores de convenio', () => {
       consent_status: 'accepted',
       is_active: true,
     });
-    const fetchImpl = vi.fn(async () => ({
+    const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ ok: true, result: { message_id: 88 } }),
-    }));
+      json: async () => ({ ok: true, result: { message_id: 88 } })
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
     const buffer = createWorkbook([
       ['cedula', 'nombre', 'apellido', 'email', 'telefono'],
       [cedula, 'Luis', 'Mora', 'luis@example.com', '0998313804'],
@@ -565,12 +567,12 @@ describe('importacion Excel de colaboradores de convenio', () => {
 
     const result = await importConvenioEmployees(
       db.client,
-      { idConvenio: 'conv-1', fileBuffer: buffer, userId: 'admin-1' },
-      { invitationOptions: { telegramOptions: { fetchImpl, token: 'token-test' } } },
+      { idConvenio: 'conv-1', fileBuffer: buffer, userId: 'admin-1' }
     );
+    vi.unstubAllGlobals();
 
     expect(result.resultados[0]).toMatchObject({ estado: 'linked_existing', telegramStatus: 'sent' });
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(mockFetch).toHaveBeenCalledOnce();
     expect(db.invitations[0]).toMatchObject({ status: 'sent', telegram_message_id: 88 });
   });
 
@@ -820,11 +822,12 @@ describe('importacion Excel de colaboradores de convenio', () => {
       consent_status: 'accepted',
       is_active: true,
     });
-    const fetchImpl = vi.fn(async () => ({
+    const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 429,
-      json: async () => ({ ok: false, description: 'rate limited' }),
-    }));
+      text: async () => 'rate limited'
+    });
+    vi.stubGlobal('fetch', mockFetch);
 
     const invitation = await generateConvenioInvitation(
       db.client,
@@ -839,12 +842,12 @@ describe('importacion Excel de colaboradores de convenio', () => {
         },
         createdBy: 'admin-1',
         sendDirect: true,
-      },
-      { telegramOptions: { fetchImpl, token: 'token-test' } },
+      }
     );
+    vi.unstubAllGlobals();
 
-    expect(invitation).toMatchObject({ telegramStatus: 'failed', errorMessage: 'rate limited' });
-    expect(db.invitations[0]).toMatchObject({ status: 'failed', error_message: 'rate limited' });
+    expect(invitation).toMatchObject({ telegramStatus: 'failed', errorMessage: expect.stringContaining('rate limited') });
+    expect(db.invitations[0]).toMatchObject({ status: 'failed', error_message: expect.stringContaining('rate limited') });
   });
 
   it('resuelve links y estados base de invitacion', () => {

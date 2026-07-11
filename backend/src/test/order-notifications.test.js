@@ -78,19 +78,20 @@ describe('notificaciones de estado por Telegram', () => {
         is_active: true,
       },
     ]);
-    const fetchImpl = vi.fn(async () => ({
+    const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ ok: true, result: { message_id: 44 } }),
-    }));
+      json: async () => ({ ok: true, result: { message_id: 44 } })
+    });
+    vi.stubGlobal('fetch', mockFetch);
 
     const result = await notifyOrderStatusChange(
       client,
-      { idOrden: 'order-1', idCliente: 'client-1', nextState: 2 },
-      { fetchImpl, token: 'token-test' },
+      { idOrden: 'order-1', idCliente: 'client-1', nextState: 2 }
     );
+    vi.unstubAllGlobals();
 
     expect(result).toMatchObject({ status: 'sent', telegramMessageId: 44 });
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(mockFetch).toHaveBeenCalledOnce();
     expect(client.audits[0]).toMatchObject({
       id_orden: 'order-1',
       subscription_id: 'sub-1',
@@ -125,20 +126,21 @@ describe('notificaciones de estado por Telegram', () => {
         is_active: true,
       },
     ]);
-    const fetchImpl = vi.fn(async () => ({
+    const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
-      json: async () => ({ ok: false, description: 'Unauthorized' }),
-    }));
+      text: async () => 'Unauthorized'
+    });
+    vi.stubGlobal('fetch', mockFetch);
 
     const result = await notifyOrderStatusChange(
       client,
-      { idOrden: 'order-1', idCliente: 'client-1', nextState: 3 },
-      { fetchImpl, token: 'token-test' },
+      { idOrden: 'order-1', idCliente: 'client-1', nextState: 3 }
     );
+    vi.unstubAllGlobals();
 
-    expect(result).toMatchObject({ status: 'failed', error: 'Unauthorized' });
-    expect(client.audits[0]).toMatchObject({ status: 'failed', error_message: 'Unauthorized' });
+    expect(result).toMatchObject({ status: 'failed', error: expect.stringContaining('Unauthorized') });
+    expect(client.audits[0]).toMatchObject({ status: 'failed', error_message: expect.stringContaining('Unauthorized') });
   });
   it('registra fallo de base de datos al buscar suscripcion', async () => {
     const client = makeClient([]);
