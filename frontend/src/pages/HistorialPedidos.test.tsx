@@ -47,7 +47,7 @@ describe('HistorialPedidos', () => {
         opciones: { sopa: 'Locro', segundo: 'Seco' }
       }
     ];
-    (apiFetch as any).mockResolvedValue({
+    (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockOrders)
     });
@@ -82,7 +82,7 @@ describe('HistorialPedidos', () => {
         opciones: { sopa: 'Locro', segundo: 'Seco' }
       }
     ];
-    (apiFetch as any).mockResolvedValue({
+    (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockOrders)
     });
@@ -97,7 +97,7 @@ describe('HistorialPedidos', () => {
 
     const searchInput = screen.getByPlaceholderText(/Buscar por nombre o teléfono/i);
     await act(async () => {
-      // @ts-ignore
+      // @ts-expect-error - value is read-only in the generic type but mutable in this test context
       searchInput.value = 'Juan';
       searchInput.dispatchEvent(new Event('input', { bubbles: true }));
     });
@@ -119,7 +119,7 @@ describe('HistorialPedidos', () => {
         detalle_orden: [{ cantidad: 1, precio_aplicado: 10 }]
       }
     ];
-    (apiFetch as any).mockResolvedValue({
+    (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockOrders)
     });

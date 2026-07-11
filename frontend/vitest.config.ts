@@ -26,7 +26,6 @@ export default defineConfig({
         'src/vite-env.d.ts',
         'src/main.tsx',
         'src/App.tsx',
-        'src/pages/Perfil.tsx',
         'node_modules/**'
       ],
       thresholds: {
