@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { ProductManager } from './ProductManager';
 import { apiFetch } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
