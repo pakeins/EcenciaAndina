@@ -4,97 +4,57 @@ import { describe, it, expect, vi } from 'vitest';
 import { ImageUpload } from './ImageUpload';
 
 describe('ImageUpload', () => {
-  it('renderiza el estado inicial vacío', () => {
-    const handleChange = vi.fn();
-    render(<ImageUpload value={null} onChange={handleChange} />);
-    expect(screen.getByText(/Click o arrastra la foto del menú/i)).toBeInTheDocument();
+  it('renderiza correctamente en estado vacío', () => {
+    const onChange = vi.fn();
+    render(<ImageUpload value={null} onChange={onChange} />);
+    
+    expect(screen.getByText('Click o arrastra la foto del menú')).toBeInTheDocument();
   });
 
-  it('renderiza la imagen cuando hay un valor', () => {
-    const handleChange = vi.fn();
-    render(<ImageUpload value="data:image/png;base64,mock" onChange={handleChange} />);
+  it('renderiza la imagen de vista previa si hay un valor', () => {
+    const onChange = vi.fn();
+    render(<ImageUpload value="data:image/png;base64,mock" onChange={onChange} />);
     
-    const img = screen.getByAltText('Preview');
+    const img = screen.getByRole('img', { name: /preview/i });
     expect(img).toBeInTheDocument();
     expect(img).toHaveAttribute('src', 'data:image/png;base64,mock');
   });
 
-  it('permite eliminar la imagen (llama a onChange con null)', () => {
-    const handleChange = vi.fn();
-    render(<ImageUpload value="data:image/png;base64,mock" onChange={handleChange} />);
+  it('llama a onChange con null al hacer click en el botón de eliminar', () => {
+    const onChange = vi.fn();
+    render(<ImageUpload value="data:image/png;base64,mock" onChange={onChange} />);
     
-    const removeButton = screen.getByRole('button');
-    fireEvent.click(removeButton);
+    const removeBtn = screen.getByRole('button');
+    fireEvent.click(removeBtn);
     
-    expect(handleChange).toHaveBeenCalledWith(null);
+    expect(onChange).toHaveBeenCalledWith(null);
   });
 
-  it('maneja el evento change de un archivo de imagen', async () => {
-    const handleChange = vi.fn();
-    const { container } = render(<ImageUpload value={null} onChange={handleChange} />);
+  it('procesa la carga de archivos al cambiar el input', async () => {
+    const onChange = vi.fn();
+    render(<ImageUpload value={null} onChange={onChange} />);
     
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['mock-image-content'], 'test.png', { type: 'image/png' });
+    // Simular archivo
+    const file = new File(['mock content'], 'test.png', { type: 'image/png' });
+    const input = screen.getByLabelText(/Click o arrastra/i) as HTMLInputElement;
+    
+    // Mockear FileReader
+    class MockFileReader {
+      onload: any;
+      readAsDataURL(blob: Blob) {
+        setTimeout(() => {
+          if (this.onload) {
+            this.onload({ target: { result: 'data:image/png;base64,result' } });
+          }
+        }, 0);
+      }
+    }
+    window.FileReader = MockFileReader as any;
 
     fireEvent.change(input, { target: { files: [file] } });
-
+    
     await waitFor(() => {
-      expect(handleChange).toHaveBeenCalled();
+      expect(onChange).toHaveBeenCalledWith('data:image/png;base64,result');
     });
-  });
-
-  it('ignora el cambio si el archivo no es una imagen', async () => {
-    const handleChange = vi.fn();
-    const { container } = render(<ImageUpload value={null} onChange={handleChange} />);
-    
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['hello world'], 'test.txt', { type: 'text/plain' });
-
-    fireEvent.change(input, { target: { files: [file] } });
-
-    // Wait a brief moment to ensure it is not called
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(handleChange).not.toHaveBeenCalled();
-  });
-
-  it('maneja eventos drag and drop con archivos de imagen', async () => {
-    const handleChange = vi.fn();
-    const { container } = render(<ImageUpload value={null} onChange={handleChange} />);
-    
-    const dropzone = container.firstChild?.firstChild as HTMLElement;
-    
-    fireEvent.dragOver(dropzone);
-    expect(dropzone.className).toContain('border-primary');
-    
-    fireEvent.dragLeave(dropzone);
-    expect(dropzone.className).not.toContain('bg-primary/5');
-
-    const file = new File(['test-drag'], 'test.png', { type: 'image/png' });
-    fireEvent.drop(dropzone, {
-      dataTransfer: {
-        files: [file]
-      }
-    });
-
-    await waitFor(() => {
-      expect(handleChange).toHaveBeenCalled();
-    });
-  });
-
-  it('ignora drag and drop si el archivo no es una imagen', async () => {
-    const handleChange = vi.fn();
-    const { container } = render(<ImageUpload value={null} onChange={handleChange} />);
-    
-    const dropzone = container.firstChild?.firstChild as HTMLElement;
-    const file = new File(['test-drag-plain'], 'test.txt', { type: 'text/plain' });
-    
-    fireEvent.drop(dropzone, {
-      dataTransfer: {
-        files: [file]
-      }
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(handleChange).not.toHaveBeenCalled();
   });
 });

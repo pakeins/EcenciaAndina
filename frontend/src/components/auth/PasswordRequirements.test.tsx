@@ -1,23 +1,33 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
 import { PasswordRequirements } from './PasswordRequirements';
 
 describe('PasswordRequirements', () => {
-  it('renderiza todos los requisitos', () => {
-    // Renderea si hay una contraseña (aunque no cumpla los requisitos)
-    render(<PasswordRequirements password="a" />);
-    expect(screen.getByText(/Al menos 8 caracteres/i)).toBeInTheDocument();
-    expect(screen.getByText(/Mayúsculas y minúsculas/i)).toBeInTheDocument();
-    expect(screen.getByText(/Un número/i)).toBeInTheDocument();
-    expect(screen.getByText(/Un carácter especial/i)).toBeInTheDocument();
+  it('no renderiza nada si no hay contraseña', () => {
+    const { container } = render(<PasswordRequirements password="" />);
+    expect(container.firstChild).toBeNull();
   });
 
-  it('marca los requisitos cumplidos', () => {
-    // La contraseña cumple: al menos 8 caracteres, número, minúscula, mayúscula
-    render(<PasswordRequirements password="Password123" />);
-    // Since Check and X icons indicate the state, we can test that they are rendered properly if they have test ids
-    // Or we can just ensure it doesn't crash on valid passwords
-    expect(screen.getByText(/Al menos 8 caracteres/i)).toBeInTheDocument();
+  it('renderiza advertencias para una contraseña débil', () => {
+    render(<PasswordRequirements password="weak" />);
+    expect(screen.getByText('La contraseña debe contener:')).toBeInTheDocument();
+    
+    // Todos menos el de caracteres fallan (en este caso ni siquiera el de longitud)
+    const lengthReq = screen.getByText('Al menos 8 caracteres');
+    expect(lengthReq).toHaveClass('text-destructive');
+  });
+
+  it('marca todos como válidos para una contraseña fuerte', () => {
+    render(<PasswordRequirements password="StrongPassw0rd!" />);
+    const lengthReq = screen.getByText('Al menos 8 caracteres');
+    const caseReq = screen.getByText('Mayúsculas y minúsculas');
+    const numReq = screen.getByText('Un número');
+    const specialReq = screen.getByText('Un carácter especial (@, $, !, etc.)');
+
+    expect(lengthReq).toHaveClass('line-through');
+    expect(caseReq).toHaveClass('line-through');
+    expect(numReq).toHaveClass('line-through');
+    expect(specialReq).toHaveClass('line-through');
   });
 });

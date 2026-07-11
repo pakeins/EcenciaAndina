@@ -1,98 +1,77 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { ProtectedRoute } from './ProtectedRoute';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as AuthContext from '@/contexts/AuthContext';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
 vi.mock('@/contexts/AuthContext');
 
 describe('ProtectedRoute', () => {
-  const renderWithRouter = (ui: React.ReactElement, initialEntry = '/') => {
+  const renderWithRouter = (ui: React.ReactNode, initialEntries = ['/protected']) => {
     return render(
-      <MemoryRouter initialEntries={[initialEntry]}>
+      <MemoryRouter initialEntries={initialEntries}>
         <Routes>
-          <Route path="/" element={ui} />
-          <Route path="/login" element={<div>Página de Login</div>} />
-          <Route path="/dashboard" element={<div>Dashboard Admin</div>} />
-          <Route path="/pedidos" element={<div>Dashboard Vendedor</div>} />
-          <Route path="/protegida" element={<div>Página Protegida</div>} />
+          <Route path="/login" element={<div data-testid="login-page">Login Page</div>} />
+          <Route path="/dashboard" element={<div data-testid="dashboard-page">Dashboard Page</div>} />
+          <Route path="/pedidos" element={<div data-testid="pedidos-page">Pedidos Page</div>} />
+          <Route path="/protected" element={ui}>
+            <Route index element={<div data-testid="protected-content">Protected Content</div>} />
+          </Route>
         </Routes>
       </MemoryRouter>
     );
   };
 
-  it('redirige a login si no esta autenticado', () => {
+  it('redirige a login si no está autenticado', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       user: null,
       isAuthenticated: false,
       login: vi.fn(),
       logout: vi.fn(),
+      loading: false,
     });
 
-    renderWithRouter(<ProtectedRoute />, '/');
-    expect(screen.getByText('Página de Login')).toBeInTheDocument();
+    const { getByTestId } = renderWithRouter(<ProtectedRoute />);
+    expect(getByTestId('login-page')).toBeInTheDocument();
   });
 
-  it('renderiza el outlet si esta autenticado', () => {
+  it('renderiza el contenido protegido si está autenticado y tiene rol permitido', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
-      user: { id: 1, email: 'admin@test.com', rol: 'administrador', nombre: 'Admin', apellido: 'Test' },
+      user: { id: 1, email: 'admin@test.com', rol: 'administrador', nombre: 'Admin', apellido: 'Test', estado: 'activo' },
       isAuthenticated: true,
       login: vi.fn(),
       logout: vi.fn(),
+      loading: false,
     });
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<div>Contenido Protegido</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    );
-    expect(screen.getByText('Contenido Protegido')).toBeInTheDocument();
+    const { getByTestId } = renderWithRouter(<ProtectedRoute allowedRoles={['administrador']} />);
+    expect(getByTestId('protected-content')).toBeInTheDocument();
   });
 
-  it('redirige si no tiene los permisos necesarios (admin intentando entrar a ruta no permitida)', () => {
+  it('redirige a dashboard si no tiene rol permitido y es administrador', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
-      user: { id: 1, email: 'admin@test.com', rol: 'administrador', nombre: 'Admin', apellido: 'Test' },
+      user: { id: 1, email: 'admin@test.com', rol: 'administrador', nombre: 'Admin', apellido: 'Test', estado: 'activo' },
       isAuthenticated: true,
       login: vi.fn(),
       logout: vi.fn(),
+      loading: false,
     });
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute allowedRoles={['vendedor']} />}>
-            <Route path="/" element={<div>Contenido Protegido</div>} />
-          </Route>
-          <Route path="/dashboard" element={<div>Dashboard Admin</div>} />
-        </Routes>
-      </MemoryRouter>
-    );
-    expect(screen.getByText('Dashboard Admin')).toBeInTheDocument();
+    const { getByTestId } = renderWithRouter(<ProtectedRoute allowedRoles={['empleado']} />);
+    expect(getByTestId('dashboard-page')).toBeInTheDocument();
   });
 
-  it('redirige a /pedidos si no tiene los permisos necesarios (vendedor intentando entrar a ruta de administrador)', () => {
+  it('redirige a pedidos si no tiene rol permitido y es empleado', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
-      user: { id: 2, email: 'vendedor@test.com', rol: 'vendedor', nombre: 'Vendedor', apellido: 'Test' },
+      user: { id: 2, email: 'emp@test.com', rol: 'empleado', nombre: 'Emp', apellido: 'Test', estado: 'activo' },
       isAuthenticated: true,
       login: vi.fn(),
       logout: vi.fn(),
+      loading: false,
     });
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute allowedRoles={['administrador']} />}>
-            <Route path="/" element={<div>Contenido Protegido</div>} />
-          </Route>
-          <Route path="/pedidos" element={<div>Dashboard Vendedor</div>} />
-        </Routes>
-      </MemoryRouter>
-    );
-    expect(screen.getByText('Dashboard Vendedor')).toBeInTheDocument();
+    const { getByTestId } = renderWithRouter(<ProtectedRoute allowedRoles={['administrador']} />);
+    expect(getByTestId('pedidos-page')).toBeInTheDocument();
   });
 });
