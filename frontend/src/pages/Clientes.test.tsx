@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
 import Clientes from './Clientes';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
@@ -112,11 +112,10 @@ describe('Clientes', () => {
     await renderComponent();
     await waitFor(() => expect(screen.getByText('Juan Perez')).toBeInTheDocument());
 
-    const searchInput = screen.getByPlaceholderText('Buscar por nombre, cédula o teléfono...');
+    const searchInput = screen.getByPlaceholderText(/Nombre, cédula, teléfono o correo/i);
     
     // Simulate search
     await act(async () => {
-      const { fireEvent } = require('@testing-library/react');
       fireEvent.change(searchInput, { target: { value: '171234' } });
     });
 

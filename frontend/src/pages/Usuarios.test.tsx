@@ -68,19 +68,20 @@ vi.mock('sonner', () => ({
 describe('Usuarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (apiFetch as any).mockImplementation((url: string, options?: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (apiFetch as any).mockImplementation((url: string, options?: RequestInit) => {
       if (url === '/empleados' && (!options || options.method === 'GET' || !options.method)) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(mockUsers) });
       }
       if (url === '/empleados' && options?.method === 'POST') {
-        const body = JSON.parse(options.body);
+        const body = JSON.parse(options.body as string);
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'u3', ...body, roles: { nombre_rol: 'Operativo' }, esta_activo: true }) });
       }
       if (url.includes('/estado') && options?.method === 'PUT') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
       }
       if (options?.method === 'PUT') {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...mockUsers[0], ...JSON.parse(options.body) }) });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...mockUsers[0], ...JSON.parse(options.body as string) }) });
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
