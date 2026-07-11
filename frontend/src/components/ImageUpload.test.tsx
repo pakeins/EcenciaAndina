@@ -40,7 +40,7 @@ describe('ImageUpload', () => {
     
     // Mockear FileReader
     class MockFileReader {
-      onload: any;
+      onload: ((e: { target: { result: string } }) => void) | null = null;
       readAsDataURL(blob: Blob) {
         setTimeout(() => {
           if (this.onload) {
@@ -49,7 +49,7 @@ describe('ImageUpload', () => {
         }, 0);
       }
     }
-    window.FileReader = MockFileReader as any;
+    window.FileReader = MockFileReader as unknown as typeof FileReader;
 
     fireEvent.change(input, { target: { files: [file] } });
     
