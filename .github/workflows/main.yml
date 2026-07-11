@@ -196,6 +196,15 @@ jobs:
           sed -i 's/^SF:.*frontend\/src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
           sed -i 's/^SF:src\//SF:backend\/src\//' backend/coverage/lcov.info || true
           sed -i 's/^SF:src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
+      - name: Set SonarQube Project Keys
+        run: |
+          if [ "${{ github.repository_owner }}" = "pakeins" ]; then
+            echo "SONAR_ORG=pakeins" >> $GITHUB_ENV
+            echo "SONAR_PROJECT_KEY=pakeins_EcenciaAndina" >> $GITHUB_ENV
+          else
+            echo "SONAR_ORG=packeins" >> $GITHUB_ENV
+            echo "SONAR_PROJECT_KEY=packeins_EcenciaAndinaAPP" >> $GITHUB_ENV
+          fi
       - name: SonarQube Cloud scan
         if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@master
@@ -203,6 +212,8 @@ jobs:
         with:
           args: >
             -Dsonar.verbose=true
+            -Dsonar.organization=${{ env.SONAR_ORG }}
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
