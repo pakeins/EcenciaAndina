@@ -186,7 +186,16 @@ describe('ProductManager', () => {
       fireEvent.click(deleteBtn);
     });
 
-    expect(window.confirm).toHaveBeenCalled();
+    // El componente ahora usa ConfirmDialog en vez de window.confirm
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Sí, Eliminar/i });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
     expect(apiFetch).toHaveBeenCalledWith('/alimentos/11', expect.objectContaining({ method: 'DELETE' }));
     expect(mockToast).toHaveBeenCalledWith({ title: 'Producto eliminado' });
     expect(onProductsChanged).toHaveBeenCalled();

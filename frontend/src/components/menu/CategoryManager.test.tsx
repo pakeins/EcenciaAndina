@@ -151,7 +151,16 @@ describe('CategoryManager', () => {
       fireEvent.click(btnDeleteEntradas[2]); // Third button is the first trash icon
     });
 
-    expect(window.confirm).toHaveBeenCalled();
+    // El componente ahora usa ConfirmDialog en vez de window.confirm
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Sí, Eliminar/i });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
     expect(apiFetch).toHaveBeenCalledWith(expect.stringMatching(/\/alimentos\/categorias\/\d+/), expect.objectContaining({ method: 'DELETE' }));
     expect(mockToast).toHaveBeenCalledWith({ title: 'Categoría eliminada' });
     expect(onCategoriesChanged).toHaveBeenCalled();

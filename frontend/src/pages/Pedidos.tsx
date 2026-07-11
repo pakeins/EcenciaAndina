@@ -166,7 +166,7 @@ export default function Pedidos() {
             statusId: newStatusId,
             statusName
           });
-        } else if (response.status === 400 && (data.error?.includes('saldo') || data.error?.toLowerCase().includes('convenio'))) {
+        } else if (response.status === 400 && (data.error?.toLowerCase().includes('saldo') || data.error?.toLowerCase().includes('convenio'))) {
           setErrorDialog(data.error);
         } else {
           toast.error(data.error || 'Error al actualizar el estado');

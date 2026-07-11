@@ -25,37 +25,13 @@ vi.mock('@/lib/api', () => ({
   API_BASE_URL: 'http://localhost:3000/api',
 }));
 
-vi.mock('lucide-react', () => {
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('lucide-react')>();
   const mockComponent = (name: string) => () => <div data-testid={`icon-${name}`} />;
+  // Override specific icons to keep tests fast, but pass through everything else
   return {
-    Plus: mockComponent('plus'),
-    Pencil: mockComponent('pencil'),
-    User: mockComponent('user'),
-    Phone: mockComponent('phone'),
-    Search: mockComponent('search'),
-    IdCard: mockComponent('id-card'),
-    Users: mockComponent('users'),
-    Building2: mockComponent('building'),
-    Activity: mockComponent('activity'),
-    UserCheck: mockComponent('user-check'),
-    Wallet: mockComponent('wallet'),
-    Send: mockComponent('send'),
-    ShieldCheck: mockComponent('shield-check'),
-    Mail: mockComponent('mail'),
-    Trash2: mockComponent('trash'),
-    Banknote: mockComponent('banknote'),
-    ChevronDown: mockComponent('chevron-down'),
-    ChevronUp: mockComponent('chevron-up'),
-    Check: mockComponent('check'),
-    X: mockComponent('x'),
-    Receipt: mockComponent('receipt'),
-    RefreshCw: mockComponent('refresh-cw'),
-    CheckCircle2: mockComponent('check-circle-2'),
-    AlertTriangle: mockComponent('alert-triangle'),
+    ...actual,
     Loader2: mockComponent('loader2'),
-    MessageCircle: mockComponent('message-circle'),
-    FileText: mockComponent('file-text'),
-    Clock: mockComponent('clock'),
   };
 });
 
