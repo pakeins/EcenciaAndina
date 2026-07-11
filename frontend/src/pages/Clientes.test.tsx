@@ -51,6 +51,11 @@ vi.mock('lucide-react', () => {
     Receipt: mockComponent('receipt'),
     RefreshCw: mockComponent('refresh-cw'),
     CheckCircle2: mockComponent('check-circle-2'),
+    AlertTriangle: mockComponent('alert-triangle'),
+    Loader2: mockComponent('loader2'),
+    MessageCircle: mockComponent('message-circle'),
+    FileText: mockComponent('file-text'),
+    Clock: mockComponent('clock'),
   };
 });
 

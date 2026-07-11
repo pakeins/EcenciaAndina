@@ -117,9 +117,12 @@ describe('menuImage', () => {
     };
 
     buildTelegramMenuImage(input);
-    // Debe dibujar los combos por defecto
-    expect(mockCtx.fillText).toHaveBeenCalledWith('Del Día Simple $3.99:', expect.any(Number), expect.any(Number));
-    expect(mockCtx.fillText).toHaveBeenCalledWith('Ejecutivo Completo $6.99:', expect.any(Number), expect.any(Number));
+    // Cuando no se proveen combos, la imagen se genera sin errores
+    // y se dibuja el encabezado principal
+    expect(mockCtx.fillText).toHaveBeenCalledWith('Ecencia Andina', expect.any(Number), expect.any(Number));
+    expect(mockCtx.fillText).toHaveBeenCalledWith('Menu del dia', expect.any(Number), expect.any(Number));
+    // Y se dibujan los ítems de la sección
+    expect(mockCtx.fillText).toHaveBeenCalledWith('Sopa', expect.any(Number), expect.any(Number));
   });
 
   it('corta textos largos correctamente usando wrapText', () => {

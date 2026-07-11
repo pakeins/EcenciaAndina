@@ -166,7 +166,7 @@ describe('TelegramPrivacyRequestsDialog', () => {
       );
     });
 
-    const btnsResolver = screen.getAllByRole('button', { name: /Resolver/i });
+    const btnsResolver = screen.getAllByRole('button', { name: /Solo Revocar Acceso/i });
     await act(async () => {
       fireEvent.click(btnsResolver[0]);
     });
