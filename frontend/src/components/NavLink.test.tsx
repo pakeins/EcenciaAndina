@@ -10,7 +10,7 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    NavLink: ({ className, children, to, ...props }: any) => {
+    NavLink: ({ className, children, to, ...props }: { className: string | ((props: { isActive: boolean; isPending: boolean }) => string); children: React.ReactNode; to: string; [key: string]: unknown }) => {
       const cls = typeof className === 'function' 
         ? className({ isActive: mockIsActive, isPending: mockIsPending }) 
         : className;

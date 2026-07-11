@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { EditOrderDialog } from './EditOrderDialog';
 import { MemoryRouter } from 'react-router-dom';
@@ -26,7 +26,7 @@ describe('EditOrderDialog', () => {
     vi.clearAllMocks();
 
     // Default implementations for initialization requests
-    (apiFetch as any).mockImplementation(async (url: string) => {
+    (apiFetch as Mock).mockImplementation(async (url: string) => {
       if (url.includes('/categorias') || url.includes('/productos') || url.includes('/menu') || url.includes('/alimentos/categorias')) {
         return { ok: true, json: () => Promise.resolve([]) };
       }
@@ -120,7 +120,7 @@ describe('EditOrderDialog', () => {
   it('guarda correctamente la orden y refresca', async () => {
     const onSave = vi.fn();
     const onOpenChange = vi.fn();
-    (apiFetch as any).mockImplementation(async (url: string) => {
+    (apiFetch as Mock).mockImplementation(async (url: string) => {
       if (url.includes('/categorias') || url.includes('/productos') || url.includes('/menu') || url.includes('/alimentos/categorias')) {
         return { ok: true, json: () => Promise.resolve([]) };
       }
@@ -157,7 +157,7 @@ describe('EditOrderDialog', () => {
   });
 
   it('maneja errores de la API al guardar', async () => {
-    (apiFetch as any).mockImplementation(async (url: string) => {
+    (apiFetch as Mock).mockImplementation(async (url: string) => {
       if (url.includes('/categorias') || url.includes('/productos') || url.includes('/menu') || url.includes('/alimentos/categorias')) {
         return { ok: true, json: () => Promise.resolve([]) };
       }
@@ -178,7 +178,7 @@ describe('EditOrderDialog', () => {
   });
 
   it('maneja errores de conexion de red al guardar', async () => {
-    (apiFetch as any).mockImplementation(async (url: string) => {
+    (apiFetch as Mock).mockImplementation(async (url: string) => {
       if (url.includes('/categorias') || url.includes('/productos') || url.includes('/menu') || url.includes('/alimentos/categorias')) {
         return { ok: true, json: () => Promise.resolve([]) };
       }

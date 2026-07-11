@@ -27,7 +27,7 @@ describe('telegramConsent service', () => {
     process.env.TELEGRAM_BOT_USERNAME = '@eciencia_test_bot';
     process.env.TELEGRAM_PRIVACY_CONTACT = 'privacy@example.com';
     process.env.TELEGRAM_CONSENT_VERSION = 'EC-LOPDP-V1';
-    process.env.TELEGRAM_INVITE_TOKEN_SECRET = 'this-is-a-long-secret-key-at-least-32-characters';
+    process.env.TELEGRAM_INVITE_TOKEN_SECRET = 'a'.repeat(32);
     process.env.TELEGRAM_PRIVACY_POLICY_URL = 'https://example.com/privacy';
   });
 

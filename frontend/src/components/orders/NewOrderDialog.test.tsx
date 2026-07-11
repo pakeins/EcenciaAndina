@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NewOrderDialog } from './NewOrderDialog';
 import * as useClientsAndConvenios from '@/hooks/useClientsAndConvenios';
@@ -25,22 +25,22 @@ vi.mock('sonner', () => ({
 // Mock Select component to render standard HTML select options without nested divs
 vi.mock('@/components/ui/select', () => {
   return {
-    Select: ({ children, value, onValueChange }: any) => (
+    Select: ({ children, value, onValueChange }: { children: React.ReactNode; value?: string; onValueChange: (val: string) => void }) => (
       <select value={value} onChange={(e) => onValueChange(e.target.value)} data-testid="mock-select">
         {children}
       </select>
     ),
-    SelectTrigger: ({ children }: any) => <>{children}</>,
-    SelectValue: ({ placeholder }: any) => <option value="">{placeholder}</option>,
-    SelectContent: ({ children }: any) => <>{children}</>,
-    SelectItem: ({ children, value }: any) => <option value={value}>{children}</option>,
+    SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    SelectValue: ({ placeholder }: { placeholder?: string }) => <option value="">{placeholder}</option>,
+    SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => <option value={value}>{children}</option>,
   };
 });
 
 // Mock OrderFormFields to isolate testing and easily mock order item states
 vi.mock('./OrderFormFields', () => {
   return {
-    OrderFormFields: ({ state, onChange }: any) => (
+    OrderFormFields: ({ state, onChange }: { state: Record<string, unknown>; onChange: (state: unknown) => void }) => (
       <div>
         <button 
           type="button" 
@@ -127,7 +127,7 @@ describe('NewOrderDialog', () => {
   it('crea un pedido de saldo prepago exitosamente', async () => {
     const onCreate = vi.fn();
     const onOpenChange = vi.fn();
-    (apiFetch as any).mockResolvedValue({
+    (apiFetch as Mock).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ success: true })
     });
@@ -173,7 +173,7 @@ describe('NewOrderDialog', () => {
   });
 
   it('crea un pedido de convenio empresa exitosamente', async () => {
-    (apiFetch as any).mockResolvedValue({
+    (apiFetch as Mock).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ success: true })
     });
@@ -201,7 +201,7 @@ describe('NewOrderDialog', () => {
   });
 
   it('maneja error de API al crear pedido', async () => {
-    (apiFetch as any).mockResolvedValue({
+    (apiFetch as Mock).mockResolvedValue({
       ok: false,
       json: () => Promise.resolve({ error: 'Falta stock del producto' })
     });
@@ -223,7 +223,7 @@ describe('NewOrderDialog', () => {
   });
 
   it('maneja error de red al crear pedido', async () => {
-    (apiFetch as any).mockRejectedValue(new Error('Network error'));
+    (apiFetch as Mock).mockRejectedValue(new Error('Network error'));
 
     renderComponent();
 
