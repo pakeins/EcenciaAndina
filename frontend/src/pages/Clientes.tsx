@@ -750,7 +750,7 @@ export default function Clientes() {
                             checked={client.activo}
                             onCheckedChange={() => handleToggleClick(client)}
                           />
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(client)} title="Editar Cliente">
                             <Pencil className="h-4 w-4" />
                           </Button>
                           {isAdmin && (

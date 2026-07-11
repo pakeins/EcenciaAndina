@@ -132,21 +132,18 @@ describe('Clientes', () => {
   it('permite abrir modal de edición y guardar', async () => {
     await renderComponent();
 
-    const iconsEditar = await screen.findAllByTestId('icon-pencil');
-    if (iconsEditar.length > 0) {
-      const btnEditar = iconsEditar[0].closest('button');
-      if (btnEditar) {
-        await act(async () => {
-          fireEvent.click(btnEditar);
-        });
-        const dialog = await screen.findByRole('dialog');
-        expect(dialog).toBeInTheDocument();
-        
-        const btnGuardar = screen.getByRole('button', { name: /Guardar Cambios/i });
-        await act(async () => {
-          fireEvent.click(btnGuardar);
-        });
-      }
+    const btnsEditar = await screen.findAllByTitle(/Editar Cliente/i);
+    if (btnsEditar.length > 0) {
+      await act(async () => {
+        fireEvent.click(btnsEditar[0]);
+      });
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toBeInTheDocument();
+      
+      const btnGuardar = screen.getByRole('button', { name: /Guardar Cambios/i });
+      await act(async () => {
+        fireEvent.click(btnGuardar);
+      });
     }
   });
 
