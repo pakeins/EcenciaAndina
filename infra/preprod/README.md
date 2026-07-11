@@ -2,7 +2,7 @@
 
 This stack deploys:
 
-- Artifact Registry repository `eciencia`
+- Artifact Registry repository `ecencia`
 - Secret Manager secret containers for runtime values
 - Runtime service accounts
 - Cloud Run services for backend, frontend and n8n
@@ -11,20 +11,20 @@ This stack deploys:
 
 Runtime secrets are created as Secret Manager resources. Add the latest versions before the services need to start:
 
-- `eciencia-supabase-service-role-key`
-- `eciencia-supabase-publishable-key`
-- `eciencia-telegram-bot-token`
-- `eciencia-telegram-webhook-secret`
-- `eciencia-outlook-client-id`
-- `eciencia-outlook-client-secret`
-- `eciencia-outlook-refresh-token`
-- `eciencia-n8n-encryption-key`
-- `eciencia-n8n-db-host`
-- `eciencia-n8n-db-port`
-- `eciencia-n8n-db-database`
-- `eciencia-n8n-db-user`
-- `eciencia-n8n-db-password`
-- `eciencia-n8n-menu-webhook-secret`
+- `ecencia-supabase-service-role-key`
+- `ecencia-supabase-publishable-key`
+- `ecencia-telegram-bot-token`
+- `ecencia-telegram-webhook-secret`
+- `ecencia-outlook-client-id`
+- `ecencia-outlook-client-secret`
+- `ecencia-outlook-refresh-token`
+- `ecencia-n8n-encryption-key`
+- `ecencia-n8n-db-host`
+- `ecencia-n8n-db-port`
+- `ecencia-n8n-db-database`
+- `ecencia-n8n-db-user`
+- `ecencia-n8n-db-password`
+- `ecencia-n8n-menu-webhook-secret`
 
 Deployment is intentionally two-pass:
 

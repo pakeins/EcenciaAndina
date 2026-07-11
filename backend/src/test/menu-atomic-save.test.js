@@ -107,6 +107,6 @@ describe('guardado atomico del menu', () => {
     });
 
     expect(adminClient.remove).toHaveBeenCalledWith(['telegram/menu-dashboard-test.png']);
-    expect(adminClient.storage.from).toHaveBeenCalledWith('eciencia-menu-assets');
+    expect(adminClient.storage.from).toHaveBeenCalledWith('ecencia-menu-assets');
   });
 });

@@ -253,7 +253,7 @@ describe('Telegram Webhook & API', () => {
     
     const res = await request(app)
       .post('/broadcast-sessions')
-      .set('x-eciencia-webhook-secret', process.env.N8N_MENU_WEBHOOK_SECRET || 'secret')
+      .set('x-ecencia-webhook-secret', process.env.N8N_MENU_WEBHOOK_SECRET || 'secret')
       .send(payload);
       
     // Si no definí bien los mocks anidados podría devolver 500, pero al menos ejecutará código

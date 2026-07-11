@@ -29,7 +29,7 @@ const client = {
 
 const onboarding = {
   invitationId: '11111111-1111-4111-8111-111111111111',
-  onboarding_url: 'https://t.me/eciencia_test_bot?start=private-token-value',
+  onboarding_url: 'https://t.me/ecencia_test_bot?start=private-token-value',
   expires_at: '2026-06-19T12:00:00.000Z',
 };
 

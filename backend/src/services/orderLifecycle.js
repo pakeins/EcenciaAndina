@@ -3,10 +3,10 @@ const { ORDER_STATE, notifyOrderStatusChange } = require('./orderNotifications')
 const TIMEZONE = 'America/Bogota';
 const SERVICE_CUTOFF_HOUR = 15;
 
-// Hora del cierre automatico. Configurable con ECIENCIA_SERVICE_CUTOFF_HOUR
+// Hora del cierre automatico. Configurable con ECENCIA_SERVICE_CUTOFF_HOUR
 // (0-23); 'off' desactiva el cierre (util para pruebas profundas).
 const serviceCutoffHour = () => {
-  const raw = String(process.env.ECIENCIA_SERVICE_CUTOFF_HOUR ?? '').trim().toLowerCase();
+  const raw = String(process.env.ECENCIA_SERVICE_CUTOFF_HOUR ?? '').trim().toLowerCase();
   if (!raw) return SERVICE_CUTOFF_HOUR;
   if (['off', 'none', 'disabled'].includes(raw)) return null;
   const hour = Number(raw);

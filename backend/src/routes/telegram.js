@@ -2,7 +2,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const { getAdminClient } = require('../config/supabase');
-const { normalizePhone } = require('../validation/eciencia');
+const { normalizePhone } = require('../validation/ecencia');
 const { createOrderTrace, updateOrderTrace } = require('../services/telegramOrderTrace');
 const {
   claimInvitation,
@@ -26,10 +26,10 @@ const {
 const router = express.Router();
 const activeProcessing = new Set();
 
-const TIMEZONE = process.env.N8N_ECIENCIA_TIMEZONE || 'America/Bogota';
-const DEFAULT_PRODUCT_NAME = process.env.N8N_ECIENCIA_PRODUCTO_ALMUERZO_NOMBRE || 'Almuerzo';
-const ORIGEN_NOMBRE = process.env.N8N_ECIENCIA_ORIGEN_NOMBRE || 'Telegram';
-const ESTADO_RESERVADO_NOMBRE = process.env.N8N_ECIENCIA_ESTADO_RESERVADO_NOMBRE || 'Reservado';
+const TIMEZONE = process.env.N8N_ECENCIA_TIMEZONE || 'America/Bogota';
+const DEFAULT_PRODUCT_NAME = process.env.N8N_ECENCIA_PRODUCTO_ALMUERZO_NOMBRE || 'Almuerzo';
+const ORIGEN_NOMBRE = process.env.N8N_ECENCIA_ORIGEN_NOMBRE || 'Telegram';
+const ESTADO_RESERVADO_NOMBRE = process.env.N8N_ECENCIA_ESTADO_RESERVADO_NOMBRE || 'Reservado';
 const QUANTITIES = Array.from({ length: 20 }, (_, index) => index + 1);
 
 const normalizeText = (value) =>
@@ -51,7 +51,7 @@ const dayOfWeekInTimezone = () =>
   new Intl.DateTimeFormat('en-US', { timeZone: TIMEZONE, weekday: 'long' }).format(new Date()).toLowerCase();
 
 const isBusinessDay = () => {
-  if (process.env.ECIENCIA_BUSINESS_DAYS_ONLY === 'false') return true;
+  if (process.env.ECENCIA_BUSINESS_DAYS_ONLY === 'false') return true;
   const day = dayOfWeekInTimezone();
   return !['saturday', 'sunday'].includes(day);
 };
@@ -1052,7 +1052,7 @@ const promptMenu = async (chatId, client) => {
   }
   
   const activeMenuState = await getActiveMenu();
-  const photoUrl = activeMenuState?.photoUrl || process.env.N8N_ECIENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/eciencia-menu-demo.png';
+  const photoUrl = activeMenuState?.photoUrl || process.env.N8N_ECENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/ecencia-menu-demo.png';
 
   const caption = menuCaption(session.date);
   const inlineKeyboardData = await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos);
@@ -1755,7 +1755,7 @@ const getAcceptedSubscriptions = async () => {
 router.post('/broadcast-sessions', async (req, res) => {
   try {
     const expectedSecret = process.env.N8N_MENU_WEBHOOK_SECRET || '';
-    const receivedSecret = req.headers['x-eciencia-webhook-secret'] || req.headers['X-Eciencia-Webhook-Secret'];
+    const receivedSecret = req.headers['x-ecencia-webhook-secret'] || req.headers['X-Ecencia-Webhook-Secret'];
     if (expectedSecret && receivedSecret !== expectedSecret) {
       return res.status(401).json({ error: 'Webhook no autorizado.' });
     }
@@ -1770,7 +1770,7 @@ router.post('/broadcast-sessions', async (req, res) => {
       return res.status(400).json({ error: 'No se encontro el menu activo.' });
     }
     
-    const photoUrl = payload.image || payload.photoUrl || activeMenuState?.photoUrl || process.env.N8N_ECIENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/eciencia-menu-demo.png';
+    const photoUrl = payload.image || payload.photoUrl || activeMenuState?.photoUrl || process.env.N8N_ECENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/ecencia-menu-demo.png';
     const targetClientIds = new Set(Array.isArray(payload.clientIds) ? payload.clientIds.map(String).filter(Boolean) : []);
     
     const product = await getProduct();

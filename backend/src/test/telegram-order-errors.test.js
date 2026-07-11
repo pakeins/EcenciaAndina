@@ -35,7 +35,7 @@ describe('flujo Telegram exclusivamente por botones', () => {
       isStart: true,
       token: 'abc_DEF-123',
     });
-    expect(telegramPrivate.parseStartToken('/start@ECIENCIATESTEBOT token-123')).toEqual({
+    expect(telegramPrivate.parseStartToken('/start@ECENCIATESTEBOT token-123')).toEqual({
       isStart: true,
       token: 'token-123',
     });

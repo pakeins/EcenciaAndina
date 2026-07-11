@@ -39,6 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatOrderOptions = (opciones: any) => {
@@ -76,6 +77,10 @@ export default function Pedidos() {
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; message: string; orderId: string; statusId: number; statusName: string } | null>(null);
   const [errorDialog, setErrorDialog] = useState<string | null>(null);
+
+  // Nuevo estado para la cancelacion de pedido
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<{ id: string; statusId: number; statusName: string } | null>(null);
 
   // --- REACT QUERY CACHE ---
   const { data: orders = [], isLoading } = useQuery({
@@ -341,9 +346,12 @@ export default function Pedidos() {
                               if (newStatusId === 3) statusName = 'cancelado';
 
                               if (newStatusId === 3) {
-                                if (confirm('¿Está seguro que desea cancelar este pedido?')) {
-                                  handleUpdateStatus(order.id_orden, newStatusId, statusName);
-                                }
+                                setOrderToCancel({
+                                  id: order.id_orden,
+                                  statusId: newStatusId,
+                                  statusName
+                                });
+                                setCancelConfirmOpen(true);
                               } else {
                                 handleUpdateStatus(order.id_orden, newStatusId, statusName);
                               }
@@ -436,12 +444,26 @@ export default function Pedidos() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setErrorDialog(null)}>
+            <AlertDialogAction onClick={() => setErrorDialog(null)} className="bg-primary text-primary-foreground hover:bg-primary/90">
               Entendido
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        title="¿Cancelar Pedido?"
+        description="¿Está seguro que desea cancelar este pedido?"
+        onConfirm={() => {
+          if (orderToCancel) {
+            handleUpdateStatus(orderToCancel.id, orderToCancel.statusId, orderToCancel.statusName);
+          }
+        }}
+        confirmText="Sí, Cancelar"
+        variant="destructive"
+      />
 
       <NewOrderDialog
         open={newOrderOpen}

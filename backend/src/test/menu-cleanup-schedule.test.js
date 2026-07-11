@@ -9,7 +9,7 @@ const workflowPath = join(
   backendDirectory,
   'n8n',
   'workflows',
-  'eciencia_telegram_menu_reservas.workflow.json',
+  'ecencia_telegram_menu_reservas.workflow.json',
 );
 const codePath = join(backendDirectory, 'n8n', 'code', 'limpiar-imagenes-programadas.js');
 

@@ -140,8 +140,8 @@ Comandos ejecutados localmente:
 - `npm run lint` frontend: OK.
 - `npm run build` frontend: OK, con advertencia esperada de chunk grande de Vite.
 - `npm audit --audit-level=moderate` frontend: 0 vulnerabilidades.
-- `docker build -t eciencia-backend-sec-check backend`: OK.
-- `docker build -t eciencia-frontend-sec-check frontend`: OK.
+- `docker build -t ecencia-backend-sec-check backend`: OK.
+- `docker build -t ecencia-frontend-sec-check frontend`: OK.
 - Backend container UID: 1000.
 - Frontend container UID: 101.
 - `gcloud meta list-files-for-upload backend/frontend`: verificado sin `.env` ni temporales.

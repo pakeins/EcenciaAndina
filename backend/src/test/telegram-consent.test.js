@@ -24,7 +24,7 @@ describe('telegramConsent service', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     // Set standard environment variables
-    process.env.TELEGRAM_BOT_USERNAME = '@eciencia_test_bot';
+    process.env.TELEGRAM_BOT_USERNAME = '@ecencia_test_bot';
     process.env.TELEGRAM_PRIVACY_CONTACT = 'privacy@example.com';
     process.env.TELEGRAM_CONSENT_VERSION = 'EC-LOPDP-V1';
     process.env.TELEGRAM_INVITE_TOKEN_SECRET = 'a'.repeat(32);
@@ -55,7 +55,7 @@ describe('telegramConsent service', () => {
 
   describe('utilidades de consentimiento', () => {
     it('retorna bot username normalizado sin @', () => {
-      expect(getBotUsername()).toBe('eciencia_test_bot');
+      expect(getBotUsername()).toBe('ecencia_test_bot');
     });
 
     it('retorna version de consentimiento', () => {
@@ -80,7 +80,7 @@ describe('telegramConsent service', () => {
 
     it('genera texto de privacidad', () => {
       const text = privacyText();
-      expect(text).toContain('Aviso de privacidad y consentimiento - Eciencia Andina (EC-LOPDP-V1)');
+      expect(text).toContain('Aviso de privacidad y consentimiento - Ecencia Andina (EC-LOPDP-V1)');
       expect(text).toContain('https://example.com/privacy');
     });
 
@@ -121,7 +121,7 @@ describe('telegramConsent service', () => {
       const result = await createInvitation('cli-1', 'admin-1', mockClient);
       expect(result.invitationId).toBe('inv-123');
       expect(result.status).toBe('pending');
-      expect(result.onboarding_url).toContain('https://t.me/eciencia_test_bot?start=');
+      expect(result.onboarding_url).toContain('https://t.me/ecencia_test_bot?start=');
       expect(result.expires_at).toBe('2026-07-18T00:00:00.000Z');
       expect(mockInsert).toHaveBeenCalled();
     });

@@ -27,6 +27,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { buildTelegramMenuImage } from '@/lib/menuImage';
 import type { Alimento } from '@/types';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FIELD_LIMITS } from '@/lib/validation';
 import { dateInBogota } from '@/lib/date';
 import { BRAND_COLORS } from '@/lib/brand';
@@ -107,6 +108,9 @@ export default function Menu() {
   const [selectedMenuDate, setSelectedMenuDate] = useState<string | null>(null);
   const [hasAppliedActiveMenu, setHasAppliedActiveMenu] = useState(false);
   const [showResendConfirm, setShowResendConfirm] = useState(false);
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [confirmSaveMessage, setConfirmSaveMessage] = useState('');
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   const { data: categories = [], isLoading: isLoadingCatalog, error: catError } = useQuery<CategoryWithCode[]>({
     queryKey: ['categorias_menu'],
@@ -149,7 +153,7 @@ export default function Menu() {
       if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los productos');
       return Array.isArray(data) ? data : (data.productos || []);
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   });
 
   const { data: menus = [], isLoading: isLoadingMenus, error: menuErr } = useQuery<DailyMenu[]>({
@@ -227,11 +231,11 @@ export default function Menu() {
         const name = cat.nombre_categoria.toLowerCase();
         const isSopaOrSegundo = name.includes('sopa') || name.includes('segundo') || name.includes('plato');
         let items = cleanOptions(categoryOptions[cat.id_categoria_menu] ?? []);
-        
+
         if (items.length === 0 && isSopaOrSegundo) {
           items = ['Por definir'];
         }
-        
+
         return {
           title: cat.nombre_categoria,
           items,
@@ -257,8 +261,8 @@ export default function Menu() {
 
         return {
           icon,
-          name: `${shortName} $${Number(p.precio).toFixed(2)}:`,
-          desc: p.descripcion || 'sopa, plato fuerte, bebida',
+          name: `${shortName} $${Number(p.precio).toFixed(2)}`,
+          desc: `(${p.descripcion || 'sopa, plato fuerte, bebida'})`,
         };
       });
   }, [productos]);
@@ -364,8 +368,8 @@ export default function Menu() {
       const data = await response.json().catch(() => ({}));
 
       if (response.status === 409 && data.requireConfirmation) {
-        const confirmed = window.confirm(data.error || 'Este menu esta activo. Confirma la edicion.');
-        if (confirmed) await handleSaveMenu(true);
+        setConfirmSaveMessage(data.error || 'Este menu esta activo. Confirma la edicion.');
+        setConfirmSaveOpen(true);
         return;
       }
 
@@ -492,6 +496,28 @@ export default function Menu() {
             />
           </DialogContent>
         </Dialog>
+
+        <ConfirmDialog
+          open={confirmSaveOpen}
+          onOpenChange={setConfirmSaveOpen}
+          title="¿Confirmar Edición?"
+          description={confirmSaveMessage}
+          onConfirm={() => handleSaveMenu(true)}
+          confirmText="Sí, Confirmar"
+        />
+
+        <ConfirmDialog
+          open={confirmClearOpen}
+          onOpenChange={setConfirmClearOpen}
+          title="¿Limpiar Opciones?"
+          description="¿Estás seguro de limpiar las opciones? Deberás guardar para que apliquen."
+          onConfirm={() => {
+            menuStore.reset();
+            toast.success('Formulario limpiado localmente', { description: 'Haz clic en Guardar para confirmar.' });
+          }}
+          confirmText="Sí, Limpiar"
+          variant="destructive"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -603,19 +629,32 @@ export default function Menu() {
             {isSending ? 'Enviando...' : 'ENVIAR MENÚ'}
           </Button>
 
-          <Button
-            size="lg"
-            variant="outline"
-            className="w-full h-12 font-bold gap-3 border-cafe text-cafe hover:bg-cafe/10"
-            onClick={() => handleSaveMenu(false)}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Guardando...' : 'Guardar cambios'}
-          </Button>
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-[0.4] h-12 font-bold gap-2 border-red-500 text-red-500 hover:bg-red-50"
+                onClick={() => setConfirmClearOpen(true)}
+                disabled={isSaving || isSending}
+              >
+                <Trash2 className="w-5 h-5" />
+                Limpiar
+              </Button>
 
-          <p className="text-center text-sm text-muted-foreground px-4">
-            Al presionar enviar, n8n compartira el menu con los chats de Telegram vinculados.
-          </p>
+              <Button
+                variant="outline"
+                className="flex-[0.6] h-12 font-bold gap-2 border-cafe text-cafe hover:bg-cafe/10"
+                onClick={() => handleSaveMenu(false)}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Guardando...' : 'Guardar cambios'}
+              </Button>
+            </div>
+
+            <p className="text-center text-sm text-muted-foreground px-4">
+              Al presionar enviar, se compartira el menú a todos los usuarios registrados en telegram.
+            </p>
+          </div>
         </div>
       </div>
 

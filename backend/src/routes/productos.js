@@ -3,7 +3,7 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
-const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { parseBody, schemas, sendValidationError } = require('../validation/ecencia');
 router.use(authMiddleware);
 
 // OBTENER TODOS LOS PRODUCTOS

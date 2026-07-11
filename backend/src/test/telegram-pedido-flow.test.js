@@ -386,20 +386,20 @@ describe('cancelacion de la reserva real', () => {
     expect(writes.some((w) => w.table === 'ordenes' && w.op === 'update')).toBe(false);
   });
 
-  it('con ECIENCIA_BUSINESS_DAYS_ONLY=false el bot atiende /menu en fin de semana', async () => {
+  it('con ECENCIA_BUSINESS_DAYS_ONLY=false el bot atiende /menu en fin de semana', async () => {
     // 2026-07-04 es sabado en America/Bogota.
     vi.setSystemTime(new Date('2026-07-04T15:00:00Z'));
 
     await handleTelegramUpdate(textUpdate(100, '/menu'));
     expect(lastMessage()[1]).toContain('lunes a viernes');
 
-    process.env.ECIENCIA_BUSINESS_DAYS_ONLY = 'false';
+    process.env.ECENCIA_BUSINESS_DAYS_ONLY = 'false';
     try {
       sendTelegramMessage.mockClear();
       await handleTelegramUpdate(textUpdate(100, '/menu'));
       expect(lastMessage()[1]).toContain('Menú del día');
     } finally {
-      delete process.env.ECIENCIA_BUSINESS_DAYS_ONLY;
+      delete process.env.ECENCIA_BUSINESS_DAYS_ONLY;
     }
   });
 });

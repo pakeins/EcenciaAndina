@@ -164,6 +164,10 @@ if (require.main === module) {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
     console.log(`Rutas de autenticacion listas en http://localhost:${PORT}/api/auth/login`);
     
+    // Inicializar tareas programadas de fondo
+    const { initScheduler } = require('./src/services/scheduler');
+    initScheduler();
+    
     // Configurar webhook de Telegram automáticamente en Producción
     if (process.env.NODE_ENV === 'production') {
       try {

@@ -30,7 +30,7 @@ export default function Privacidad() {
           <div>
             <h1 className="text-3xl font-bold">Politica de privacidad de Telegram</h1>
             <p className="text-muted-foreground">
-              Eciencia Andina {config?.version ? `| Version ${config.version}` : ''}
+              Ecencia Andina {config?.version ? `| Version ${config.version}` : ''}
             </p>
           </div>
         </div>
@@ -69,7 +69,7 @@ export default function Privacidad() {
               plazo legal aplicable y son revisados por un administrador.
             </p>
             <p>
-              Los datos operativos se procesan mediante Telegram, el backend de Eciencia Andina,
+              Los datos operativos se procesan mediante Telegram, el backend de Ecencia Andina,
               Supabase y la infraestructura contratada para prestar el servicio.
             </p>
           </CardContent>
@@ -91,7 +91,7 @@ export default function Privacidad() {
               <code className="ml-1 rounded bg-muted px-1">/revocar</code>.
             </p>
             <p>
-              Contacto de privacidad: <strong>{config?.contact || 'Consulte al administrador de Eciencia Andina.'}</strong>
+              Contacto de privacidad: <strong>{config?.contact || 'Consulte al administrador de Ecencia Andina.'}</strong>
             </p>
           </CardContent>
         </Card>

@@ -17,7 +17,7 @@
  *     SUPABASE_SERVICE_ROLE_KEY   Service role key (NUNCA se commitea ni loguea).
  *     ADMIN_SEED_PASSWORD         Contrasena del administrador (ej. en CI secret).
  *   Opcionales (con valores por defecto seguros):
- *     ADMIN_SEED_EMAIL     Correo del administrador. Default: administrador@eciencia.local
+ *     ADMIN_SEED_EMAIL     Correo del administrador. Default: administrador@ecencia.local
  *     ADMIN_SEED_USERNAME  nombre_usuario para login. Default: ADMINISTRADOR
  *     ADMIN_SEED_ROLE      nombre_rol visible. Default: ADMINISTRADOR
  *     ADMIN_SEED_NOMBRE    Default: Administrador
@@ -44,7 +44,7 @@ const config = {
   supabaseUrl: process.env.SUPABASE_URL,
   serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   password: process.env.ADMIN_SEED_PASSWORD,
-  email: (process.env.ADMIN_SEED_EMAIL || 'administrador@eciencia.local').trim().toLowerCase(),
+  email: (process.env.ADMIN_SEED_EMAIL || 'administrador@ecencia.local').trim().toLowerCase(),
   username: (process.env.ADMIN_SEED_USERNAME || 'ADMINISTRADOR').trim(),
   roleName: (process.env.ADMIN_SEED_ROLE || 'ADMINISTRADOR').trim(),
   nombre: (process.env.ADMIN_SEED_NOMBRE || 'Administrador').trim(),

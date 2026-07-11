@@ -3,7 +3,7 @@ const router = express.Router();
 const { getAdminClient } = require('../config/supabase');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
-const { parseBody, schemas, sendValidationError } = require('../validation/eciencia');
+const { parseBody, schemas, sendValidationError } = require('../validation/ecencia');
 const { createHttpError, getDateInTimeZone } = require('../services/reporting');
 const { CLIENT_TYPE } = require('../constants/domain');
 const {
@@ -223,7 +223,7 @@ router.get('/telegram/privacidad-solicitudes', adminOnly, async (req, res) => {
         requested_at,
         resolved_at,
         resolution_notes,
-        clientes(id_cliente,nombre,apellido,cedula)
+        clientes(id_cliente,nombre,apellido,cedula,ordenes(count))
       `)
       .order('requested_at', { ascending: false });
     if (error) throw error;
@@ -513,6 +513,55 @@ router.post('/:id/telegram/invitacion', adminOnly, async (req, res) => {
       includeNotice: false,
     });
     res.json({ telegram_onboarding: publicOnboarding(onboarding) });
+  } catch (error) {
+    handleRouteError(res, error);
+  }
+});
+
+// REVOCAR TELEGRAM MANUALMENTE
+router.post('/:id/telegram/revocar', adminOnly, async (req, res) => {
+  try {
+    const adminClient = getAdminClient();
+    const { data: subscription, error } = await adminClient
+      .from('telegram_subscriptions')
+      .select('id, chat_id, consent_status')
+      .eq('id_cliente', req.params.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!subscription) throw createHttpError(404, 'No existe una suscripcion para este cliente.');
+    if (['revoked', 'rejected'].includes(subscription.consent_status)) {
+      throw createHttpError(400, 'La suscripcion ya se encuentra revocada.');
+    }
+
+    const { error: updateError } = await adminClient
+      .from('telegram_subscriptions')
+      .update({
+        consent_status: 'revoked',
+        is_active: false,
+        revoked_at: new Date().toISOString()
+      })
+      .eq('id', subscription.id);
+
+    if (updateError) throw updateError;
+
+    if (subscription.chat_id) {
+      await sendMessage(
+        subscription.chat_id,
+        '🚫 <b>Suscripcion Revocada</b>\n\nTu acceso al bot de Telegram ha sido revocado por la administracion. Ya no recibiras notificaciones ni menus diarios.',
+        { remove_keyboard: true },
+        'HTML'
+      ).catch(err => console.error('Error enviando revocacion:', err));
+    }
+
+    await recordConsentEvent({
+      idCliente: req.params.id,
+      subscriptionId: subscription.id,
+      eventType: 'revoked',
+      method: 'admin_action'
+    });
+
+    res.json({ success: true, message: 'Suscripcion revocada correctamente.' });
   } catch (error) {
     handleRouteError(res, error);
   }
