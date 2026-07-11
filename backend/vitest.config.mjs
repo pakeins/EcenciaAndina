@@ -10,6 +10,8 @@ export default defineConfig({
     testTimeout: 30000,
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'lcov'],
+      reportsDirectory: './coverage',
       // Excluir archivos de infraestructura que no son logica de negocio
       exclude: [
         'index.js',           // Bootstrap de Express (puerto, middlewares globales)
