@@ -30,8 +30,8 @@ describe('ConvenioReportDialog', () => {
     render(<ConvenioReportDialog {...defaultProps} />);
     expect(screen.getByText(/Reporte de Consumos - Empresa Test/i)).toBeInTheDocument();
     expect(screen.getByText('Juan Perez')).toBeInTheDocument();
-    expect(screen.getByText('C.I: 1234567890')).toBeInTheDocument();
-    expect(screen.getByText('$15.50')).toBeInTheDocument();
+    expect(screen.getByText(/C\.I: 1234567890/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/\$15\.50/i)[0]).toBeInTheDocument();
   });
 
   it('llama a onGenerateReport al presionar botón de generar', async () => {

@@ -1,5 +1,5 @@
 const fs = require('fs');
-const file = 'c:/Users/esteb/Documents/TESIS/ECenciaAPP/backend/n8n/workflows/eciencia_telegram_menu_reservas.workflow.json';
+const file = 'c:/Users/esteb/Documents/TESIS/ECenciaAPP/backend/n8n/workflows/ecencia_telegram_menu_reservas.workflow.json';
 const data = JSON.parse(fs.readFileSync(file, 'utf8'));
 
 // 1. Add Trigger Node
@@ -28,18 +28,18 @@ const jsCode = `function cfg(name, fallback = '') {
   return env[name] || vars[name] || fallback;
 }
 
-const backendUrl = (cfg('N8N_ECIENCIA_BACKEND_URL') || cfg('PUBLIC_BACKEND_URL')).replace(/\\/$/, '');
+const backendUrl = (cfg('N8N_ECENCIA_BACKEND_URL') || cfg('PUBLIC_BACKEND_URL')).replace(/\\/$/, '');
 const cleanupSecret = cfg('N8N_MENU_WEBHOOK_SECRET');
 
 if (!backendUrl || !cleanupSecret) {
-  throw new Error('Faltan N8N_ECIENCIA_BACKEND_URL y N8N_MENU_WEBHOOK_SECRET.');
+  throw new Error('Faltan N8N_ECENCIA_BACKEND_URL y N8N_MENU_WEBHOOK_SECRET.');
 }
 
 const result = await helpers.httpRequest({
   method: 'POST',
   url: backendUrl + '/api/menu/system/expirar-activo',
   headers: {
-    'X-Eciencia-Webhook-Secret': cleanupSecret,
+    'X-Ecencia-Webhook-Secret': cleanupSecret,
   },
   body: {},
   json: true,

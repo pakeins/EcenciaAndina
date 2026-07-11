@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const wfPath = 'backend/n8n/workflows/eciencia_telegram_menu_reservas.workflow.json';
+const wfPath = 'backend/n8n/workflows/ecencia_telegram_menu_reservas.workflow.json';
 const wf = JSON.parse(fs.readFileSync(wfPath, 'utf8'));
 
 let count = 0;

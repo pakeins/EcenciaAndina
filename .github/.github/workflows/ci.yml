@@ -19,9 +19,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'eciencia-andina-preprod' }}
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'ecencia-andina-preprod' }}
   GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
-  GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY || 'eciencia' }}
+  GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY || 'ecencia' }}
   N8N_IMAGE: docker.io/n8nio/n8n:2.26.5
   NODE_VERSION: "22"
   TERRAFORM_VERSION: "1.14.6"
@@ -88,8 +88,8 @@ jobs:
 
       - name: Docker build smoke
         run: |
-          docker build -t eciencia-backend-smoke ./backend
-          docker build -t eciencia-frontend-smoke ./frontend
+          docker build -t ecencia-backend-smoke ./backend
+          docker build -t ecencia-frontend-smoke ./frontend
 
       - name: Require Sonar token on trusted refs
         if: ${{ env.SONAR_TOKEN == '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
@@ -395,8 +395,8 @@ jobs:
       - name: Register Telegram webhook
         working-directory: backend
         run: |
-          TELEGRAM_BOT_TOKEN="$(gcloud secrets versions access latest --secret=eciencia-telegram-bot-token --project="${GCP_PROJECT_ID}")"
-          TELEGRAM_WEBHOOK_SECRET="$(gcloud secrets versions access latest --secret=eciencia-telegram-webhook-secret --project="${GCP_PROJECT_ID}")"
+          TELEGRAM_BOT_TOKEN="$(gcloud secrets versions access latest --secret=ecencia-telegram-bot-token --project="${GCP_PROJECT_ID}")"
+          TELEGRAM_WEBHOOK_SECRET="$(gcloud secrets versions access latest --secret=ecencia-telegram-webhook-secret --project="${GCP_PROJECT_ID}")"
           echo "::add-mask::$TELEGRAM_BOT_TOKEN"
           echo "::add-mask::$TELEGRAM_WEBHOOK_SECRET"
           TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \

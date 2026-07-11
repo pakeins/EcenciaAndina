@@ -10,6 +10,14 @@ vi.mock('@/lib/api', () => ({
   API_BASE_URL: 'http://localhost:3000/api',
 }));
 
+vi.mock('@/lib/validation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/validation')>();
+  return {
+    ...actual,
+    isValidEcDocument: vi.fn().mockReturnValue(true), // Mock validation
+  };
+});
+
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),

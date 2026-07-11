@@ -11,15 +11,15 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 const CONFIG = {
-  timezone: cfg('N8N_ECIENCIA_TIMEZONE', 'America/Bogota'),
+  timezone: cfg('N8N_ECENCIA_TIMEZONE', 'America/Bogota'),
   consentVersion: cfg('TELEGRAM_CONSENT_VERSION'),
   menuImageUrl: cfg(
-    'N8N_ECIENCIA_MENU_IMAGE_URL',
-    'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/eciencia-menu-assets/telegram/eciencia-menu-demo.png'
+    'N8N_ECENCIA_MENU_IMAGE_URL',
+    'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/ecencia-menu-demo.png'
   ),
-  defaultProductName: cfg('N8N_ECIENCIA_PRODUCTO_ALMUERZO_NOMBRE', 'Almuerzo Telegram'),
-  origenName: cfg('N8N_ECIENCIA_ORIGEN_NOMBRE', 'Telegram'),
-  estadoReservadoName: cfg('N8N_ECIENCIA_ESTADO_RESERVADO_NOMBRE', 'Reservado'),
+  defaultProductName: cfg('N8N_ECENCIA_PRODUCTO_ALMUERZO_NOMBRE', 'Almuerzo Telegram'),
+  origenName: cfg('N8N_ECENCIA_ORIGEN_NOMBRE', 'Telegram'),
+  estadoReservadoName: cfg('N8N_ECENCIA_ESTADO_RESERVADO_NOMBRE', 'Reservado'),
 };
 if (!CONFIG.consentVersion) {
   throw new Error('Falta TELEGRAM_CONSENT_VERSION en n8n.');
@@ -223,8 +223,8 @@ function trimTelegramCaption(text) {
 }
 
 async function getMenuFromSupabase() {
-  if (cfg('N8N_ECIENCIA_MENU_JSON')) {
-    const parsed = JSON.parse(cfg('N8N_ECIENCIA_MENU_JSON'));
+  if (cfg('N8N_ECENCIA_MENU_JSON')) {
+    const parsed = JSON.parse(cfg('N8N_ECENCIA_MENU_JSON'));
     return compactMenu({
       sopas: (parsed.sopas || []).map(String).filter(Boolean),
       segundos: (parsed.segundos || []).map(String).filter(Boolean),
@@ -321,9 +321,9 @@ const expectedWebhookSecret = cfg('N8N_MENU_WEBHOOK_SECRET');
 if (expectedWebhookSecret && (rawInput.headers || rawInput.body)) {
   const headers = rawInput.headers || {};
   const receivedSecret =
-    headers['x-eciencia-webhook-secret'] ||
-    headers['X-Eciencia-Webhook-Secret'] ||
-    headers['X-ECIENCIA-WEBHOOK-SECRET'];
+    headers['x-ecencia-webhook-secret'] ||
+    headers['X-Ecencia-Webhook-Secret'] ||
+    headers['X-ECENCIA-WEBHOOK-SECRET'];
   if (receivedSecret !== expectedWebhookSecret) {
     throw new Error('Webhook manual no autorizado.');
   }

@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const codeDir = 'backend/n8n/code';
-const wfPath = 'backend/n8n/workflows/eciencia_telegram_menu_reservas.workflow.json';
+const wfPath = 'backend/n8n/workflows/ecencia_telegram_menu_reservas.workflow.json';
 
 // 1. Fix JS Files
 const jsFiles = fs.readdirSync(codeDir).filter(f => f.endsWith('.js'));
