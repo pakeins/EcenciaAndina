@@ -92,28 +92,6 @@ export function CategoryManager({ onCategoriesChanged }: { onCategoriesChanged: 
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="border-cafe text-cafe hover:bg-cafe/10">Gestionar Categorías</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Gestionar Categorías de Menú</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 pt-4">
-          <div className="flex gap-2">
-            <Input 
-              placeholder="Nueva categoría (ej: Entradas)" 
-              value={newCatName} 
-              onChange={e => setNewCatName(e.target.value)} 
-              onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            />
-            <Button onClick={handleAdd}><Plus className="h-4 w-4 mr-2" /> Agregar</Button>
-          </div>
-          
-          <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
-            {loading ? (
-              <div className="p-4 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-cafe" /></div>
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
