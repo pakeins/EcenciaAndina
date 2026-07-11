@@ -53,6 +53,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { TelegramOnboardingDialog } from '@/components/clients/TelegramOnboardingDialog';
 import { TelegramPrivacyRequestsDialog } from '@/components/clients/TelegramPrivacyRequestsDialog';
 import { TelegramActionDialog } from '@/components/clients/TelegramActionDialog';
+import { ClientFormDialog } from '@/components/clientes/ClientFormDialog';
+import { ClientDeleteDialog } from '@/components/clientes/ClientDeleteDialog';
+import { ClientToggleStatusDialog } from '@/components/clientes/ClientToggleStatusDialog';
 
 const telegramStatusLabel: Record<TelegramStatus, string> = {
   no_invitation: 'Sin invitacion',
@@ -106,16 +109,6 @@ export default function Clientes() {
   // Confirmación para eliminación
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
-
-  const [formData, setFormData] = useState({
-    cedula: '',
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    correo: '',
-    id_tipo_cliente: CLIENT_TYPE.DIRECT,
-    id_convenio: '',
-  });
 
   const { data: clients = [], isLoading, error: clientsError } = useQuery({
     queryKey: ['clientes'],
@@ -190,15 +183,6 @@ export default function Clientes() {
   // --- FORMULARIO: ABRIR NUEVO ---
   const handleOpenNew = () => {
     setEditingClient(null);
-    setFormData({
-      cedula: '',
-      nombre: '',
-      apellido: '',
-      telefono: '',
-      correo: '',
-      id_tipo_cliente: CLIENT_TYPE.DIRECT,
-      id_convenio: '',
-    });
     setDialogOpen(true);
   };
 
@@ -233,15 +217,6 @@ export default function Clientes() {
   // --- FORMULARIO: ABRIR EDICIÓN ---
   const handleEdit = (client: Client) => {
     setEditingClient(client);
-    setFormData({
-      cedula: client.cedula,
-      nombre: client.nombre,
-      apellido: client.apellido,
-      telefono: client.telefono,
-      correo: client.correo,
-      id_tipo_cliente: client.id_tipo_cliente || CLIENT_TYPE.DIRECT,
-      id_convenio: client.convenio?.id || '',
-    });
     setDialogOpen(true);
   };
 
@@ -302,87 +277,14 @@ export default function Clientes() {
   };
 
   // --- GUARDAR (CREAR O ACTUALIZAR) ---
-  const handleSave = async () => {
-    if (!formData.cedula || !formData.nombre || !formData.apellido || !formData.correo) {
-      toast.error('Cedula, nombre, apellido y correo son requeridos');
-      return;
-    }
-
-    if (formData.cedula.length !== 10 || !isValidEcDocument(formData.cedula)) {
-      toast.error('Ingrese una cedula valida de 10 digitos');
-      return;
-    }
-    if (formData.nombre.trim().length > FIELD_LIMITS.nombre || formData.apellido.trim().length > FIELD_LIMITS.nombre) {
-      toast.error(`Nombre y apellido no pueden superar ${FIELD_LIMITS.nombre} caracteres`);
-      return;
-    }
-    if (formData.telefono && formData.telefono.length !== 10) {
-      toast.error('El telefono debe tener exactamente 10 digitos');
-      return;
-    }
-    if (!isValidEmail(formData.correo)) {
-      toast.error('Ingrese un correo electronico valido');
-      return;
-    }
-    if (formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT && !formData.id_convenio) {
-      toast.error('Debe seleccionar un convenio activo para un Cliente Convenio');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const payload = {
-        ...formData,
-        cedula: onlyDigits(formData.cedula),
-        telefono: onlyDigits(formData.telefono),
-        correo: formData.correo.trim().toLowerCase(),
-        id_convenio: formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT
-          ? formData.id_convenio || null
-          : null,
-      };
-      if (editingClient) {
-        // ACTUALIZAR
-        const response = await apiFetch(`/clientes/${editingClient.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-
-        if (response.ok) {
-          await fetchClientes();
-          toast.success('Cliente actualizado correctamente');
-          setDialogOpen(false);
-        } else {
-          toast.error(data.error || 'Error al actualizar el cliente');
-        }
-      } else {
-        // CREAR
-        const response = await apiFetch('/clientes', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-
-        if (response.ok) {
-          await fetchClientes();
-          toast.success('Cliente registrado correctamente');
-          setDialogOpen(false);
-          if (data.telegram_onboarding) {
-            showTelegramOnboarding(
-              data.telegram_onboarding,
-              `${data.nombre} ${data.apellido}`,
-              data.id,
-            );
-          }
-        } else {
-          toast.error(data.error || 'Error al crear el cliente');
-        }
-      }
-    } catch (err) {
-      console.error('Error guardando cliente:', err);
-      toast.error('Error de conexión con el servidor');
-    } finally {
-      setIsSaving(false);
+  const handleSaveSuccess = (data: any, isNew: boolean) => {
+    fetchClientes();
+    if (isNew && data.telegram_onboarding) {
+      showTelegramOnboarding(
+        data.telegram_onboarding,
+        `${data.nombre} ${data.apellido}`,
+        data.id,
+      );
     }
   };
 
@@ -776,150 +678,15 @@ export default function Clientes() {
       </Card>
 
       {/* Dialog for Create/Edit */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-foreground">
-              {editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}
-            </DialogTitle>
-            <DialogDescription>
-              {editingClient ? 'Modifique los datos del cliente' : 'Registre un nuevo cliente'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="cedula">Cédula *</Label>
-              <Input
-                id="cedula"
-                value={formData.cedula}
-                onChange={(e) => setFormData({ ...formData, cedula: e.target.value.replace(/\D/g, '') })}
-                placeholder="Ej: 1712345678"
-                maxLength={10}
-                inputMode="numeric"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="correo">Correo electrónico *</Label>
-              <Input
-                id="correo"
-                type="email"
-                value={formData.correo}
-                onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
-                placeholder="cliente@example.test"
-                maxLength={FIELD_LIMITS.email}
-                autoComplete="email"
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="nombre">Nombre *</Label>
-                <Input
-                  id="nombre"
-                  value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '') })}
-                  placeholder="Nombre del cliente"
-                  maxLength={FIELD_LIMITS.nombre}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apellido">Apellido *</Label>
-                <Input
-                  id="apellido"
-                  value={formData.apellido}
-                  onChange={(e) => setFormData({ ...formData, apellido: e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '') })}
-                  placeholder="Apellido del cliente"
-                  maxLength={FIELD_LIMITS.nombre}
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="telefono">Teléfono</Label>
-                <Input
-                  id="telefono"
-                  value={formData.telefono}
-                  onChange={(e) => setFormData({ ...formData, telefono: e.target.value.replace(/\D/g, '') })}
-                  placeholder="Ej: 0999999999"
-                  maxLength={10}
-                  inputMode="tel"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tipo">Tipo de Cliente</Label>
-                <Select
-                  value={String(formData.id_tipo_cliente)}
-                  disabled={!isAdmin}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      id_tipo_cliente: Number.parseInt(value),
-                      id_convenio: Number.parseInt(value) === CLIENT_TYPE.AGREEMENT
-                        ? formData.id_convenio || (convenios.length > 0 ? convenios[0].id : '')
-                        : '',
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione un tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientTypes
-                      .filter((tipo) => isAdmin || tipo.id_tipo_cliente === CLIENT_TYPE.DIRECT)
-                      .map((tipo) => (
-                      <SelectItem key={tipo.id_tipo_cliente} value={String(tipo.id_tipo_cliente)}>
-                        {tipo.nombre_tipo}
-                      </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* SECCIÓN DE CONVENIO */}
-            {isAdmin && formData.id_tipo_cliente === CLIENT_TYPE.AGREEMENT && (
-              <div className="space-y-2">
-                <Label htmlFor="convenio">Convenio</Label>
-                <Select
-                  value={formData.id_convenio || ''}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, id_convenio: value })
-                  }
-                >
-                  <SelectTrigger id="convenio">
-                    <SelectValue placeholder="Seleccione un convenio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {convenios.map((convenio) => (
-                      <SelectItem key={convenio.id} value={convenio.id}>
-                        {convenio.nombre_empresa}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Solo los clientes de tipo convenio pueden vincularse a una empresa.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving} className="bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20">
-              {isSaving
-                ? editingClient
-                  ? 'Guardando...'
-                  : 'Registrando...'
-                : editingClient
-                  ? 'Guardar Cambios'
-                  : 'Registrar Cliente'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ClientFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editingClient={editingClient}
+        clientTypes={clientTypes}
+        convenios={convenios}
+        isAdmin={isAdmin}
+        onSuccess={handleSaveSuccess}
+      />
 
       <WalletDialog 
         open={walletOpen}
@@ -961,72 +728,21 @@ export default function Clientes() {
       />
 
       {/* AlertDialog for Delete Confirmation */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-foreground">Eliminar Cliente</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
-              Seleccione el método de eliminación para <strong>{clientToDelete?.nombre} {clientToDelete?.apellido}</strong>.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          <div className="flex flex-col gap-4 py-4">
-            <div className="rounded-lg border border-border p-4">
-              <h4 className="font-semibold text-foreground mb-1">Eliminación Segura</h4>
-              <p className="text-sm text-muted-foreground mb-3">
-                Comprueba si el cliente tiene órdenes o saldo. Si tiene, se bloqueará la eliminación para proteger el historial financiero.
-              </p>
-              <Button variant="outline" className="w-full" onClick={() => executeDelete(false)}>
-                Eliminar Normalmente
-              </Button>
-            </div>
-
-            {isAdmin && (
-              <div className="rounded-lg border border-red-200 bg-red-50/50 p-4">
-                <h4 className="font-semibold text-red-600 mb-1">Borrado Forzado (Destructivo)</h4>
-                <p className="text-sm text-red-600/80 mb-3">
-                  Elimina al cliente y absolutamente TODO su historial financiero, órdenes, saldo y trazabilidad. Úsalo solo para cuentas de prueba.
-                </p>
-                <Button variant="destructive" className="w-full" onClick={() => executeDelete(true)}>
-                  Borrado Forzado Permanentemente
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ClientDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        clientToDelete={clientToDelete}
+        isAdmin={isAdmin}
+        onConfirm={executeDelete}
+      />
 
       {/* Confirmación para desactivar */}
-      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Desactivar cliente?</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Está seguro que desea desactivar a{' '}
-              <strong>
-                {clientToToggle?.nombre} {clientToToggle?.apellido}
-              </strong>
-              ?
-              <br />
-              <br />
-              El cliente quedará inactivo hasta que se reactive manualmente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setClientToToggle(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => clientToToggle && confirmToggle(clientToToggle.id, false)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Sí, desactivar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ClientToggleStatusDialog
+        open={isAlertOpen}
+        onOpenChange={setIsAlertOpen}
+        clientToToggle={clientToToggle}
+        onConfirm={confirmToggle}
+      />
     </div>
   );
 }
