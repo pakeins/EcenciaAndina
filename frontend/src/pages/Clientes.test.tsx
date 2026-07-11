@@ -120,4 +120,70 @@ describe('Clientes', () => {
     });
 
   });
+
+  it('permite abrir el modal para nuevo cliente y guardar', async () => {
+    await renderComponent();
+
+    const btnNuevo = await screen.findByRole('button', { name: /Nuevo Cliente/i });
+    
+    await act(async () => {
+      fireEvent.click(btnNuevo);
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    const inputs = screen.getAllByRole('textbox', { hidden: true });
+    
+    const inputCedula = inputs.find(i => (i as HTMLInputElement).name === 'cedula' || (i as HTMLInputElement).placeholder?.includes('Cédula') || (i as HTMLInputElement).placeholder?.includes('Ingrese cédula'));
+    if (inputCedula) {
+      await act(async () => {
+        fireEvent.change(inputCedula, { target: { value: '1799999999' } });
+      });
+    }
+
+    const btnGuardar = screen.getByRole('button', { name: /Registrar Cliente/i });
+    await act(async () => {
+      fireEvent.click(btnGuardar);
+    });
+  });
+
+  it('permite abrir modal de edición y guardar', async () => {
+    await renderComponent();
+
+    const iconsEditar = await screen.findAllByTestId('icon-pencil');
+    if (iconsEditar.length > 0) {
+      const btnEditar = iconsEditar[0].closest('button');
+      if (btnEditar) {
+        await act(async () => {
+          fireEvent.click(btnEditar);
+        });
+        const dialog = await screen.findByRole('dialog');
+        expect(dialog).toBeInTheDocument();
+        
+        const btnGuardar = screen.getByRole('button', { name: /Guardar Cambios/i });
+        await act(async () => {
+          fireEvent.click(btnGuardar);
+        });
+      }
+    }
+  });
+
+  it('permite abrir confirmación de eliminación', async () => {
+    await renderComponent();
+
+    const btnDelete = await screen.findAllByTitle(/Eliminar Cliente/i);
+    if (btnDelete.length > 0) {
+      await act(async () => {
+        fireEvent.click(btnDelete[0]);
+      });
+      const alertdialog = await screen.findByRole('alertdialog');
+      expect(alertdialog).toBeInTheDocument();
+
+      const btnConfirm = screen.getByRole('button', { name: /Eliminar Normalmente/i });
+      await act(async () => {
+        fireEvent.click(btnConfirm);
+      });
+    }
+  });
 });
