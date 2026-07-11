@@ -146,7 +146,12 @@ describe('Convenios', () => {
       { id: 'conv1', ruc: '1799999999001', nombre_empresa: 'Empresa A', fecha_inicio: '2023-01-01', fecha_caducidad: '2026-12-31', activo: true, tipos_almuerzo_permitidos: [] }
     ];
 
-    (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve(mockConvenios) });
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/reporte')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ cedula: '123', empleado: 'Juan', total: 10, consumos: [] }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockConvenios) });
+    });
 
     await renderComponent();
     
@@ -171,5 +176,68 @@ describe('Convenios', () => {
     if (switches.length > 0) {
       fireEvent.click(switches[0]);
     }
+  });
+
+  it('permite renovar un convenio vencido', async () => {
+    const mockConvenioVencido = [
+      { id: 'conv1', ruc: '1799999999001', nombre_empresa: 'Empresa Vencida', fecha_inicio: '2020-01-01', fecha_caducidad: '2021-01-01', activo: true, tipos_almuerzo_permitidos: [] }
+    ];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, init?: RequestInit) => {
+      if (init && init.method === 'POST' && url.includes('/renovar')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ message: 'Renovado' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockConvenioVencido) });
+    });
+
+    await renderComponent();
+
+    // El botón para renovar es en realidad el toggle (switch) de estado que al estar vencido abre el modal
+    const switches = screen.getAllByRole('switch', { hidden: true });
+    fireEvent.click(switches[0]);
+
+    await waitFor(() => expect(screen.getByText('Renovación de Convenio')).toBeInTheDocument());
+
+    const btnRenovarConfirm = screen.getByRole('button', { name: 'Renovar y Activar' });
+    
+    await act(async () => {
+      fireEvent.click(btnRenovarConfirm);
+    });
+  });
+
+  it('permite generar un reporte de consumos', async () => {
+    const mockConvenios = [
+      { id: 'conv1', ruc: '1799999999001', nombre_empresa: 'Empresa A', fecha_inicio: '2023-01-01', fecha_caducidad: '2026-12-31', activo: true, tipos_almuerzo_permitidos: [] }
+    ];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/reporte')) {
+        return Promise.resolve({ 
+          ok: true, 
+          json: () => Promise.resolve([
+            { cedula: '123', empleado: 'Juan', total: 15, consumos: [{ fecha: '2024-01-01', producto: 'Almuerzo', cantidad: 1, valor: 15 }] }
+          ])  
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockConvenios) });
+    });
+
+    await renderComponent();
+
+    const btnReporte = await screen.findByText('Generar Reporte');
+    fireEvent.click(btnReporte);
+
+    await waitFor(() => expect(screen.getByText(/Reporte de Consumos - Empresa A/i)).toBeInTheDocument());
+
+    const btnGenerar = screen.getByRole('button', { name: 'Generar Reporte' });
+    
+    await act(async () => {
+      fireEvent.click(btnGenerar);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Total Consumo Mensual')).toBeInTheDocument();
+      expect(screen.getByText('Juan')).toBeInTheDocument();
+    });
   });
 });
