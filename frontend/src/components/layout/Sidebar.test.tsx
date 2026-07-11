@@ -28,7 +28,7 @@ describe('Sidebar', () => {
   });
 
   it('se renderiza correctamente para administrador', () => {
-    (useAuth as any).mockReturnValue({
+    (useAuth as unknown).mockReturnValue({
       user: { nombre: 'Admin User', rol: 'administrador' },
       logout: mockLogout,
     });
@@ -55,11 +55,11 @@ describe('Sidebar', () => {
   });
 
   it('se renderiza correctamente para caja y oculta elementos de admin', () => {
-    (useAuth as any).mockReturnValue({
+    (useAuth as unknown).mockReturnValue({
       user: { nombre: 'Caja User', rol: 'caja' },
       logout: mockLogout,
     });
-    (useLocation as any).mockReturnValue({ pathname: '/pedidos' });
+    (useLocation as unknown).mockReturnValue({ pathname: '/pedidos' });
     
     render(
       <BrowserRouter>
@@ -83,7 +83,7 @@ describe('Sidebar', () => {
   });
 
   it('llama a la función logout al hacer clic en el botón Cerrar Sesión', () => {
-    (useAuth as any).mockReturnValue({
+    (useAuth as unknown).mockReturnValue({
       user: { nombre: 'Test User', rol: 'caja' },
       logout: mockLogout,
     });
@@ -101,11 +101,11 @@ describe('Sidebar', () => {
   });
   
   it('aplica las clases correctas al enlace activo', () => {
-    (useAuth as any).mockReturnValue({
+    (useAuth as unknown).mockReturnValue({
       user: { nombre: 'Admin User', rol: 'administrador' },
       logout: mockLogout,
     });
-    (useLocation as any).mockReturnValue({ pathname: '/dashboard' });
+    (useLocation as unknown).mockReturnValue({ pathname: '/dashboard' });
     
     render(
       <BrowserRouter>
@@ -121,7 +121,7 @@ describe('Sidebar', () => {
   });
   
   it('renderiza sin errores si no hay usuario (caso extremo)', () => {
-    (useAuth as any).mockReturnValue({
+    (useAuth as unknown).mockReturnValue({
       user: null,
       logout: mockLogout,
     });

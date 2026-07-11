@@ -7,7 +7,7 @@ describe('ConvenioReportDialog', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
-    reportConvenio: { id: 'c1', nombre_empresa: 'Empresa Test' } as any,
+    reportConvenio: { id: 'c1', nombre_empresa: 'Empresa Test' } as unknown,
     reportDates: { desde: '2023-01-01', hasta: '2023-01-31' },
     setReportDates: vi.fn(),
     reportData: [

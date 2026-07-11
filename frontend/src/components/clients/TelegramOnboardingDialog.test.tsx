@@ -39,7 +39,7 @@ describe('TelegramOnboardingDialog', () => {
     onOpenChange: mockOnOpenChange,
     clientName: 'Juan Perez',
     onboarding: {
-      status: 'pending' as any,
+      status: 'pending' as unknown,
       onboarding_url: 'https://t.me/bot?start=123',
       expires_at: new Date(Date.now() + 86400000).toISOString(),
     },
@@ -67,7 +67,7 @@ describe('TelegramOnboardingDialog', () => {
       ...baseProps,
       onboarding: {
         ...baseProps.onboarding,
-        email_delivery: { status: 'not_configured' as any }
+        email_delivery: { status: 'not_configured' as unknown }
       }
     };
     render(<TelegramOnboardingDialog {...props} />);
@@ -79,8 +79,8 @@ describe('TelegramOnboardingDialog', () => {
       ...baseProps,
       onboarding: {
         ...baseProps.onboarding,
-        status: 'sent' as any,
-        email_delivery: { status: 'sent' as any, recipient: 'juan@test.com' }
+        status: 'sent' as unknown,
+        email_delivery: { status: 'sent' as unknown, recipient: 'juan@test.com' }
       }
     };
     render(<TelegramOnboardingDialog {...props} />);
@@ -93,7 +93,7 @@ describe('TelegramOnboardingDialog', () => {
       ...baseProps,
       onboarding: {
         ...baseProps.onboarding,
-        email_delivery: { status: 'failed' as any, recipient: 'juan@test.com' }
+        email_delivery: { status: 'failed' as unknown, recipient: 'juan@test.com' }
       }
     };
     render(<TelegramOnboardingDialog {...props} />);
@@ -129,7 +129,7 @@ describe('TelegramOnboardingDialog', () => {
     const props = {
       ...baseProps,
       onboarding: {
-        status: 'sent' as any,
+        status: 'sent' as unknown,
         onboarding_url: null,
       }
     };
@@ -148,7 +148,7 @@ describe('TelegramOnboardingDialog', () => {
       ...baseProps,
       onboarding: {
         ...baseProps.onboarding,
-        email_delivery: { status: 'failed' as any }
+        email_delivery: { status: 'failed' as unknown }
       },
       onRetryEmail: mockOnRetryEmail,
       retryingEmail: false
@@ -165,7 +165,7 @@ describe('TelegramOnboardingDialog', () => {
       ...baseProps,
       onboarding: {
         ...baseProps.onboarding,
-        email_delivery: { status: 'failed' as any }
+        email_delivery: { status: 'failed' as unknown }
       },
       onRetryEmail: mockOnRetryEmail,
       retryingEmail: true

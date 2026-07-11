@@ -7,7 +7,7 @@ describe('ConvenioToggleStatusDialog', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
-    convenioToToggle: { id: 'c1', nombre_empresa: 'Empresa Test', activo: true } as any,
+    convenioToToggle: { id: 'c1', nombre_empresa: 'Empresa Test', activo: true } as unknown,
     onConfirm: vi.fn(),
   };
 

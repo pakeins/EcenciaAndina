@@ -27,10 +27,10 @@ interface ClientFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingClient: Client | null;
-  clientTypes: any[];
+  clientTypes: unknown[];
   convenios: Convenio[];
   isAdmin: boolean;
-  onSuccess: (data: any, isNew: boolean) => void;
+  onSuccess: (data: unknown, isNew: boolean) => void;
 }
 
 export function ClientFormDialog({

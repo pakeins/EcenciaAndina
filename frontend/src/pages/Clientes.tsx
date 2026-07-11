@@ -277,7 +277,7 @@ export default function Clientes() {
   };
 
   // --- GUARDAR (CREAR O ACTUALIZAR) ---
-  const handleSaveSuccess = (data: any, isNew: boolean) => {
+  const handleSaveSuccess = (data: unknown, isNew: boolean) => {
     fetchClientes();
     if (isNew && data.telegram_onboarding) {
       showTelegramOnboarding(

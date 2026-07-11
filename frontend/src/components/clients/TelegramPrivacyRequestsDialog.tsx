@@ -145,7 +145,7 @@ export function TelegramPrivacyRequestsDialog({
           )}
 
           {activeRequests.map((request) => {
-            const client = request.clientes as any; // Cast as any because we added dynamic fields
+            const client = request.clientes as unknown; // Cast as unknown because we added dynamic fields
             const orderCount = client?.ordenes?.[0]?.count || 0;
             return (
               <div key={request.id} className="space-y-3 rounded-xl border p-4">

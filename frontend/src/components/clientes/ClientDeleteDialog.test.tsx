@@ -11,7 +11,7 @@ describe('ClientDeleteDialog', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
-    clientToDelete: { id: 'c1', nombre: 'Juan', apellido: 'Perez', activo: true, cedula: '123' } as any,
+    clientToDelete: { id: 'c1', nombre: 'Juan', apellido: 'Perez', activo: true, cedula: '123' } as unknown,
     isAdmin: true,
     onConfirm: vi.fn(),
   };

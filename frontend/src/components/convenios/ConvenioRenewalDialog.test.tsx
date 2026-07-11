@@ -7,7 +7,7 @@ describe('ConvenioRenewalDialog', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
-    convenioToRenew: { id: 'c1', nombre_empresa: 'Empresa Test' } as any,
+    convenioToRenew: { id: 'c1', nombre_empresa: 'Empresa Test' } as unknown,
     renewalDates: { fecha_inicio: '2023-01-01', fecha_caducidad: '2023-12-31' },
     setRenewalDates: vi.fn(),
     isSaving: false,

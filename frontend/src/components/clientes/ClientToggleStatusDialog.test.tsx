@@ -7,7 +7,7 @@ describe('ClientToggleStatusDialog', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
-    clientToToggle: { id: 'c1', nombre: 'Juan', apellido: 'Perez', activo: true, cedula: '123' } as any,
+    clientToToggle: { id: 'c1', nombre: 'Juan', apellido: 'Perez', activo: true, cedula: '123' } as unknown,
     onConfirm: vi.fn(),
   };
 

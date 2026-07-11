@@ -111,36 +111,36 @@ describe('use-toast', () => {
   describe('reducer interno', () => {
     it('ADD_TOAST', () => {
       const state = { toasts: [] };
-      const action: any = { type: 'ADD_TOAST', toast: { id: '1', title: 't1' } };
+      const action: unknown = { type: 'ADD_TOAST', toast: { id: '1', title: 't1' } };
       const next = reducer(state, action);
       expect(next.toasts.length).toBe(1);
     });
 
     it('UPDATE_TOAST', () => {
-      const state = { toasts: [{ id: '1', title: 't1' }] as any[] };
-      const action: any = { type: 'UPDATE_TOAST', toast: { id: '1', title: 'modificado' } };
+      const state = { toasts: [{ id: '1', title: 't1' }] as unknown[] };
+      const action: unknown = { type: 'UPDATE_TOAST', toast: { id: '1', title: 'modificado' } };
       const next = reducer(state, action);
       expect(next.toasts[0].title).toBe('modificado');
     });
 
     it('DISMISS_TOAST sin id descarta todos', () => {
-      const state = { toasts: [{ id: '1', open: true }, { id: '2', open: true }] as any[] };
-      const action: any = { type: 'DISMISS_TOAST' };
+      const state = { toasts: [{ id: '1', open: true }, { id: '2', open: true }] as unknown[] };
+      const action: unknown = { type: 'DISMISS_TOAST' };
       const next = reducer(state, action);
       expect(next.toasts[0].open).toBe(false);
       expect(next.toasts[1].open).toBe(false);
     });
 
     it('REMOVE_TOAST sin id borra todos', () => {
-      const state = { toasts: [{ id: '1' }] as any[] };
-      const action: any = { type: 'REMOVE_TOAST' };
+      const state = { toasts: [{ id: '1' }] as unknown[] };
+      const action: unknown = { type: 'REMOVE_TOAST' };
       const next = reducer(state, action);
       expect(next.toasts.length).toBe(0);
     });
     
     it('REMOVE_TOAST con id especifico', () => {
-      const state = { toasts: [{ id: '1' }, { id: '2' }] as any[] };
-      const action: any = { type: 'REMOVE_TOAST', toastId: '1' };
+      const state = { toasts: [{ id: '1' }, { id: '2' }] as unknown[] };
+      const action: unknown = { type: 'REMOVE_TOAST', toastId: '1' };
       const next = reducer(state, action);
       expect(next.toasts.length).toBe(1);
       expect(next.toasts[0].id).toBe('2');
