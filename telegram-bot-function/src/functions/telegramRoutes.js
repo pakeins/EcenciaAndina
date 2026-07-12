@@ -1258,10 +1258,54 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
   if (command === '/ayuda') {
     await sendMessage(
       parsed.chatId,
-      '🆘 <b>Ayuda y Comandos</b>\n\n🍲 <b>Reservas</b>\nUsa /menu para reservar mediante botones.\nConsulta tu reserva del dia con /pedido.\n\n🔒 <b>Privacidad</b>\n/privacidad - Centro de privacidad\n/misdatos - Ver que guardamos\n/eliminarmisdatos - Solicitar borrado\n/revocar - Bloquear acceso\n\n📞 <b>Contacto:</b> ' + getPrivacySettings().contact,
+      '🆘 <b>Ayuda y Comandos</b>\n\n🍲 <b>Reservas</b>\nUsa /menu para reservar mediante botones.\nConsulta tu reserva del día con /pedido.\nConsulta tu saldo prepago o convenio con /misaldo.\n\n🔒 <b>Privacidad</b>\n/privacidad - Centro de privacidad\n/misdatos - Ver qué guardamos\n/eliminarmisdatos - Solicitar borrado\n/revocar - Bloquear acceso\n\n📞 <b>Contacto:</b> ' + getPrivacySettings().contact,
       null,
       'HTML'
     );
+    return true;
+  }
+
+  if (command === '/misaldo') {
+    if (!subscription) {
+      await sendMessage(parsed.chatId, '⚠️ <b>Sin suscripcion</b>\n\nEste chat no tiene una suscripcion de Telegram vinculada.', null, 'HTML');
+      return true;
+    }
+    
+    const { data: clientInfo, error } = await getAdminClient()
+      .from('clientes')
+      .select(`
+        id_tipo_cliente,
+        clientes_convenios(
+          convenios(esta_activo, empresas(nombre_empresa))
+        ),
+        saldos_servicio(cantidad_disponible)
+      `)
+      .eq('id_cliente', subscription.id_cliente)
+      .single();
+
+    if (error || !clientInfo) {
+      await sendMessage(parsed.chatId, '⚠️ No pudimos obtener tu informacion. Por favor, contacta al administrador.', null, 'HTML');
+      return true;
+    }
+
+    if (clientInfo.id_tipo_cliente === 1) { // AGREEMENT
+      const convenioRel = clientInfo.clientes_convenios?.[0]?.convenios;
+      if (convenioRel && convenioRel.esta_activo) {
+        const empresa = convenioRel.empresas?.nombre_empresa || 'tu empresa';
+        await sendMessage(parsed.chatId, `✅ <b>Convenio Activo</b>\n\nTu convenio con la empresa <b>${empresa}</b> se encuentra activo. Puedes disfrutar de tus almuerzos con normalidad.`, null, 'HTML');
+      } else {
+        await sendMessage(parsed.chatId, `⚠️ <b>Convenio Inactivo</b>\n\nTu convenio actualmente no se encuentra activo. Por favor, comunícate con la administración.`, null, 'HTML');
+      }
+    } else { // DIRECT
+      const saldos = clientInfo.saldos_servicio || [];
+      const totalSaldos = saldos.reduce((sum, s) => sum + (s.cantidad_disponible || 0), 0);
+      
+      if (totalSaldos > 0) {
+        await sendMessage(parsed.chatId, `💰 <b>Saldo Disponible</b>\n\nActualmente tienes <b>${totalSaldos}</b> almuerzos disponibles en tu monedero prepago.`, null, 'HTML');
+      } else {
+        await sendMessage(parsed.chatId, `⚠️ <b>Sin Saldo</b>\n\nActualmente no tienes almuerzos disponibles en tu monedero prepago. Por favor, acércate a caja para realizar una recarga.`, null, 'HTML');
+      }
+    }
     return true;
   }
 

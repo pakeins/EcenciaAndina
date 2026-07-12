@@ -447,6 +447,36 @@ router.put('/:id/estado', async (req, res) => {
           
           if (id_estado === ORDER_STATE.CONSUMED) {
             msg = `✅ <b>Pedido Consumido</b>\n\nTu pedido #<b>${numOrden}</b> ha sido marcado como consumido.\n¡Gracias por preferirnos y buen provecho!`;
+            
+            const { data: clientInfo } = await adminClient
+              .from('clientes')
+              .select(`
+                id_tipo_cliente,
+                clientes_convenios(
+                  convenios(esta_activo, empresas(nombre_empresa))
+                ),
+                saldos_servicio(cantidad_disponible)
+              `)
+              .eq('id_cliente', data.id_cliente)
+              .single();
+
+            if (clientInfo) {
+              if (clientInfo.id_tipo_cliente === CLIENT_TYPE.AGREEMENT) {
+                const convenioRel = clientInfo.clientes_convenios?.[0]?.convenios;
+                if (convenioRel && convenioRel.esta_activo) {
+                  const empresa = convenioRel.empresas?.nombre_empresa || 'tu empresa';
+                  msg += `\n\n🏢 Tu convenio con la empresa <b>${empresa}</b> se encuentra activo, puedes seguir disfrutando de tus almuerzos.`;
+                }
+              } else {
+                const saldos = clientInfo.saldos_servicio || [];
+                const totalSaldos = saldos.reduce((sum, s) => sum + (s.cantidad_disponible || 0), 0);
+                if (totalSaldos > 0) {
+                  msg += `\n\n💰 <b>Saldo Restante:</b> Te quedan <b>${totalSaldos}</b> almuerzos disponibles en tu monedero prepago.`;
+                } else {
+                  msg += `\n\n⚠️ <b>Sin Saldo:</b> Te has quedado sin almuerzos en tu monedero prepago. Te invitamos a realizar una recarga en caja.`;
+                }
+              }
+            }
           } else if (id_estado === ORDER_STATE.CANCELLED) {
             msg = `❌ <b>Pedido Cancelado</b>\n\nTu pedido #<b>${numOrden}</b> ha sido cancelado por el administrador.\nSi tienes dudas, por favor contáctanos.`;
           }
