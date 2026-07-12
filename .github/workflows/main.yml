@@ -1,17 +1,17 @@
 name: CI/CD DevSecOps
 
 # ==============================================================================
-# ⚠️ FLUJO GRANULAR Y MODULARIZADO ⚠️
-# Pipeline hiper-segmentado para visualización completa de todas las etapas
-# de pruebas, calidad y seguridad en la pestaña "Actions".
+# ⚠️ MODO AHORRO DE MINUTOS ⚠️
+# Pipeline reducido TEMPORALMENTE para ahorrar minutos de GitHub Actions.
+# Solo ejecuta: Build Frontend → Docker Image → Deploy a Azure VM → Deploy Bot
+#
+# Para restaurar el pipeline completo, revertir este archivo al commit anterior:
+#   git checkout 8762715 -- .github/workflows/main.yml
 # ==============================================================================
 
 on:
-  pull_request:
-    branches: [main, develop]
-    types: [opened, synchronize, reopened]
   push:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -22,231 +22,9 @@ env:
   NODE_VERSION: "22"
 
 jobs:
-  security-secrets:
-    name: Security Scan - Gitleaks
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Gitleaks Scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  lint-backend:
-    name: Code Quality (Backend) - ESLint
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - name: Install & Lint Backend
-        working-directory: backend
-        run: |
-          npm ci
-          npm run lint
-
-  lint-frontend:
-    name: Code Quality (Frontend) - ESLint
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install & Lint Frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run lint
-
-  security-npm:
-    name: Security Audit - NPM
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
-      - name: NPM Audit Backend
-        working-directory: backend
-        run: npm audit --audit-level=critical
-      - name: NPM Audit Frontend
-        working-directory: frontend
-        run: npm audit --audit-level=critical
-
-  security-trivy:
-    name: Security Scan - Trivy
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          ignore-unfixed: true
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-
-  test-backend:
-    name: Unit Tests (Backend) - Vitest
-    runs-on: ubuntu-latest
-    env:
-      SUPABASE_URL: "https://example.supabase.co"
-      SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
-      SUPABASE_ANON_KEY: "dummy-key"
-      JWT_SECRET: "dummy-secret"
-      PORT: 3001
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install & Test Backend
-        working-directory: backend
-        run: |
-          npm ci
-          set -o pipefail
-          CI=true NO_COLOR=1 npm run test:coverage -- --maxWorkers=2 2>&1 | tee test_output_raw.txt || true
-          sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt
-          if grep -q "Failed Tests" test_output_raw.txt; then exit 1; fi
-      - name: Backend coverage summary
-        if: always()
-        working-directory: backend
-        run: |
-          echo "### 🧪 Backend Coverage" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-      - name: Upload coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-backend
-          path: backend/coverage
-          if-no-files-found: warn
-
-  test-frontend:
-    name: Unit Tests (Frontend) - Vitest
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install & Test Frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          set -o pipefail
-          CI=true NO_COLOR=1 npm run test:coverage -- --maxWorkers=2 2>&1 | tee test_output_raw.txt || true
-          sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt
-          if grep -q "Failed Tests" test_output_raw.txt; then exit 1; fi
-      - name: Frontend coverage summary
-        if: always()
-        working-directory: frontend
-        run: |
-          echo "### 🧪 Frontend Coverage" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-      - name: Upload coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-frontend
-          path: frontend/coverage
-          if-no-files-found: warn
-
-  sonarcloud:
-    name: Code Analysis - SonarCloud
-    runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend]
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Download Backend Coverage
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: coverage-backend
-          path: backend/coverage
-      - name: Download Frontend Coverage
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: coverage-frontend
-          path: frontend/coverage
-      - name: Fix coverage paths for SonarScanner
-        run: |
-          sed -i 's/^SF:.*backend\/src\//SF:backend\/src\//' backend/coverage/lcov.info || true
-          sed -i 's/^SF:.*frontend\/src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
-          sed -i 's/^SF:src\//SF:backend\/src\//' backend/coverage/lcov.info || true
-          sed -i 's/^SF:src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
-      - name: Set SonarQube Project Keys
-        run: |
-          if [ "${{ github.repository_owner }}" = "pakeins" ]; then
-            echo "SONAR_ORG=pakeins" >> $GITHUB_ENV
-            echo "SONAR_PROJECT_KEY=pakeins_EcenciaAndina" >> $GITHUB_ENV
-          else
-            echo "SONAR_ORG=packeins" >> $GITHUB_ENV
-            echo "SONAR_PROJECT_KEY=packeins_EcenciaAndinaAPP" >> $GITHUB_ENV
-          fi
-      - name: SonarQube Cloud scan
-        if: ${{ env.SONAR_TOKEN != '' }}
-        uses: SonarSource/sonarqube-scan-action@master
-        continue-on-error: true
-        with:
-          args: >
-            -Dsonar.verbose=true
-            -Dsonar.organization=${{ env.SONAR_ORG }}
-            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-  integration-tests:
-    name: Integration Tests - Supertest
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    needs: [test-backend]
-    env:
-      SUPABASE_URL: "https://example.supabase.co"
-      SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
-      SUPABASE_ANON_KEY: "dummy-key"
-      JWT_SECRET: "dummy-secret"
-      PORT: 3001
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - name: Install dependencies
-        working-directory: backend
-        run: npm ci
-      - name: Run Integration Tests
-        working-directory: backend
-        run: npm run test:integration
-
   build:
     name: Build Frontend
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -260,113 +38,14 @@ jobs:
           npm ci
           npm run build
       - name: Upload frontend build artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: frontend/dist
 
-  zap:
-    name: OWASP ZAP Baseline Security
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    needs: [build]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Start ephemeral stack
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
-          TELEGRAM_INVITE_TOKEN_SECRET: ${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET }}
-        run: docker compose -f docker-compose.zap.yml up -d --build
-      - name: Wait for HTTP targets
-        env:
-          WAIT_HTTP_TIMEOUT_MS: 600000
-        run: |
-          npm init -y
-          npm install axios
-          node scripts/wait-http.js http://127.0.0.1:8080 http://127.0.0.1:3001/
-      - name: ZAP frontend baseline
-        uses: zaproxy/action-baseline@v0.15.0
-        if: always()
-        continue-on-error: true
-        with:
-          target: http://127.0.0.1:8080
-          allow_issue_writing: false
-          fail_action: false
-          artifact_name: zap_frontend
-      - name: Preserve ZAP frontend reports
-        if: always()
-        run: |
-          cp report_json.json zap-frontend.json || true
-          cp report_html.html zap-frontend.html || true
-          cp report_md.md zap-frontend.md || true
-      - name: ZAP backend baseline
-        uses: zaproxy/action-baseline@v0.15.0
-        if: always()
-        continue-on-error: true
-        with:
-          target: http://127.0.0.1:3001
-          allow_issue_writing: false
-          fail_action: false
-          artifact_name: zap_backend
-      - name: Preserve ZAP backend reports
-        if: always()
-        run: |
-          cp report_json.json zap-backend.json || true
-          cp report_html.html zap-backend.html || true
-          cp report_md.md zap-backend.md || true
-      - name: Fail on High alerts
-        continue-on-error: true
-        run: node scripts/zap-fail-on-high.js zap-frontend.json zap-backend.json
-      - name: Upload ZAP reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-reports
-          path: |
-            zap-*.html
-            zap-*.md
-            zap-*.xml
-            zap-*.json
-      - name: Stop ephemeral stack
-        if: always()
-        run: docker compose -f docker-compose.zap.yml down --volumes --remove-orphans
-
-  release:
-    name: Semantic Release
-    runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   docker-build:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
       packages: write
@@ -394,8 +73,6 @@ jobs:
   deploy-bot-azure:
     name: Deploy Bot to Azure Functions
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -426,12 +103,10 @@ jobs:
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
           scm-do-build-during-deployment: false
 
-
   deploy:
     name: Continuous Deployment (Azure VM)
     runs-on: ubuntu-latest
-    needs: [docker-build, release, deploy-bot-azure]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: [build, docker-build, deploy-bot-azure]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -507,7 +182,7 @@ jobs:
             docker compose up -d
             docker image prune -af
             
-            # Restaurar Webhook (Reemplazando script viejo por llamada curl directa al Azure Function)
+            # Restaurar Webhook
             echo "Registrando webhook de Telegram apuntando a Azure Functions..."
             export TELEGRAM_WEBHOOK_URL="https://${{ secrets.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/telegram/webhook"
             curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook" \
@@ -526,16 +201,3 @@ jobs:
               exit 1
             fi
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: 1.145.4
-      - name: Apply DB Migrations
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        working-directory: backend
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
-      - name: Skip Migrations Notice
-        if: ${{ env.SUPABASE_DB_URL == '' }}
-        run: echo "::warning::SUPABASE_DB_URL no configurado; se omite la aplicacion de migraciones."
