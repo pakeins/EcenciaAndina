@@ -1,3 +1,4 @@
+const nodemailer = require('nodemailer');
 const GRAPH_SEND_MAIL_URL = 'https://graph.microsoft.com/v1.0/me/sendMail';
 
 const MAIL_STATUSES = {
@@ -261,6 +262,37 @@ const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
     const error = new Error('El cliente no tiene correo para enviar la invitacion.');
     error.code = 'MAIL_MISSING_RECIPIENT';
     throw error;
+  }
+
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD,
+        },
+      });
+
+      const mailOptions = {
+        from: process.env.INVITATION_FROM_EMAIL || `"ECencia Andina" <${process.env.GMAIL_USER}>`,
+        to: recipient,
+        subject,
+        text,
+        html,
+      };
+      if (process.env.INVITATION_REPLY_TO) {
+        mailOptions.replyTo = process.env.INVITATION_REPLY_TO;
+      }
+
+      const info = await transporter.sendMail(mailOptions);
+      return {
+        status: MAIL_STATUSES.sent,
+        providerRequestId: info.messageId || null,
+      };
+    } catch (gmailError) {
+      console.error('Nodemailer Gmail failed, trying Outlook Graph if configured...', gmailError.message);
+    }
   }
 
   const { accessToken } = await getGraphAccessToken(options);

@@ -14,8 +14,42 @@ const {
   sendMessage
 } = require('../services/telegramMicroservice');
 
-const sendTelegramInvitationEmail = async () => ({ status: 'mocked_email_for_now' });
-const sendTelegramReactivationEmail = async () => ({ status: 'mocked_email_for_now' });
+const { sendOutlookMail, buildInvitationEmail } = require('../services/outlookMail');
+
+const sendTelegramInvitationEmail = async ({ client, onboarding }) => {
+  try {
+    const inviteLink = onboarding.onboarding_url;
+    const emailData = buildInvitationEmail({
+      nombre: client.nombre,
+      inviteLink,
+    });
+    return await sendOutlookMail({
+      to: client.correo,
+      ...emailData,
+    });
+  } catch (error) {
+    console.error('Error sending telegram invitation email:', error.message);
+    return { status: 'failed', error: error.message };
+  }
+};
+
+const sendTelegramReactivationEmail = async ({ client }) => {
+  try {
+    const fromEmail = process.env.OUTLOOK_FROM_EMAIL || process.env.GMAIL_USER || 'ecenciaconvenios@outlook.com';
+    const emailData = {
+      subject: 'Tu acceso al bot de ECencia Andina ha sido reactivado',
+      text: `Hola ${client.nombre || 'cliente'},\n\nTu acceso al bot de Telegram ha sido reactivado por el administrador. Ya puedes seguir usando el bot para realizar tus pedidos.\n\nAtentamente,\nEquipo ECencia Andina\n${fromEmail}`,
+      html: `<p>Hola <strong>${client.nombre || 'cliente'}</strong>,</p><p>Tu acceso al bot de Telegram ha sido reactivado por el administrador. Ya puedes seguir usando el bot para realizar tus pedidos.</p><br><p>Atentamente,<br>Equipo ECencia Andina<br>${fromEmail}</p>`,
+    };
+    return await sendOutlookMail({
+      to: client.correo,
+      ...emailData,
+    });
+  } catch (error) {
+    console.error('Error sending telegram reactivation email:', error.message);
+    return { status: 'failed', error: error.message };
+  }
+};
 
 router.use(authMiddleware);
 router.use(roleMiddleware(['administrador', 'caja']));
