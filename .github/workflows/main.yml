@@ -169,6 +169,8 @@ jobs:
             set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD || 'dummy-password' }}"
             set_env "INTERNAL_API_SECRET" "${{ secrets.INTERNAL_API_SECRET || 'dev-internal-secret-123' }}"
             set_env "TELEGRAM_MICROSERVICE_URL" "https://${{ secrets.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api"
+            set_env "N8N_MENU_WEBHOOK_URL" "${{ secrets.N8N_MENU_WEBHOOK_URL || 'http://n8n:5678/webhook/ECENCIA-enviar-menu-manual' }}"
+            set_env "N8N_MENU_WEBHOOK_SECRET" "${{ secrets.N8N_MENU_WEBHOOK_SECRET || 'change-this-local-menu-webhook-secret' }}"
             
             # Exportar variables necesarias para docker-compose
             export GITHUB_REPOSITORY=${{ github.repository }}

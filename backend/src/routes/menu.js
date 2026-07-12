@@ -92,8 +92,9 @@ const getN8nMenuWebhookUrl = () => {
 
   if (process.env.NODE_ENV === 'production') {
     // Internal Docker network hostnames (no dots, e.g. 'n8n', 'backend')
-    // communicate within the same Docker Compose network and don't need HTTPS.
-    const isInternalDockerHost = !parsedUrl.hostname.includes('.');
+    // or IPv4 addresses (e.g. '20.65.123.185') communicate within the same
+    // Docker Compose network or directly via IP and don't need HTTPS.
+    const isInternalDockerHost = !parsedUrl.hostname.includes('.') || /^(\d{1,3}\.){3}\d{1,3}$/.test(parsedUrl.hostname);
 
     if (parsedUrl.protocol !== 'https:' && !isInternalDockerHost) {
       const error = new Error('N8N_MENU_WEBHOOK_URL debe usar HTTPS en produccion.');
