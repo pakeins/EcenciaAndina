@@ -105,7 +105,7 @@ app.get('/api/check-db', async (req, res) => {
 // 3. Conexión de las Rutas de la API
 // Esto significa que todas las rutas empezarán con /api/...
 app.use(
-  '/assets',
+  '/api/assets',
   express.static(path.join(__dirname, 'src', 'assets'), {
     index: false,
     maxAge: '30d',

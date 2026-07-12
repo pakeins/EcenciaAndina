@@ -171,6 +171,7 @@ jobs:
             set_env "TELEGRAM_MICROSERVICE_URL" "https://${{ secrets.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api"
             set_env "N8N_MENU_WEBHOOK_URL" "${{ secrets.N8N_MENU_WEBHOOK_URL || 'http://n8n:5678/webhook/ECENCIA-enviar-menu-manual' }}"
             set_env "N8N_MENU_WEBHOOK_SECRET" "${{ secrets.N8N_MENU_WEBHOOK_SECRET || 'change-this-local-menu-webhook-secret' }}"
+            set_env "PUBLIC_BACKEND_URL" "https://ecenciaapp.eastus2.cloudapp.azure.com/api"
             
             # Exportar variables necesarias para docker-compose
             export GITHUB_REPOSITORY=${{ github.repository }}
