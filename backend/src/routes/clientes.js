@@ -85,7 +85,7 @@ const handleRouteError = (res, error) => {
 // Función auxiliar para formatear cliente con su convenio
 const getRelationFirst = (value) => Array.isArray(value) ? value[0] : value;
 
-const telegramSummary = (client) => {
+const telegramSummary = (client, currentConsentVersion) => {
   const subscription = getRelationFirst(client.telegram_subscriptions);
   const now = Date.now();
   const sortedInvitations = [...(client.telegram_invitations || [])]
@@ -111,7 +111,7 @@ const telegramSummary = (client) => {
     status,
     policy_current:
       subscription?.consent_status === 'accepted' &&
-      subscription.consent_notice_version === getConsentVersion(),
+      subscription.consent_notice_version === currentConsentVersion,
     consent_version: subscription?.consent_notice_version || null,
     has_chat: Boolean(subscription?.chat_id),
     telegram_username: subscription?.telegram_username || null,
@@ -129,7 +129,7 @@ const telegramSummary = (client) => {
   };
 };
 
-const formatCliente = (cli) => {
+const formatCliente = (cli, currentConsentVersion) => {
   const convenioRel = cli.clientes_convenios?.[0]?.convenios;
   return {
     id: cli.id_cliente,
@@ -145,7 +145,7 @@ const formatCliente = (cli) => {
       id: convenioRel.id_convenio,
       nombre: convenioRel.nombre_empresa
     } : null,
-    telegram: telegramSummary(cli),
+    telegram: telegramSummary(cli, currentConsentVersion),
   };
 };
 
@@ -222,7 +222,8 @@ router.get('/', async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    res.json(data.map(formatCliente));
+    const consentVersion = await getConsentVersion();
+    res.json(data.map(c => formatCliente(c, consentVersion)));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -430,8 +431,9 @@ router.post('/', async (req, res) => {
       .eq('id_cliente', created.id_cliente)
       .single();
     if (finalResult.error) throw finalResult.error;
+    const consentVersion = await getConsentVersion();
     res.status(201).json({
-      ...formatCliente(finalResult.data),
+      ...formatCliente(finalResult.data, consentVersion),
       telegram_onboarding: publicOnboarding(onboarding),
     });
   } catch (error) {
@@ -462,13 +464,18 @@ router.post('/:id/telegram/invitacion', adminOnly, async (req, res) => {
     if (!client.esta_activo) throw createHttpError(400, 'El cliente debe estar activo para reinvitarlo.');
 
     if (subscription?.chat_id) {
+      const [consentVersion, text] = await Promise.all([
+        getConsentVersion(),
+        privacyText(),
+      ]);
+
       const { data: pending, error: updateError } = await adminClient
         .from('telegram_subscriptions')
         .update({
           consent_status: 'pending',
           is_active: false,
-          consent_notice_version: getConsentVersion(),
-          consent_notice_text: privacyText(),
+          consent_notice_version: consentVersion,
+          consent_notice_text: text,
           consent_method: null,
           accepted_at: null,
           rejected_at: null,
@@ -482,7 +489,7 @@ router.post('/:id/telegram/invitacion', adminOnly, async (req, res) => {
 
       const sent = await sendMessage(
         pending.chat_id,
-        privacyText(),
+        text,
         directConsentKeyboard(),
       );
       await setConsentState(adminClient, pending.chat_id, {
@@ -713,7 +720,8 @@ router.put('/:id', async (req, res) => {
       .eq('id_cliente', id)
       .single();
     if (finalResult.error) throw finalResult.error;
-    res.json(formatCliente(finalResult.data));
+    const consentVersion = await getConsentVersion();
+    res.json(formatCliente(finalResult.data, consentVersion));
   } catch (error) {
     handleRouteError(res, error);
   }
