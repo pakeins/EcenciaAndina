@@ -16,9 +16,11 @@ if (!token) {
 const BOT_COMMANDS = [
   { command: 'start', description: 'Activar o revisar la suscripción' },
   { command: 'menu', description: 'Abrir menú y reservar almuerzo' },
+  { command: 'pedido', description: 'Consultar tu reserva del día' },
+  { command: 'misaldo', description: 'Consultar saldo prepago o estado del convenio' },
   { command: 'privacidad', description: 'Consultar el aviso de privacidad' },
-  { command: 'mis_datos', description: 'Consultar los datos de Telegram vinculados' },
-  { command: 'eliminar_mis_datos', description: 'Solicitar eliminación de datos' },
+  { command: 'misdatos', description: 'Consultar los datos de Telegram vinculados' },
+  { command: 'eliminarmisdatos', description: 'Solicitar eliminación de datos' },
   { command: 'revocar', description: 'Revocar el consentimiento' },
   { command: 'ayuda', description: 'Ver ayuda y canales de contacto' },
 ];
