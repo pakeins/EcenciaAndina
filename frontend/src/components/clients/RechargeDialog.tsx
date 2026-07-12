@@ -24,7 +24,7 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
 
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<string>('');
-  const [cantidad, setCantidad] = useState<number>(1);
+  const [cantidad, setCantidad] = useState<number | string>(1);
   const [numeroFactura, setNumeroFactura] = useState<string>('');
 
   useEffect(() => {
@@ -184,7 +184,7 @@ export function RechargeDialog({ open, onOpenChange, clients }: RechargeDialogPr
               max="1000"
               step="1"
               value={cantidad}
-              onChange={e => setCantidad(Number.parseInt(e.target.value) || 0)}
+              onChange={e => setCantidad(e.target.value === '' ? '' : Number.parseInt(e.target.value, 10) || 0)}
               className="bg-background"
             />
           </div>
