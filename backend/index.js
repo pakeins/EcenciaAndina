@@ -127,6 +127,7 @@ app.use('/api/empleados', require('./src/routes/empleados'));
 app.use('/api/categorias', require('./src/routes/categorias'));
 app.use('/api/alimentos', require('./src/routes/alimentos'));
 app.use('/api/menu', require('./src/routes/menu'));
+app.use('/api/telegram', require('./src/routes/telegram'));
 
 app.use((error, req, res, next) => {
   if (res.headersSent) {
