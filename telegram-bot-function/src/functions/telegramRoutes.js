@@ -1276,7 +1276,7 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
       .select(`
         id_tipo_cliente,
         clientes_convenios(
-          convenios(esta_activo, empresas(nombre_empresa))
+          convenios(esta_activo, nombre_empresa)
         ),
         saldos_servicio(cantidad_disponible)
       `)
@@ -1291,7 +1291,7 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
     if (clientInfo.id_tipo_cliente === 1) { // AGREEMENT
       const convenioRel = clientInfo.clientes_convenios?.[0]?.convenios;
       if (convenioRel && convenioRel.esta_activo) {
-        const empresa = convenioRel.empresas?.nombre_empresa || 'tu empresa';
+        const empresa = convenioRel.nombre_empresa || 'tu empresa';
         await sendMessage(parsed.chatId, `✅ <b>Convenio Activo</b>\n\nTu convenio con la empresa <b>${empresa}</b> se encuentra activo. Puedes disfrutar de tus almuerzos con normalidad.`, null, 'HTML');
       } else {
         await sendMessage(parsed.chatId, `⚠️ <b>Convenio Inactivo</b>\n\nTu convenio actualmente no se encuentra activo. Por favor, comunícate con la administración.`, null, 'HTML');

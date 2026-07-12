@@ -262,18 +262,55 @@ router.put('/:id/estado', async (req, res) => {
     const adminClient = getAdminClient();
 
     let orden;
-    // Si se marca como Consumido (2)
-    if (id_estado === ORDER_STATE.CONSUMED) {
-      // Obtener detalles de la orden y cliente
-      const { data, error: errOrden } = await adminClient
-        .from('ordenes')
-        .select('id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_producto, cantidad)')
-        .eq('id_orden', id_orden)
-        .single();
-      
-      orden = data;
-      
-      if (errOrden) throw errOrden;
+    // 1. OBTENER ORDEN ACTUAL PARA COMPARAR ESTADOS
+    const { data: ordenActual, error: errOrden } = await adminClient
+      .from('ordenes')
+      .select('id_estado, id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_producto, cantidad)')
+      .eq('id_orden', id_orden)
+      .single();
+    
+    orden = ordenActual;
+    
+    if (errOrden) throw errOrden;
+
+    // 2. REVERSIÓN DE SALDO (Si estaba CONSUMED y pasa a otro estado)
+    if (orden.id_estado === ORDER_STATE.CONSUMED && id_estado !== ORDER_STATE.CONSUMED) {
+      const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
+      if (orden.metodo_pago === 'Saldo Prepago' || (isDirectClient && orden.metodo_pago === 'Pendiente')) {
+        // Devolver cantidades exactas a saldos_servicio según detalle_orden
+        for (const det of orden.detalle_orden) {
+          const { data: saldoActual } = await adminClient
+            .from('saldos_servicio')
+            .select('cantidad_disponible')
+            .eq('id_cliente', orden.id_cliente)
+            .eq('id_producto', det.id_producto)
+            .maybeSingle();
+
+          if (saldoActual) {
+            await adminClient
+              .from('saldos_servicio')
+              .update({ 
+                cantidad_disponible: saldoActual.cantidad_disponible + det.cantidad, 
+                updated_by: req.user.id 
+              })
+              .eq('id_cliente', orden.id_cliente)
+              .eq('id_producto', det.id_producto);
+          } else {
+            await adminClient
+              .from('saldos_servicio')
+              .insert({
+                id_cliente: orden.id_cliente,
+                id_producto: det.id_producto,
+                cantidad_disponible: det.cantidad,
+                updated_by: req.user.id
+              });
+          }
+        }
+      }
+    }
+
+    // 3. DESCUENTO DE SALDO (Si pasa a Consumido y no lo estaba antes)
+    if (id_estado === ORDER_STATE.CONSUMED && orden.id_estado !== ORDER_STATE.CONSUMED) {
 
       // Validar si el cliente tiene convenio habilitado
       if (orden.metodo_pago === 'Convenio Empresa') {
@@ -453,7 +490,7 @@ router.put('/:id/estado', async (req, res) => {
               .select(`
                 id_tipo_cliente,
                 clientes_convenios(
-                  convenios(esta_activo, empresas(nombre_empresa))
+                  convenios(esta_activo, nombre_empresa)
                 ),
                 saldos_servicio(cantidad_disponible)
               `)
@@ -464,7 +501,7 @@ router.put('/:id/estado', async (req, res) => {
               if (clientInfo.id_tipo_cliente === CLIENT_TYPE.AGREEMENT) {
                 const convenioRel = clientInfo.clientes_convenios?.[0]?.convenios;
                 if (convenioRel && convenioRel.esta_activo) {
-                  const empresa = convenioRel.empresas?.nombre_empresa || 'tu empresa';
+                  const empresa = convenioRel.nombre_empresa || 'tu empresa';
                   msg += `\n\n🏢 Tu convenio con la empresa <b>${empresa}</b> se encuentra activo, puedes seguir disfrutando de tus almuerzos.`;
                 }
               } else {
