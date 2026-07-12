@@ -744,7 +744,7 @@ const orderConfirmation = (session, order) => {
     return (
       '🔄 <b>¡Tu reserva ha sido modificada correctamente!</b>\n\n' +
       `📝 <b>Detalle del Pedido:</b>\n${orderSummary(session)}` +
-      `🔢 <b>Número de Orden:</b> <code>${order.id_orden}</code>\n\n` +
+      `🔢 <b>Número de Orden:</b> <code>#${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}</code>\n\n` +
       '¡Que disfrutes tu comida! 🍽️✨'
     );
   }
@@ -754,7 +754,7 @@ const orderConfirmation = (session, order) => {
   return (
     '✅ <b>¡Tu reserva ha sido registrada con éxito!</b> 🎉\n\n' +
     `📝 <b>Detalle del Pedido:</b>\n${orderSummary(session)}` +
-    `🔢 <b>Número de Orden:</b> <code>${order.id_orden}</code>\n\n` +
+    `🔢 <b>Número de Orden:</b> <code>#${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}</code>\n\n` +
     '¡Que disfrutes tu comida! 🍽️✨'
   );
 };
