@@ -1278,7 +1278,7 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
         clientes_convenios(
           convenios(esta_activo, nombre_empresa)
         ),
-        saldos_servicio(cantidad_disponible)
+        saldos_servicio(cantidad_disponible, productos(nombre_producto))
       `)
       .eq('id_cliente', subscription.id_cliente)
       .single();
@@ -1298,10 +1298,16 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
       }
     } else { // DIRECT
       const saldos = clientInfo.saldos_servicio || [];
-      const totalSaldos = saldos.reduce((sum, s) => sum + (s.cantidad_disponible || 0), 0);
+      const saldosValidos = saldos.filter(s => s.cantidad_disponible > 0);
+      const totalSaldos = saldosValidos.reduce((sum, s) => sum + s.cantidad_disponible, 0);
       
       if (totalSaldos > 0) {
-        await sendMessage(parsed.chatId, `💰 <b>Saldo Disponible</b>\n\nActualmente tienes <b>${totalSaldos}</b> almuerzos disponibles en tu monedero prepago.`, null, 'HTML');
+        let detalleSaldos = saldosValidos.map(s => {
+          const nombreProd = Array.isArray(s.productos) ? s.productos[0]?.nombre_producto : s.productos?.nombre_producto;
+          return `🔹 ${s.cantidad_disponible} ${nombreProd || 'Almuerzo(s)'}`;
+        }).join('\n');
+        
+        await sendMessage(parsed.chatId, `💰 <b>Saldo Disponible</b>\n\nActualmente tienes <b>${totalSaldos}</b> almuerzo(s) en tu monedero prepago:\n\n${detalleSaldos}`, null, 'HTML');
       } else {
         await sendMessage(parsed.chatId, `⚠️ <b>Sin Saldo</b>\n\nActualmente no tienes almuerzos disponibles en tu monedero prepago. Por favor, acércate a caja para realizar una recarga.`, null, 'HTML');
       }

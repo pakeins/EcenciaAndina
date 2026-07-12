@@ -492,7 +492,7 @@ router.put('/:id/estado', async (req, res) => {
                 clientes_convenios(
                   convenios(esta_activo, nombre_empresa)
                 ),
-                saldos_servicio(cantidad_disponible)
+                saldos_servicio(cantidad_disponible, productos(nombre_producto))
               `)
               .eq('id_cliente', data.id_cliente)
               .single();
@@ -506,9 +506,16 @@ router.put('/:id/estado', async (req, res) => {
                 }
               } else {
                 const saldos = clientInfo.saldos_servicio || [];
-                const totalSaldos = saldos.reduce((sum, s) => sum + (s.cantidad_disponible || 0), 0);
+                const saldosValidos = saldos.filter(s => s.cantidad_disponible > 0);
+                const totalSaldos = saldosValidos.reduce((sum, s) => sum + s.cantidad_disponible, 0);
+                
                 if (totalSaldos > 0) {
-                  msg += `\n\n💰 <b>Saldo Restante:</b> Te quedan <b>${totalSaldos}</b> almuerzos disponibles en tu monedero prepago.`;
+                  let detalleSaldos = saldosValidos.map(s => {
+                    const nombreProd = Array.isArray(s.productos) ? s.productos[0]?.nombre_producto : s.productos?.nombre_producto;
+                    return `🔹 ${s.cantidad_disponible} ${nombreProd || 'Almuerzo(s)'}`;
+                  }).join('\n');
+                  
+                  msg += `\n\n💰 <b>Saldo Restante:</b> Te quedan <b>${totalSaldos}</b> almuerzo(s) en tu monedero prepago:\n${detalleSaldos}`;
                 } else {
                   msg += `\n\n⚠️ <b>Sin Saldo:</b> Te has quedado sin almuerzos en tu monedero prepago. Te invitamos a realizar una recarga en caja.`;
                 }
