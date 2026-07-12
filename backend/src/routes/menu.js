@@ -432,7 +432,7 @@ const requireN8nCleanupSecret = (req, res, next) => {
     return res.status(503).json({ error: 'La limpieza programada no esta configurada.' });
   }
 
-  const receivedSecret = req.get('X-Ecencia-Webhook-Secret');
+  const receivedSecret = req.get('X-Ecencia-Webhook-Secret') || req.get('X-Eciencia-Webhook-Secret');
   if (!secureEquals(receivedSecret, expectedSecret)) {
     return res.status(401).json({ error: 'Limpieza programada no autorizada.' });
   }

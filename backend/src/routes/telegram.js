@@ -23,8 +23,11 @@ const requireWebhookSecret = (req, res, next) => {
   if (!expectedSecret) {
     return res.status(503).json({ error: 'El endpoint de broadcast no está configurado (falta N8N_MENU_WEBHOOK_SECRET).' });
   }
-  const provided = req.get('X-Ecencia-Webhook-Secret');
+  // Accept both header variants: the n8n workflow uses "X-Eciencia-Webhook-Secret"
+  // while the backend/dashboard uses "X-Ecencia-Webhook-Secret"
+  const provided = req.get('X-Ecencia-Webhook-Secret') || req.get('X-Eciencia-Webhook-Secret');
   if (!secureEquals(provided, expectedSecret)) {
+    console.error(`[broadcast-sessions] 401 Unauthorized. Received secret does not match.`);
     return res.status(401).json({ error: 'Acceso no autorizado al endpoint de broadcast.' });
   }
   next();
