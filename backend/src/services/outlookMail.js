@@ -113,125 +113,122 @@ const getGraphAccessToken = async ({ fetchImpl = fetch, env } = {}) => {
   return { accessToken: body.access_token, fromEmail: config.fromEmail };
 };
 
-const buildInvitationHtml = ({ firstName, inviteLink, fromEmail }) => {
+const buildInvitationHtml = ({ firstName, inviteLink, ctaImageUrl, fromEmail }) => {
   const safeFirstName = escapeHtml(firstName);
   const safeInviteLink = inviteLink ? escapeHtml(inviteLink) : '';
   const safeFromEmail = escapeHtml(fromEmail);
 
+  const imageBlock = ctaImageUrl && safeInviteLink
+    ? `
+      <tr>
+        <td style="padding:0;">
+          <a href="${safeInviteLink}" target="_blank">
+            <img src="${escapeHtml(ctaImageUrl)}" alt="Invitacion a ECencia Andina en Telegram" width="600" style="display:block;width:100%;max-width:600px;border:0;">
+          </a>
+        </td>
+      </tr>`
+    : '';
+
   const actionBlock = safeInviteLink
     ? `
       <tr>
-        <td align="center" style="padding: 30px 0;">
-          <a href="${safeInviteLink}" target="_blank" style="display:inline-block;background-color:#0f172a;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600;line-height:20px;text-decoration:none;padding:16px 32px;border-radius:8px;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
-            Abrir bot en Telegram
-          </a>
+        <td style="padding:0 28px 24px;">
+          <table role="presentation" cellspacing="0" cellpadding="0">
+            <tr>
+              <td align="center" style="border-radius:4px;background-color:#7A402E;">
+                <a href="${safeInviteLink}" target="_blank" style="font-family:Arial,sans-serif;font-size:16px;font-weight:bold;color:#FFFFFF;text-decoration:none;display:inline-block;padding:12px 24px;border:1px solid #7A402E;border-radius:4px;">
+                  Abrir bot en Telegram
+                </a>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
       <tr>
-        <td style="padding:0 32px 24px;text-align:center;">
-          <p style="margin:0;color:#64748b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:19px;">
-            Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
-            <a href="${safeInviteLink}" target="_blank" style="color:#0ea5e9;word-break:break-all;text-decoration:none;">${safeInviteLink}</a>
+        <td style="padding:0 0 24px;">
+          <p style="margin:0;color:#61603C;font-family:Arial,sans-serif;font-size:13px;line-height:19px;">
+            Si el bot&oacute;n o la imagen no abre, copia y pega este enlace en tu navegador:
+            <br>
+            <a href="${safeInviteLink}" target="_blank" style="color:#7A402E;word-break:break-all;">${safeInviteLink}</a>
           </p>
         </td>
       </tr>`
     : `
       <tr>
-        <td style="padding:0 32px 24px;">
-          <div style="background-color:#fef2f2;border-left:4px solid #ef4444;padding:16px;">
-            <p style="margin:0;color:#991b1b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;">
-              <strong>Atención:</strong> El link de registro no está disponible en este momento. Por favor contacta al administrador.
-            </p>
-          </div>
+        <td style="padding:0 0 24px;">
+          <p style="margin:0;color:#7A402E;font-family:Arial,sans-serif;font-size:15px;line-height:22px;">
+            El link de registro no est&aacute; disponible. Contacta al administrador de ECencia Andina.
+          </p>
         </td>
       </tr>`;
 
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Invitación a ECencia Andina</title>
-</head>
-<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <div style="display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;">
-    Registra tu Telegram para recibir el menú cuando ECencia Andina lo envíe.
-  </div>
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f8fafc;margin:0;padding:40px 20px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">
-          
-          <!-- Header -->
-          <tr>
-            <td style="background-color:#0f172a;padding:40px 32px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">
-                ECencia Andina
-              </h1>
-              <p style="margin:8px 0 0;color:#94a3b8;font-size:14px;letter-spacing:1px;text-transform:uppercase;">
-                Tradición Natural
-              </p>
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding:40px 32px 10px;">
-              <h2 style="margin:0 0 16px;color:#1e293b;font-size:20px;font-weight:600;line-height:28px;">
-                ¡Hola ${safeFirstName}!
-              </h2>
-              <p style="margin:0;color:#475569;font-size:16px;line-height:26px;">
-                Te invitamos a vincular tu cuenta de Telegram con ECencia Andina. Esto te permitirá <strong>recibir el menú del día</strong> directamente en tu celular y realizar tus reservas de manera rápida y sencilla.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Action -->
-          ${actionBlock}
-
-          <!-- Instructions -->
-          <tr>
-            <td style="padding:0 32px 32px;">
-              <div style="background-color:#f1f5f9;border-radius:8px;padding:24px;">
-                <h3 style="margin:0 0 12px;color:#334155;font-size:15px;font-weight:600;">
-                  Pasos para completar el registro:
-                </h3>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#D1CDC4;">
+    <div style="display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;">
+      Registra tu Telegram para recibir el men&uacute; cuando ECencia Andina lo env&iacute;e.
+    </div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#D1CDC4;margin:0;padding:24px 0;">
+      <tr>
+        <td align="center" style="padding:0 12px;">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#FFFFFF;border-radius:16px;overflow:hidden;">
+            ${imageBlock}
+            <tr>
+              <td style="padding:0 28px 8px;">
+                <p style="margin:0 0 12px;color:#7A402E;font-family:Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">
+                  ECencia Andina
+                </p>
+                <h1 style="margin:0 0 12px;color:#2F4D49;font-family:Arial,sans-serif;font-size:28px;line-height:34px;">
+                  Hola ${safeFirstName}, activa tu registro en Telegram
+                </h1>
+                <p style="margin:0;color:#2F4D49;font-family:Arial,sans-serif;font-size:16px;line-height:24px;">
+                  Te invitamos a vincular tu Telegram con tu registro de cliente para recibir el men&uacute; del d&iacute;a cuando ECencia Andina lo env&iacute;e y reservar tus almuerzos desde el bot.
+                </p>
+              </td>
+            </tr>
+            ${actionBlock}
+            <tr>
+              <td style="padding:0 28px 24px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#D1CDC4;border-radius:8px;">
                   <tr>
-                    <td width="24" valign="top" style="padding-bottom:8px;color:#0ea5e9;font-weight:bold;">1.</td>
-                    <td style="padding-bottom:8px;color:#475569;font-size:14px;line-height:20px;">Abre el bot usando el botón de arriba.</td>
-                  </tr>
-                  <tr>
-                    <td width="24" valign="top" style="padding-bottom:8px;color:#0ea5e9;font-weight:bold;">2.</td>
-                    <td style="padding-bottom:8px;color:#475569;font-size:14px;line-height:20px;">Presiona <strong>Iniciar</strong> (o Start) y acepta el aviso de privacidad.</td>
-                  </tr>
-                  <tr>
-                    <td width="24" valign="top" style="color:#0ea5e9;font-weight:bold;">3.</td>
-                    <td style="color:#475569;font-size:14px;line-height:20px;">Presiona el botón para <strong>Compartir tu contacto</strong> y ¡listo!</td>
+                    <td style="padding:18px 20px;">
+                      <p style="margin:0 0 10px;color:#2F4D49;font-family:Arial,sans-serif;font-size:15px;font-weight:700;line-height:22px;">
+                        Para completar el registro:
+                      </p>
+                      <p style="margin:0;color:#2F4D49;font-family:Arial,sans-serif;font-size:14px;line-height:22px;">
+                        1. Abre el bot desde la imagen, el bot&oacute;n o el enlace.<br>
+                        2. Acepta el aviso de privacidad.<br>
+                        3. Comparte tu tel&eacute;fono usando el bot&oacute;n de Telegram.
+                      </p>
+                    </td>
                   </tr>
                 </table>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 32px;text-align:center;">
-              <p style="margin:0;color:#64748b;font-size:13px;line-height:20px;">
-                ¿Tienes alguna duda? Contáctanos respondiendo a este correo:
-                <br>
-                <a href="mailto:${safeFromEmail}" style="color:#0ea5e9;text-decoration:none;font-weight:500;">${safeFromEmail}</a>
-              </p>
-              <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;">
-                &copy; ${new Date().getFullYear()} ECencia Andina. Todos los derechos reservados.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 30px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="border-top:1px solid #D1CDC4;padding-top:18px;">
+                  <tr>
+                    <td valign="top">
+                      <p style="margin:0;color:#2F4D49;font-family:Arial,sans-serif;font-size:15px;font-weight:700;line-height:20px;">
+                        Equipo ECencia Andina
+                      </p>
+                      <p style="margin:0;color:#7A402E;font-family:Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:.08em;line-height:18px;">
+                        TRADICION NATURAL
+                      </p>
+                      <p style="margin:4px 0 0;color:#61603C;font-family:Arial,sans-serif;font-size:13px;line-height:19px;">
+                        <a href="mailto:${safeFromEmail}" style="color:#61603C;text-decoration:none;">${safeFromEmail}</a>
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
 </html>`;
 };
 
