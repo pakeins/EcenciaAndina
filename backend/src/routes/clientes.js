@@ -584,7 +584,10 @@ router.post('/:id/telegram/revocar', adminOnly, async (req, res) => {
         '🚫 <b>Suscripcion Revocada</b>\n\nTu acceso al bot de Telegram ha sido revocado por la administracion. Ya no recibiras notificaciones ni menus diarios.',
         { remove_keyboard: true },
         'HTML'
-      ).catch(err => console.error('Error enviando revocacion:', err));
+      ).catch(err => {
+        const safeError = String(err?.message || err).replace(/[\r\n]/g, '_');
+        console.error('Error enviando revocacion:', safeError);
+      });
     }
 
     await recordConsentEvent({
