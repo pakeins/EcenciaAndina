@@ -38,6 +38,7 @@ vi.mock('lucide-react', async (importOriginal) => {
 describe('Clientes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    queryClient.clear();
 
     (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url.includes('/clientes/tipos')) {
@@ -88,6 +89,20 @@ describe('Clientes', () => {
     await waitFor(() => {
       expect(screen.getByText('Juan Perez')).toBeInTheDocument();
       expect(screen.getByText('1712345678')).toBeInTheDocument();
+    });
+  });
+
+  it('muestra mensaje de error si falla la obtencion de clientes', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/clientes') && !url.includes('tipos') && !url.includes('privacidad')) {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Fallo al obtener clientes' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    await renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText(/Ocurrió un error/i)).toBeInTheDocument();
     });
   });
   it('permite buscar clientes', async () => {
@@ -166,6 +181,31 @@ describe('Clientes', () => {
     }
   });
 
+  it('muestra toast de error si la eliminación falla', async () => {
+    await renderComponent();
+    
+    // Simulate API fail for DELETE
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (options?.method === 'DELETE') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo eliminar el cliente' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const btnDelete = await screen.findAllByTitle(/Eliminar Cliente/i);
+    if (btnDelete.length > 0) {
+      await act(async () => {
+        fireEvent.click(btnDelete[0]);
+      });
+      const btnConfirm = screen.getByRole('button', { name: /Eliminar Normalmente/i });
+      await act(async () => {
+        fireEvent.click(btnConfirm);
+      });
+    }
+
+    expect(toast.error).toHaveBeenCalledWith('No se pudo eliminar el cliente');
+  });
+
   it('permite abrir el monedero virtual', async () => {
     // Modify mock inside test or use default DIRECT client (we will set beforeEach to direct)
     await renderComponent();
@@ -192,6 +232,92 @@ describe('Clientes', () => {
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
+  });
+
+  it('permite abrir la gestion de Telegram y manejar errores al reinvitar', async () => {
+    await renderComponent();
+
+    const btnTelegram = await screen.findByTitle(/Gestionar Telegram/i);
+    await act(async () => {
+      fireEvent.click(btnTelegram);
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (url.includes('/telegram/invitacion') && options?.method === 'POST') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo reinvitar al cliente' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const btnReinvitar = await screen.findByRole('button', { name: /Reinvitar por Mail/i }).catch(() => null);
+    if (btnReinvitar) {
+      await act(async () => {
+        fireEvent.click(btnReinvitar);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('No se pudo reinvitar al cliente'));
+    }
+  });
+
+  it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error de red', async () => {
+    await renderComponent();
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (options?.method === 'PUT') {
+        return Promise.reject(new Error('Network error'));
+      }
+      if (url.includes('/clientes') && !url.includes('tipos')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678', correo: 'juan@test.com', activo: true, id_tipo_cliente: 2 }])
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const switches = await screen.findAllByRole('switch');
+    if (switches.length > 0) {
+      await act(async () => {
+        fireEvent.click(switches[0]);
+      });
+      const btnConfirm = screen.getByRole('button', { name: /Sí, desactivar/i });
+      await act(async () => {
+        fireEvent.click(btnConfirm);
+      });
+      expect(toast.error).toHaveBeenCalledWith('Error de conexión');
+    }
+  });
+
+  it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error', async () => {
+    await renderComponent();
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (options?.method === 'PUT') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Error al cambiar estado' }) });
+      }
+      if (url.includes('/clientes') && !url.includes('tipos')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678', correo: 'juan@test.com', activo: true, id_tipo_cliente: 2 }])
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const switches = await screen.findAllByRole('switch');
+    if (switches.length > 0) {
+      await act(async () => {
+        fireEvent.click(switches[0]);
+      });
+      // Confirm dialog appears
+      const btnConfirm = screen.getByRole('button', { name: /Sí, desactivar/i });
+      await act(async () => {
+        fireEvent.click(btnConfirm);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Error al cambiar estado'));
+    }
   });
 
   it('permite cambiar el estado activo del cliente al clickear el Switch', async () => {

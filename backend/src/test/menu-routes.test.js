@@ -217,7 +217,7 @@ describe('routes/menu — sistema y dashboard', () => {
     expect(res.status).toBe(400);
   });
 
-  it('POST /enviar bloquea el reenvio cuando el menu enviado hoy cambio', async () => {
+  it('POST /enviar bloquea el reenvio cuando el menu enviado hoy cambio sin force ni variables de entorno', async () => {
     store.menu_envios = [
       {
         fecha: TODAY,
@@ -229,7 +229,101 @@ describe('routes/menu — sistema y dashboard', () => {
     const res = await request(app).post('/api/menu/enviar').send(validBody);
 
     expect(res.status).toBe(409);
+    expect(res.body.code).toBe('ALREADY_SENT_CONFIRM_REQUIRED');
     expect(res.body.sentAt).toBe(`${TODAY}T11:00:00.000Z`);
+  });
+
+  it('POST /enviar permite el reenvio cuando se envia force=true, cancelando ordenes', async () => {
+    store.menu_envios = [
+      {
+        fecha: TODAY,
+        menu_payload: { opciones: { '1': ['Vieja'] } },
+        last_sent_at: `${TODAY}T11:00:00.000Z`,
+      },
+    ];
+    store.ordenes = [
+      { id_orden: 100, id_cliente: 'cli-1', id_origen: 1, created_at: `${TODAY}T12:00:00.000Z`, id_estado: 1 }
+    ];
+    store.telegram_subscriptions = [
+      { chat_id: 'chat-1', id_cliente: 'cli-1', is_active: true }
+    ];
+
+    process.env.N8N_MENU_WEBHOOK_URL = 'https://n8n.example.test/webhook/menu';
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({ ok: true, status: 200, text: async () => 'ok' });
+
+    try {
+      const res = await request(app).post('/api/menu/enviar').send({ ...validBody, force: true });
+      expect(res.status).toBe(202);
+      expect(res.body.reenvio).toBe(true);
+      
+      // Debe haber actualizado el estado de las ordenes a 3 (cancelado)
+      const updateOp = writes.find(w => w.table === 'ordenes' && w.op === 'update' && w.payload.id_estado === 3);
+      expect(updateOp).toBeDefined();
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.N8N_MENU_WEBHOOK_URL;
+    }
+  });
+
+  it('POST /enviar lanza error 500 si n8n responde con error', async () => {
+    process.env.N8N_MENU_WEBHOOK_URL = 'https://n8n.example.test/webhook/menu';
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({ ok: false, status: 400, text: async () => 'Bad Request' });
+
+    try {
+      const res = await request(app).post('/api/menu/enviar').send(validBody);
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('n8n respondio 400');
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.N8N_MENU_WEBHOOK_URL;
+    }
+  });
+
+  it('POST /enviar permite el envio normal cuando no hay envios previos hoy', async () => {
+    store.menu_envios = [];
+    store.ordenes = [];
+    store.telegram_subscriptions = [];
+
+    process.env.N8N_MENU_WEBHOOK_URL = 'https://n8n.example.test/webhook/menu';
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({ ok: true, status: 200, text: async () => 'ok' });
+
+    try {
+      const res = await request(app).post('/api/menu/enviar').send(validBody);
+      expect(res.status).toBe(202);
+      expect(res.body.reenvio).toBe(false);
+      
+      const insertOp = writes.find(w => w.table === 'menu_envios' && (w.op === 'insert' || w.op === 'upsert'));
+      expect(insertOp).toBeDefined();
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.N8N_MENU_WEBHOOK_URL;
+    }
+  });
+
+  it('POST /enviar permite reenviar el mismo menu sin pedir confirmacion de cambios', async () => {
+    store.menu_envios = [
+      {
+        fecha: TODAY,
+        menu_payload: { opciones: { '1': ['Locro'], '2': ['Seco de pollo'], '3': ['Arroz'] } },
+        last_sent_at: `${TODAY}T11:00:00.000Z`,
+      },
+    ];
+
+    process.env.N8N_MENU_WEBHOOK_URL = 'https://n8n.example.test/webhook/menu';
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({ ok: true, status: 200, text: async () => 'ok' });
+
+    try {
+      const res = await request(app).post('/api/menu/enviar').send(validBody);
+      expect(res.status).toBe(202);
+      expect(res.body.reenvio).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.N8N_MENU_WEBHOOK_URL;
+    }
   });
 
   it('GET /config informa si la edicion post-envio esta habilitada', async () => {
