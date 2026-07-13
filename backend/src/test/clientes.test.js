@@ -4,6 +4,11 @@ import express from 'express';
 import request from 'supertest';
 import { beforeAll } from 'vitest';
 
+vi.mock('nodemailer', () => ({
+  default: { createTransport: vi.fn(() => ({ sendMail: vi.fn().mockResolvedValue({ messageId: 'mock' }) })) },
+  createTransport: vi.fn(() => ({ sendMail: vi.fn().mockResolvedValue({ messageId: 'mock' }) })),
+}));
+
 import app from '../../index.js';
 
 describe('Rutas de Clientes Completo', () => {

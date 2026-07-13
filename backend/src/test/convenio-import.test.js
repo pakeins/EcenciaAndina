@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import zlib from 'node:zlib';
 
+vi.mock('nodemailer', () => ({
+  default: { createTransport: vi.fn(() => ({ sendMail: vi.fn().mockResolvedValue({ messageId: 'mock' }) })) },
+  createTransport: vi.fn(() => ({ sendMail: vi.fn().mockResolvedValue({ messageId: 'mock' }) })),
+}));
+
 import convenioEmployeeImport from '../services/convenioEmployeeImport.js';
 import convenioInvitations from '../services/convenioInvitations.js';
 import xlsxReader from '../services/xlsxReader.js';
