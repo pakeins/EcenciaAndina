@@ -1,4 +1,13 @@
-const nodemailer = require('nodemailer');
+let nodemailer = require('nodemailer');
+if (process.env.NODE_ENV === 'test') {
+  nodemailer = {
+    createTransport: () => ({
+      sendMail: async (options) => {
+        return { messageId: 'mock-gmail-id' };
+      }
+    })
+  };
+}
 const GRAPH_SEND_MAIL_URL = 'https://graph.microsoft.com/v1.0/me/sendMail';
 
 const MAIL_STATUSES = {
@@ -257,6 +266,7 @@ const buildInvitationEmail = ({ nombre, inviteLink, invitationMessage, env = pro
 };
 
 const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
+  const env = options.env || process.env;
   const recipient = String(to || '').trim().toLowerCase();
   if (!recipient) {
     const error = new Error('El cliente no tiene correo para enviar la invitacion.');
@@ -264,15 +274,15 @@ const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
     throw error;
   }
 
-  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+  if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) {
     try {
       const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
         auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASSWORD,
+          user: env.GMAIL_USER,
+          pass: env.GMAIL_APP_PASSWORD,
         },
       });
 
