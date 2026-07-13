@@ -12,25 +12,27 @@ const MAX_LENGTHS = {
   canal: 40,
 };
 
-const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
+function onlyDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
 
-const trimToUndefined = (value) => {
+function trimToUndefined(value) {
   if (value === undefined || value === null) return undefined;
   const text = String(value).trim();
   return text || undefined;
-};
+}
 
-const normalizeEmail = (value) => {
+function normalizeEmail(value) {
   const email = trimToUndefined(value);
   return email ? email.toLowerCase() : undefined;
-};
+}
 
-const toNumber = (value) => {
+function toNumber(value) {
   if (value === '' || value === null || value === undefined) return undefined;
   return Number(value);
-};
+}
 
-const isValidCedula = (value) => {
+function isValidCedula(value) {
   const cedula = onlyDigits(value);
   if (!/^\d{10}$/.test(cedula)) return false;
 
@@ -47,18 +49,18 @@ const isValidCedula = (value) => {
 
   const checkDigit = (10 - (sum % 10)) % 10;
   return checkDigit === Number(cedula[9]);
-};
+}
 
-const modulo11Digit = (digits, coefficients) => {
+function modulo11Digit(digits, coefficients) {
   const sum = coefficients.reduce((total, coefficient, index) => total + Number(digits[index]) * coefficient, 0);
   const remainder = sum % 11;
   const result = 11 - remainder;
   if (result === 11) return 0;
   if (result === 10) return -1;
   return result;
-};
+}
 
-const isValidRuc = (value) => {
+function isValidRuc(value) {
   const ruc = onlyDigits(value);
   if (!/^\d{13}$/.test(ruc) || ruc.slice(10) === '000') return false;
 
@@ -81,16 +83,16 @@ const isValidRuc = (value) => {
   }
 
   return false;
-};
+}
 
-const normalizePhone = (value) => {
+function normalizePhone(value) {
   const digits = onlyDigits(value);
   if (!digits) return undefined;
   if (digits.startsWith('00')) return digits.slice(2);
   if (digits.startsWith('593')) return digits;
   if (digits.length === 10 && digits.startsWith('0')) return `593${digits.slice(1)}`;
   return digits;
-};
+}
 
 const requiredText = (max, field) =>
   z.preprocess(
@@ -108,7 +110,7 @@ const optionalText = (max, field) =>
   );
 
 const phoneSchema = z
-  .preprocess((val) => {
+  .preprocess(function(val) {
     const digits = onlyDigits(val);
     return digits || undefined;
   }, z.string().regex(/^\d{8,15}$/, 'El telefono debe tener entre 8 y 15 digitos.').optional())
@@ -135,14 +137,14 @@ const rucSchema = z.preprocess(
   onlyDigits,
   z
     .string({ required_error: 'El RUC es obligatorio.' })
-    .refine((value) => isValidRuc(value), 'El RUC ecuatoriano no es valido.'),
+    .refine(function(value) { return isValidRuc(value); }, 'El RUC ecuatoriano no es valido.'),
 );
 
 const documentSchema = z.preprocess(
   onlyDigits,
   z
     .string({ required_error: 'El documento es obligatorio.' })
-    .refine((value) => isValidCedula(value) || isValidRuc(value), 'Debe ingresar una cedula o RUC ecuatoriano valido.'),
+    .refine(function(value) { return isValidCedula(value) || isValidRuc(value); }, 'Debe ingresar una cedula o RUC ecuatoriano valido.'),
 );
 
 const positiveInt = (field, max = 1000000) =>
@@ -181,7 +183,7 @@ const nonNegativeMoney = (field, max = 100000) =>
       .max(max, `${field} supera el maximo permitido.`),
   );
 
-const booleanSchema = z.preprocess((value) => {
+const booleanSchema = z.preprocess(function(value) {
   if (value === 'true') return true;
   if (value === 'false') return false;
   return value;
@@ -191,7 +193,7 @@ const isoDate = z
   .preprocess(trimToUndefined, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato YYYY-MM-DD.').optional())
   .optional();
 
-const optionalNullableUuid = z.preprocess((value) => {
+const optionalNullableUuid = z.preprocess(function(value) {
   if (value === '') return null;
   return value;
 }, z.union([z.string().uuid('El convenio no es valido.'), z.null()]).optional());
@@ -200,7 +202,7 @@ const empleadoBase = {
   nombre: requiredText(MAX_LENGTHS.nombre, 'Nombre'),
   apellido: requiredText(MAX_LENGTHS.nombre, 'Apellido'),
   nombre_usuario: requiredText(MAX_LENGTHS.username, 'Nombre de usuario').refine(
-    (value) => /^[a-zA-Z0-9._-]+$/.test(value),
+    function(value) { return /^[a-zA-Z0-9._-]+$/.test(value); },
     'El nombre de usuario solo puede usar letras, numeros, punto, guion y guion bajo.',
   ),
 };
@@ -363,33 +365,35 @@ const schemas = {
   }),
 };
 
-const formatValidationError = (error) => {
-  const details = error.issues.map((issue) => ({
-    campo: issue.path.join('.') || 'body',
-    mensaje: issue.message,
-  }));
+function formatValidationError(error) {
+  const details = error.issues.map(function(issue) {
+    return {
+      campo: issue.path.join('.') || 'body',
+      mensaje: issue.message,
+    };
+  });
   return {
     error: details[0]?.mensaje || 'Datos invalidos.',
     detalles: details,
   };
-};
+}
 
-const parseBody = (schema, body) => {
+function parseBody(schema, body) {
   const result = schema.safeParse(body || {});
   if (result.success) return result.data;
   const error = new Error(formatValidationError(result.error).error);
   error.status = 400;
   error.payload = formatValidationError(result.error);
   throw error;
-};
+}
 
-const sendValidationError = (res, error) => {
+function sendValidationError(res, error) {
   if (error?.status === 400 && error.payload) {
     res.status(400).json(error.payload);
     return true;
   }
   return false;
-};
+}
 
 module.exports = {
   MAX_LENGTHS,

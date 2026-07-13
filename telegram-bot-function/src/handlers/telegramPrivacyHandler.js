@@ -5,7 +5,7 @@ const telegramState = require('../services/telegramState');
 const { normalizePhone } = require('../validation/ecencia');
 const telegramConsent = require('../services/telegramConsent');
 
-const getSubscriptionByChat = async (chatId) => {
+async function getSubscriptionByChat(chatId) {
   const { data, error } = await supabase.getAdminClient()
     .from('telegram_subscriptions')
     .select('*')
@@ -13,9 +13,9 @@ const getSubscriptionByChat = async (chatId) => {
     .maybeSingle();
   if (error) throw error;
   return data || null;
-};
+}
 
-const getSubscriptionByClient = async (idCliente) => {
+async function getSubscriptionByClient(idCliente) {
   if (!idCliente) return null;
   const { data, error } = await supabase.getAdminClient()
     .from('telegram_subscriptions')
@@ -24,9 +24,9 @@ const getSubscriptionByClient = async (idCliente) => {
     .maybeSingle();
   if (error) throw error;
   return data || null;
-};
+}
 
-const getSubscriptionByPhone = async (phone) => {
+async function getSubscriptionByPhone(phone) {
   const normalized = normalizePhone(phone);
   if (!normalized) return null;
   const { data, error } = await supabase.getAdminClient()
@@ -36,9 +36,9 @@ const getSubscriptionByPhone = async (phone) => {
     .maybeSingle();
   if (error) throw error;
   return data || null;
-};
+}
 
-const getClientById = async (id) => {
+async function getClientById(id) {
   const { data, error } = await supabase.getAdminClient()
     .from('clientes')
     .select(
@@ -48,22 +48,22 @@ const getClientById = async (id) => {
     .maybeSingle();
   if (error) throw error;
   return data || null;
-};
+}
 
-const invitationFailureText = (reason) => {
+function invitationFailureText(reason) {
   if (reason === 'claimed') return 'Este enlace ya fue abierto desde otro chat. Solicita una nueva invitacion al administrador.';
   if (reason === 'inactive_client') return 'El cliente de esta invitacion no esta activo.';
   return 'La invitacion no es valida, ya fue usada o expiro. Solicita una nueva al administrador.';
-};
+}
 
-const beginConsent = async ({
+async function beginConsent({
   idCliente,
   chatId,
   telegramUserId,
   telegramUsername,
   invitationId = null,
   cleanupMessageIds = [],
-}) => {
+}) {
   const subscription = await telegramState.ensurePendingSubscription({
     idCliente,
     chatId,
@@ -81,9 +81,9 @@ const beginConsent = async ({
     cleanupMessageIds: cleanupMessageIds.filter(Boolean),
   });
   return subscription;
-};
+}
 
-const acceptConsent = async (parsed, subscription, consentState) => {
+async function acceptConsent(parsed, subscription, consentState) {
   if (!consentState || consentState.status !== 'awaiting_decision') return;
   await telegramApi.removeInlineKeyboard(parsed.chatId, parsed.messageId);
   const sent = await telegramApi.sendMessage(
@@ -115,9 +115,9 @@ const acceptConsent = async (parsed, subscription, consentState) => {
     },
     includeNotice: false,
   });
-};
+}
 
-const rejectConsent = async (parsed, subscription, consentState) => {
+async function rejectConsent(parsed, subscription, consentState) {
   if (!consentState || consentState.status !== 'awaiting_decision') return;
   await telegramApi.removeInlineKeyboard(parsed.chatId, parsed.messageId);
   await telegramApi.sendMessage(
@@ -145,9 +145,9 @@ const rejectConsent = async (parsed, subscription, consentState) => {
     includeNotice: false,
   });
   await telegramState.deleteState(telegramState.consentKey(parsed.chatId));
-};
+}
 
-const validateAndSaveContact = async (parsed, subscription, consentState) => {
+async function validateAndSaveContact(parsed, subscription, consentState) {
   if (consentState?.status !== 'accepted_pending_phone') return;
   const client = await getClientById(consentState.idCliente);
   if (!client) {
@@ -210,9 +210,9 @@ const validateAndSaveContact = async (parsed, subscription, consentState) => {
     }
   }
   await telegramState.deleteState(telegramState.consentKey(parsed.chatId));
-};
+}
 
-const handleStartInvitation = async (parsed, token) => {
+async function handleStartInvitation(parsed, token) {
   const invitation = await telegramConsent.getInvitationByToken(token);
   const claimed = await telegramConsent.claimInvitation(invitation, parsed);
   if (!claimed.valid) {
@@ -263,9 +263,9 @@ const handleStartInvitation = async (parsed, token) => {
     invitationId: claimed.invitation.id,
     cleanupMessageIds: [],
   });
-};
+}
 
-const requestPolicyReconsent = async (parsed, subscription) => {
+async function requestPolicyReconsent(parsed, subscription) {
   await telegramConsent.recordConsentEvent({
     idCliente: subscription.id_cliente,
     subscriptionId: subscription.id,
@@ -286,9 +286,9 @@ const requestPolicyReconsent = async (parsed, subscription) => {
     telegramUserId: parsed.telegramUserId,
     telegramUsername: parsed.telegramUsername,
   });
-};
+}
 
-const handlePrivacyCommand = async (command, parsed, subscription) => {
+async function handlePrivacyCommand(command, parsed, subscription) {
   const { chatId, messageId } = parsed;
   if (command === '/misdatos') {
     const dataText = '<b>Tus Datos</b>\nNombre: Juan\n(Datos de prueba)';
@@ -296,7 +296,7 @@ const handlePrivacyCommand = async (command, parsed, subscription) => {
   } else if (command === '/revocar') {
     await telegramApi.sendMessage(chatId, '¿Estás seguro que deseas revocar tu acceso?', revokeConfirmKeyboard());
   }
-};
+}
 
 module.exports = {
   getSubscriptionByChat,

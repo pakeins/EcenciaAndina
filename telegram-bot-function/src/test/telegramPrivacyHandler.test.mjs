@@ -13,7 +13,9 @@ import {
   invitationFailureText,
   privacyText,
   hasCurrentConsent,
-  beginConsent
+  beginConsent,
+  handlePrivacyCommand,
+  requestPolicyReconsent
 } from '../handlers/telegramPrivacyHandler.js';
 import * as telegramApi from '../services/telegramApi.js';
 import * as telegramState from '../services/telegramState.js';
@@ -431,7 +433,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('requestPolicyReconsent debe guardar evento e iniciar consent', async () => {
-      const { requestPolicyReconsent } = require('../handlers/telegramPrivacyHandler.js');
       const telegramConsent = require('../services/telegramConsent.js');
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');
@@ -454,9 +455,7 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('handlePrivacyCommand debe procesar comandos de privacidad', async () => {
-      const { handlePrivacyCommand } = require('../handlers/telegramPrivacyHandler.js');
       const telegramApi = require('../services/telegramApi.js');
-
       vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
 
       await handlePrivacyCommand('/misdatos', { chatId: '789' }, {});

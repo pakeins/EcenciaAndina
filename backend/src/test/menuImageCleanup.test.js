@@ -289,5 +289,61 @@ describe('menuImageCleanup service', () => {
 
       await expect(cleanupOldMenuImages(adminClient, { now })).rejects.toThrow('Update Error');
     });
+
+    it('ejecuta paginacion correctamente al listar mas de STORAGE_PAGE_SIZE o DATABASE_PAGE_SIZE elementos', async () => {
+      const now = new Date('2026-07-15T12:00:00.000Z');
+      
+      const hundredFiles = Array.from({ length: 100 }, (_, i) => ({
+        id: i,
+        name: `menu-dashboard-1784010000000.jpg`,
+        created_at: '2026-07-10T10:00:00.000Z'
+      }));
+
+      const thousandRows = Array.from({ length: 1000 }, () => ({
+        imagen_url: 'https://example.com/storage/v1/object/public/ecencia-menu-assets/telegram/menu-dashboard-1784010000000.jpg',
+        fecha: '2026-07-10'
+      }));
+
+      const menuDiarioQuery = {
+        select: vi.fn().mockReturnThis(),
+        not: vi.fn().mockReturnThis(),
+        range: vi.fn()
+          .mockResolvedValueOnce({ data: thousandRows, error: null })
+          .mockResolvedValueOnce({ data: [], error: null }),
+      };
+
+      const adminClient = {
+        from: vi.fn().mockImplementation((table) => {
+          if (table === 'menu_settings') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: {}, error: null }),
+            };
+          }
+          if (table === 'menu_diario') {
+            return menuDiarioQuery;
+          }
+        }),
+        storage: {
+          from: vi.fn().mockReturnValue({
+            list: vi.fn()
+              .mockResolvedValueOnce({ data: hundredFiles, error: null })
+              .mockResolvedValueOnce({ data: [], error: null }),
+          }),
+        },
+      };
+
+      const result = await cleanupOldMenuImages(adminClient, { now });
+      expect(result.scanned).toBe(100);
+      expect(result.deleted).toBe(0);
+    });
+  });
+
+  describe('storagePathFromPublicUrl edge cases', () => {
+    it('returns empty string if decodeURIComponent throws', () => {
+      const url = 'https://example.supabase.co/storage/v1/object/public/ecencia-menu-assets/%E0%A4%A';
+      expect(_private.storagePathFromPublicUrl(url)).toBe('');
+    });
   });
 });
