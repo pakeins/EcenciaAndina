@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 
 const registeredHandlers = {};
 
@@ -23,7 +23,9 @@ const telegramRoutes = require('../functions/telegramRoutes');
 vi.spyOn(telegramRoutes, 'handleTelegramUpdate').mockImplementation(() => Promise.resolve());
 
 // Load the webhook script to register handler
-require('../functions/telegramWebhook');
+beforeAll(async () => {
+  await import('../functions/telegramWebhook.js');
+});
 
 const makeMockRequest = (secretHeader, body = {}) => {
   return {

@@ -4,12 +4,14 @@ import express from 'express';
 import request from 'supertest';
 import { beforeAll } from 'vitest';
 
+import '../routes/clientes.js'; // Statically import to force Vite to instrument it BEFORE index.js requires it
+import '../services/telegramMicroservice.js'; // Same for telegramMicroservice
+import app from '../../index.js';
+
 vi.mock('nodemailer', () => ({
   default: { createTransport: vi.fn(() => ({ sendMail: vi.fn().mockResolvedValue({ messageId: 'mock' }) })) },
   createTransport: vi.fn(() => ({ sendMail: vi.fn().mockResolvedValue({ messageId: 'mock' }) })),
 }));
-
-import app from '../../index.js';
 
 describe('Rutas de Clientes Completo', () => {
   let fetchSpy;

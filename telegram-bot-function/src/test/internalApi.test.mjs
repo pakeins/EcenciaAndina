@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 
 const registeredHandlers = {};
 
@@ -28,7 +28,9 @@ vi.spyOn(telegramConsent, 'getConsentVersion').mockReturnValue('v1.0');
 vi.spyOn(telegramConsent, 'privacyText').mockReturnValue('privacy text content');
 
 // Load the routes to register handlers (which will now use our cache-mocked @azure/functions)
-require('../functions/internalApi');
+beforeAll(async () => {
+  await import('../functions/internalApi.js');
+});
 
 const makeMockRequest = (secret, body = {}) => {
   return {

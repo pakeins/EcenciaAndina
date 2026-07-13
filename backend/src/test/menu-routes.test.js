@@ -95,7 +95,9 @@ beforeAll(async () => {
   injectModule('../middlewares/roleMiddleware.js', () => (_req, _res, next) => next());
   injectModule('../services/menuImageCleanup.js', { cleanupOldMenuImages: async () => ({ removed: 0 }) });
 
-  const menuRouter = require('../routes/menu.js');
+  const resolvedPath = require.resolve('../routes/menu.js');
+  delete require.cache[resolvedPath];
+  const menuRouter = (await import('../routes/menu.js')).default || (await import('../routes/menu.js'));
   app = express();
   app.use(express.json());
   app.use('/api/menu', menuRouter);
