@@ -1,6 +1,17 @@
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import app from '../../index.js';
+
+vi.mock('../services/menuImageCleanup.js', () => ({
+  cleanupOldMenuImages: vi.fn().mockResolvedValue({
+    retentionDays: 14,
+    cutoffDate: '2026-07-01',
+    scanned: 10,
+    protected: 5,
+    deleted: 2,
+    referencesCleared: 1,
+  })
+}));
 
 const originalSecret = process.env.N8N_MENU_WEBHOOK_SECRET;
 
