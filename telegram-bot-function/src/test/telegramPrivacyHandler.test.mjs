@@ -10,12 +10,20 @@ vi.mock('../services/telegramState', () => ({
 }));
 
 import {
+  getSubscriptionByChat,
+  getSubscriptionByClient,
+  getSubscriptionByPhone,
+  getClientById,
   invitationFailureText,
-  privacyText,
-  hasCurrentConsent,
   beginConsent,
+  acceptConsent,
+  rejectConsent,
+  validateAndSaveContact,
+  handleStartInvitation,
+  requestPolicyReconsent,
   handlePrivacyCommand,
-  requestPolicyReconsent
+  privacyText,
+  hasCurrentConsent
 } from '../handlers/telegramPrivacyHandler.js';
 import * as telegramApi from '../services/telegramApi.js';
 import * as telegramState from '../services/telegramState.js';
@@ -31,14 +39,12 @@ describe('telegramPrivacyHandler', () => {
 
   describe('Funciones de Texto (Puras)', () => {
     it('invitationFailureText debe retornar textos correctos', () => {
-      const { invitationFailureText } = require('../handlers/telegramPrivacyHandler.js');
       expect(invitationFailureText('claimed')).toContain('ya fue abierto');
       expect(invitationFailureText('inactive_client')).toContain('no esta activo');
       expect(invitationFailureText('other')).toContain('no es valida');
     });
 
     it('privacyText debe contener el mensaje de privacidad', () => {
-      const { privacyText } = require('../handlers/telegramPrivacyHandler.js');
       const text = privacyText();
       expect(text).toContain('Aviso de privacidad');
       expect(text).toContain('contacto@test.com');
@@ -47,17 +53,14 @@ describe('telegramPrivacyHandler', () => {
 
   describe('hasCurrentConsent', () => {
     it('debe validar el consentimiento aceptado con versión actual', () => {
-      const { hasCurrentConsent } = require('../handlers/telegramPrivacyHandler.js');
       const sub = {
         consent_status: 'accepted',
         consent_notice_version: 'v1.0.0-2024'
       };
-      // La v1.0.0-2024 es la hardcodeada en getConsentVersion actualmente
       expect(hasCurrentConsent(sub)).toBe(true);
     });
 
     it('debe retornar falso si no esta aceptado o la version es diferente', () => {
-      const { hasCurrentConsent } = require('../handlers/telegramPrivacyHandler.js');
       expect(hasCurrentConsent({ consent_status: 'pending' })).toBe(false);
       expect(hasCurrentConsent({ consent_status: 'accepted', consent_notice_version: 'old' })).toBe(false);
       expect(hasCurrentConsent(null)).toBe(false);
@@ -66,7 +69,6 @@ describe('telegramPrivacyHandler', () => {
 
   describe('Database Wrappers', () => {
     it('getSubscriptionByChat debe retornar datos si existen', async () => {
-      const { getSubscriptionByChat } = require('../handlers/telegramPrivacyHandler.js');
       const supabase = require('../config/supabase.js');
       const mockSingle = vi.fn().mockResolvedValue({ data: { id: 1 }, error: null });
       const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockSingle });
@@ -81,7 +83,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('debe iniciar el flujo de consentimiento enviando el mensaje y guardando el estado', async () => {
-      const { beginConsent } = require('../handlers/telegramPrivacyHandler.js');
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');
 
@@ -111,7 +112,6 @@ describe('telegramPrivacyHandler', () => {
     });
     
     it('acceptConsent debe avanzar el estado a accepted_pending_phone', async () => {
-      const { acceptConsent } = require('../handlers/telegramPrivacyHandler.js');
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');
       const supabase = require('../config/supabase.js');
@@ -141,7 +141,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('rejectConsent debe cancelar y guardar en la DB', async () => {
-      const { rejectConsent } = require('../handlers/telegramPrivacyHandler.js');
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');
       const supabase = require('../config/supabase.js');
@@ -171,7 +170,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('validateAndSaveContact debe validar, guardar y notificar si el teléfono coincide', async () => {
-      const { validateAndSaveContact } = require('../handlers/telegramPrivacyHandler.js');
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');
       const supabase = require('../config/supabase.js');
@@ -214,8 +212,8 @@ describe('telegramPrivacyHandler', () => {
       expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('¡Registro Completado!'), expect.anything(), 'HTML');
       expect(telegramState.deleteState).toHaveBeenCalledWith('consent:789');
     });
-     it('validateAndSaveContact debe abortar si el estado no es accepted_pending_phone', async () => {
-      const { validateAndSaveContact } = require('../handlers/telegramPrivacyHandler.js');
+
+    it('validateAndSaveContact debe abortar si el estado no es accepted_pending_phone', async () => {
       const telegramState = require('../services/telegramState.js');
       vi.spyOn(telegramState, 'deleteState').mockResolvedValue();
 
@@ -228,7 +226,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('validateAndSaveContact debe abortar y notificar si no se encuentra el cliente', async () => {
-      const { validateAndSaveContact } = require('../handlers/telegramPrivacyHandler.js');
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');
       const supabase = require('../config/supabase.js');
@@ -252,7 +249,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('validateAndSaveContact debe notificar y registrar evento en caso de discrepancia telefónica', async () => {
-      const { validateAndSaveContact } = require('../handlers/telegramPrivacyHandler.js');
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');
       const supabase = require('../config/supabase.js');
@@ -280,7 +276,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('validateAndSaveContact debe consumir invitación y limpiar mensajes si se requiere', async () => {
-      const { validateAndSaveContact } = require('../handlers/telegramPrivacyHandler.js');
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');
       const supabase = require('../config/supabase.js');
@@ -317,7 +312,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('getSubscriptionByClient debe retornar datos si existen', async () => {
-      const { getSubscriptionByClient } = require('../handlers/telegramPrivacyHandler.js');
       const supabase = require('../config/supabase.js');
       const mockSingle = vi.fn().mockResolvedValue({ data: { id: 2 }, error: null });
       const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockSingle });
@@ -332,7 +326,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('getSubscriptionByPhone debe retornar datos si existen', async () => {
-      const { getSubscriptionByPhone } = require('../handlers/telegramPrivacyHandler.js');
       const supabase = require('../config/supabase.js');
       const mockSingle = vi.fn().mockResolvedValue({ data: { id: 3 }, error: null });
       const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockSingle });
@@ -346,7 +339,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('getClientById debe retornar datos si existen', async () => {
-      const { getClientById } = require('../handlers/telegramPrivacyHandler.js');
       const supabase = require('../config/supabase.js');
       const mockSingle = vi.fn().mockResolvedValue({ data: { id_cliente: 456 }, error: null });
       const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockSingle });
@@ -360,7 +352,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('handleStartInvitation debe enviar error si el token no es válido', async () => {
-      const { handleStartInvitation } = require('../handlers/telegramPrivacyHandler.js');
       const telegramApi = require('../services/telegramApi.js');
       const telegramConsent = require('../services/telegramConsent.js');
       
@@ -373,7 +364,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('handleStartInvitation debe abortar si el cliente está desactivado', async () => {
-      const { handleStartInvitation } = require('../handlers/telegramPrivacyHandler.js');
       const telegramApi = require('../services/telegramApi.js');
       const telegramConsent = require('../services/telegramConsent.js');
       
@@ -389,7 +379,6 @@ describe('telegramPrivacyHandler', () => {
     });
 
     it('handleStartInvitation debe insertar suscripción si es nueva e iniciar consentimiento', async () => {
-      const { handleStartInvitation } = require('../handlers/telegramPrivacyHandler.js');
       const telegramApi = require('../services/telegramApi.js');
       const telegramConsent = require('../services/telegramConsent.js');
       const supabase = require('../config/supabase.js');
@@ -400,12 +389,10 @@ describe('telegramPrivacyHandler', () => {
         invitation: { id: 'inv_123', clientes: { id_cliente: 456, esta_activo: true } }
       });
 
-      // getSubscriptionByChat mock (returns null initially)
       const mockSingleSelect = vi.fn().mockResolvedValue({ data: null, error: null });
       const mockEqSelect = vi.fn().mockReturnValue({ maybeSingle: mockSingleSelect });
       const mockSelect = vi.fn().mockReturnValue({ eq: mockEqSelect });
       
-      // insert mock
       const mockSingleInsert = vi.fn().mockResolvedValue({ data: { id: 777, id_cliente: 456 }, error: null });
       const mockSelectInsert = vi.fn().mockReturnValue({ single: mockSingleInsert });
       const mockInsert = vi.fn().mockReturnValue({ select: mockSelectInsert });
