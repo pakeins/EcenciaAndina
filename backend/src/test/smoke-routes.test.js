@@ -1,19 +1,6 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createRequire } from 'node:module';
-
-let alimentosRouter;
-let categoriasRouter;
-let empleadosRouter;
-
-const require = createRequire(import.meta.url);
-
-let fakeClient;
-const injectModule = (relPath, exportsObj) => {
-  const filename = require.resolve(relPath);
-  require.cache[filename] = { id: filename, filename, loaded: true, exports: exportsObj, children: [], paths: [] };
-};
 
 const makeClient = () => {
   class Q {
@@ -33,34 +20,52 @@ const makeClient = () => {
   };
 };
 
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
+const injectModule = (relPath, exportsObj) => {
+  const filename = require.resolve(relPath);
+  require.cache[filename] = {
+    id: filename,
+    filename,
+    loaded: true,
+    exports: exportsObj,
+    children: [],
+    paths: []
+  };
+};
+
+const mocks = {
+  fakeClient: makeClient()
+};
+
+injectModule('../config/supabase.js', {
+  supabase: mocks.fakeClient,
+  getAdminClient: () => mocks.fakeClient
+});
+
+injectModule('../middlewares/authMiddleware.js', (req, res, next) => {
+  req.user = { id: 'u1', rol: 'administrador' };
+  next();
+});
+
+injectModule('../middlewares/roleMiddleware.js', () => {
+  return (req, res, next) => next();
+});
+
+const alimentosRouter = require('../routes/alimentos.js');
+const categoriasRouter = require('../routes/categorias.js');
+const empleadosRouter = require('../routes/empleados.js');
+
 describe('Smoke tests for missing routes', () => {
   let app;
 
-  beforeAll(async () => {
-    fakeClient = makeClient();
-    injectModule('../config/supabase.js', { getAdminClient: () => fakeClient });
-    injectModule('../middlewares/authMiddleware.js', (req, res, next) => {
-      req.user = { id: 'u1', rol: 'administrador' };
-      next();
-    });
-    injectModule('../middlewares/roleMiddleware.js', () => (req, res, next) => next());
-
-    vi.resetModules();
-    alimentosRouter = (await import('../routes/alimentos.js')).default;
-    categoriasRouter = (await import('../routes/categorias.js')).default;
-    empleadosRouter = (await import('../routes/empleados.js')).default;
-
+  beforeAll(() => {
     app = express();
     app.use(express.json());
     app.use('/alimentos', alimentosRouter);
     app.use('/categorias', categoriasRouter);
     app.use('/empleados', empleadosRouter);
-  });
-
-  afterAll(() => {
-    ['../config/supabase.js', '../middlewares/authMiddleware.js', '../middlewares/roleMiddleware.js'].forEach(p => {
-      try { delete require.cache[require.resolve(p)]; } catch { /* noop */ }
-    });
   });
 
   it('GET /alimentos/categorias responde 200', async () => {

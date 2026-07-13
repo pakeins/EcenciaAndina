@@ -1,13 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
+import sharp from 'sharp';
+import menuRouter from '../routes/menu.js';
 
-const require = createRequire(import.meta.url);
-const sharp = require('sharp');
 let makeSquareWithBlurredBackground;
 
 beforeAll(() => {
-  const menuRoute = require('../routes/menu.js');
-  makeSquareWithBlurredBackground = menuRoute._private.makeSquareWithBlurredBackground;
+  makeSquareWithBlurredBackground = menuRouter._private.makeSquareWithBlurredBackground;
 });
 
 describe('makeSquareWithBlurredBackground', () => {

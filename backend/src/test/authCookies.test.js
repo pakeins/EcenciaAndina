@@ -1,21 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-let ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE, clearAuthCookies, getCookie, setAuthCookies, validateCsrf;
-
-beforeAll(async () => {
-  delete require.cache[require.resolve('../config/authCookies.js')];
-  const mod = await import('../config/authCookies.js');
-  const authCookies = mod.default && mod.default.ACCESS_COOKIE ? mod.default : mod;
-  ACCESS_COOKIE = authCookies.ACCESS_COOKIE;
-  REFRESH_COOKIE = authCookies.REFRESH_COOKIE;
-  CSRF_COOKIE = authCookies.CSRF_COOKIE;
-  clearAuthCookies = authCookies.clearAuthCookies;
-  getCookie = authCookies.getCookie;
-  setAuthCookies = authCookies.setAuthCookies;
-  validateCsrf = authCookies.validateCsrf;
-});
+import { ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE, clearAuthCookies, getCookie, setAuthCookies, validateCsrf } from '../config/authCookies.js';
 
 describe('authCookies config and helpers', () => {
   it('retrieve cookie from request raw headers correctly', () => {

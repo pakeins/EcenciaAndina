@@ -1,22 +1,9 @@
-import { afterAll, beforeAll, describe, it, expect } from 'vitest';
-import { createRequire } from 'node:module';
+import { afterAll, beforeAll, describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
+import app from '../../index.js';
 
-const require = createRequire(import.meta.url);
-
-const injectModule = (relPath, exportsObj) => {
-  const filename = require.resolve(relPath);
-  require.cache[filename] = { id: filename, filename, loaded: true, exports: exportsObj, children: [], paths: [] };
-};
-
-let app;
-const originalSecret = process.env.N8N_MENU_WEBHOOK_SECRET;
-
-beforeAll(() => {
-  process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
-
-  // Mockear el servicio ANTES de requerir app para inyectarlo en CJS
-  injectModule('../services/menuImageCleanup.js', {
+vi.mock('../services/menuImageCleanup.js', () => ({
+  default: {
     cleanupOldMenuImages: async () => ({
       retentionDays: 14,
       cutoffDate: '2026-07-01',
@@ -25,17 +12,18 @@ beforeAll(() => {
       deleted: 2,
       referencesCleared: 1,
     })
-  });
+  }
+}));
 
-  app = require('../../index.js');
+const originalSecret = process.env.N8N_MENU_WEBHOOK_SECRET;
+
+beforeAll(() => {
+  process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
 });
 
 afterAll(() => {
   if (originalSecret === undefined) delete process.env.N8N_MENU_WEBHOOK_SECRET;
   else process.env.N8N_MENU_WEBHOOK_SECRET = originalSecret;
-  
-  try { delete require.cache[require.resolve('../services/menuImageCleanup.js')]; } catch { /* ignore */ }
-  try { delete require.cache[require.resolve('../../index.js')]; } catch { /* ignore */ }
 });
 
 describe('endpoint interno de limpieza de menus', () => {

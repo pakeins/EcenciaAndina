@@ -1,14 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
+import menuRouter from '../routes/menu.js';
 
-const require = createRequire(import.meta.url);
 let menuPrivate;
 
 beforeAll(() => {
   process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY =
     process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
-  menuPrivate = require('../routes/menu.js')._private;
+  menuPrivate = menuRouter._private;
 });
 
 describe('ciclo de vida de menu diario', () => {

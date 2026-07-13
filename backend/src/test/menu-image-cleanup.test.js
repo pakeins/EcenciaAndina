@@ -1,16 +1,13 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
+import cleanupService from '../services/menuImageCleanup.js';
 
-const require = createRequire(import.meta.url);
 let cleanupOldMenuImages;
 let buildCleanupPlan;
 
 const publicUrl = (name) =>
   `https://example.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/${name}`;
 
-beforeAll(async () => {
-  delete require.cache[require.resolve('../services/menuImageCleanup.js')];
-  const cleanupService = (await import('../services/menuImageCleanup.js')).default;
+beforeAll(() => {
   cleanupOldMenuImages = cleanupService.cleanupOldMenuImages;
   buildCleanupPlan = cleanupService._private.buildCleanupPlan;
 });
@@ -187,10 +184,6 @@ describe('limpieza de imagenes antiguas de menus', () => {
   });
 
   it('normalizeRetentionDays usa DEFAULT si el valor es invalido', () => {
-    const { normalizeRetentionDays } = (async () => {
-      const svc = (await import('../services/menuImageCleanup.js')).default;
-      return svc._private;
-    })();
     // Se prueba indirectamente a traves del buildCleanupPlan
     const plan = buildCleanupPlan({
       now: new Date('2026-06-10T12:00:00Z'),

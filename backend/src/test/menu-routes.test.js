@@ -1,10 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-
-const require = createRequire(import.meta.url);
-
 let store;
 let writes;
 
@@ -68,11 +64,41 @@ const makeClient = () => {
   };
 };
 
-let fakeClient;
+const mocks = vi.hoisted(() => ({
+  fakeClient: null,
+}));
+
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 const injectModule = (relPath, exportsObj) => {
   const filename = require.resolve(relPath);
-  require.cache[filename] = { id: filename, filename, loaded: true, exports: exportsObj, children: [], paths: [] };
+  require.cache[filename] = {
+    id: filename,
+    filename,
+    loaded: true,
+    exports: exportsObj,
+    children: [],
+    paths: []
+  };
 };
+
+injectModule('../config/supabase.js', {
+  getAdminClient: () => mocks.fakeClient
+});
+
+injectModule('../middlewares/authMiddleware.js', (req, _res, next) => {
+  req.user = { id: 'u1', email: 'admin@example.com', rol: 'administrador' };
+  next();
+});
+
+injectModule('../middlewares/roleMiddleware.js', () => {
+  return (_req, _res, next) => next();
+});
+
+injectModule('../services/menuImageCleanup.js', {
+  cleanupOldMenuImages: async () => ({ removed: 0 })
+});
 
 let app;
 const TODAY = new Intl.DateTimeFormat('en-CA', {
@@ -82,18 +108,10 @@ const TODAY = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 }).format(new Date());
 
-beforeAll(async () => {
+beforeAll(() => {
   process.env.SUPABASE_URL = 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
   process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
-
-  injectModule('../config/supabase.js', { getAdminClient: () => fakeClient });
-  injectModule('../middlewares/authMiddleware.js', (req, _res, next) => {
-    req.user = { id: 'u1', email: 'admin@example.com', rol: 'administrador' };
-    next();
-  });
-  injectModule('../middlewares/roleMiddleware.js', () => (_req, _res, next) => next());
-  injectModule('../services/menuImageCleanup.js', { cleanupOldMenuImages: async () => ({ removed: 0 }) });
 
   const menuRouter = require('../routes/menu.js');
   app = express();
@@ -114,7 +132,7 @@ beforeEach(() => {
     ],
   };
   writes = [];
-  fakeClient = makeClient();
+  mocks.fakeClient = makeClient();
 });
 
 const menuRow = (fecha, nombre, categoriaId, categoriaNombre, imagen = null) => ({
