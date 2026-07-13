@@ -181,4 +181,102 @@ describe('Usuarios', () => {
       expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Acceso concedido'));
     });
   });
+
+  it('permite enviar enlace de restablecimiento de contraseña', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByText('Ana López')).toBeInTheDocument());
+
+    const btnEditar = screen.getAllByTitle('Editar empleado')[0];
+    fireEvent.click(btnEditar);
+
+    await waitFor(() => expect(screen.getByText('Editar Empleado')).toBeInTheDocument());
+
+    const btnReset = screen.getByRole('button', { name: /Enviar enlace por correo/i });
+    fireEvent.click(btnReset);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Enlace enviado a Ana'));
+    });
+  });
+
+  it('muestra el botón Actualizar deshabilitado con datos inválidos', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByText('Ana López')).toBeInTheDocument());
+
+    const btnEditar = screen.getAllByTitle('Editar empleado')[0];
+    fireEvent.click(btnEditar);
+
+    await waitFor(() => expect(screen.getByText('Editar Empleado')).toBeInTheDocument());
+
+    // Activar sección de cambio de contraseña
+    const switchPass = screen.getByRole('button', { name: /Cambiar contraseña ahora/i });
+    fireEvent.click(switchPass);
+
+    // El botón debe estar deshabilitado al inicio (vacío)
+    const btnActualizar = screen.getByRole('button', { name: 'Actualizar' });
+    expect(btnActualizar).toBeDisabled();
+
+    // Contraseñas no coinciden
+    const inputPass = screen.getByLabelText(/^nueva contraseña$/i);
+    const inputConfirm = screen.getByLabelText(/confirmar contraseña/i);
+    fireEvent.change(inputPass, { target: { value: 'Pass12345!' } });
+    fireEvent.change(inputConfirm, { target: { value: 'Diferente1!' } });
+    expect(btnActualizar).toBeDisabled();
+
+    // Contraseña inválida/débil
+    fireEvent.change(inputConfirm, { target: { value: 'Pass12345!' } });
+    fireEvent.change(inputPass, { target: { value: 'débil' } });
+    fireEvent.change(inputConfirm, { target: { value: 'débil' } });
+    expect(btnActualizar).toBeDisabled();
+  });
+
+  it('permite cambiar contraseña exitosamente', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByText('Ana López')).toBeInTheDocument());
+
+    const btnEditar = screen.getAllByTitle('Editar empleado')[0];
+    fireEvent.click(btnEditar);
+
+    await waitFor(() => expect(screen.getByText('Editar Empleado')).toBeInTheDocument());
+
+    const switchPass = screen.getByRole('button', { name: /Cambiar contraseña ahora/i });
+    fireEvent.click(switchPass);
+
+    const inputPass = screen.getByLabelText(/^nueva contraseña$/i);
+    const inputConfirm = screen.getByLabelText(/confirmar contraseña/i);
+    
+    // Contraseña fuerte válida
+    fireEvent.change(inputPass, { target: { value: 'Valida123!' } });
+    fireEvent.change(inputConfirm, { target: { value: 'Valida123!' } });
+
+    const btnActualizar = screen.getByRole('button', { name: 'Actualizar' });
+    expect(btnActualizar).not.toBeDisabled();
+    fireEvent.click(btnActualizar);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Contraseña actualizada correctamente');
+    });
+  });
+
+  it('maneja fallos de red/API al cambiar estado o contraseña', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (apiFetch as any).mockImplementationOnce((url: string) => {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockUsers) });
+    }).mockRejectedValueOnce(new Error('Network error'));
+    
+    await renderComponent();
+    await waitFor(() => expect(screen.getByText('Ana López')).toBeInTheDocument());
+
+    const switchAna = screen.getAllByRole('switch')[0];
+    fireEvent.click(switchAna);
+
+    await waitFor(() => expect(screen.getByText('¿Desactivar empleado?')).toBeInTheDocument());
+    
+    const btnConfirmar = screen.getByText('Sí, desactivar');
+    fireEvent.click(btnConfirmar);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Error de conexión');
+    });
+  });
 });

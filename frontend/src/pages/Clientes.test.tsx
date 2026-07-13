@@ -207,5 +207,40 @@ describe('Clientes', () => {
     await waitFor(() => {
       expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     });
+
+    const btnConfirm = screen.getByRole('button', { name: /Sí, desactivar/i });
+    await act(async () => {
+      fireEvent.click(btnConfirm);
+    });
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('desactivado'));
+    });
+  });
+
+  it('permite abrir la gestion de privacidad', async () => {
+    await renderComponent();
+
+    const btnPrivacidad = await screen.findByRole('button', { name: /Gestion de Privacidad/i });
+    await act(async () => {
+      fireEvent.click(btnPrivacidad);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('permite abrir el dialogo de recarga de saldo', async () => {
+    await renderComponent();
+
+    const btnRecarga = await screen.findByRole('button', { name: /Recargar Saldo/i });
+    await act(async () => {
+      fireEvent.click(btnRecarga);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
   });
 });

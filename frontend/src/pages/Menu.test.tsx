@@ -180,4 +180,75 @@ describe('Menu', () => {
       );
     });
   });
+
+  it('abre el diálogo de reenvío al recibir un 409 y permite cancelar o forzar', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
+
+    // Mock de conflicto al enviar
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/menu/enviar')) {
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          json: () => Promise.resolve({ code: 'ALREADY_SENT_CONFIRM_REQUIRED' }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    act(() => {
+      menuStore.setCategoryOptions(1, ['Sopa de lentejas']);
+      menuStore.setCategoryOptions(2, ['Lomo saltado']);
+    });
+
+    const btnEnviar = screen.getByText('ENVIAR MENÚ');
+    fireEvent.click(btnEnviar);
+
+    // Debe aparecer la advertencia
+    await screen.findByText('Advertencia de Reenvío');
+
+    // Probar Cancelar
+    const btnCancelar = screen.getByRole('button', { name: 'Cancelar' });
+    fireEvent.click(btnCancelar);
+    await waitFor(() => expect(screen.queryByText('Advertencia de Reenvío')).not.toBeInTheDocument());
+
+    // Hacer que responda exitosamente al forzar
+    fireEvent.click(btnEnviar);
+    await screen.findByText('Advertencia de Reenvío');
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/menu/enviar')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const btnForzar = screen.getByRole('button', { name: 'Forzar Reenvío' });
+    fireEvent.click(btnForzar);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Menu enviado a n8n correctamente', expect.any(Object));
+    });
+  });
+
+  it('permite limpiar las opciones de menú a través del diálogo de confirmación', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
+
+    act(() => {
+      menuStore.setCategoryOptions(1, ['Sopa de ajo']);
+    });
+
+    const btnLimpiar = screen.getByRole('button', { name: 'Limpiar' });
+    fireEvent.click(btnLimpiar);
+
+    // Buscar modal de confirmación
+    expect(screen.getByText('¿Limpiar Opciones?')).toBeInTheDocument();
+
+    const btnConfirmar = screen.getByRole('button', { name: 'Sí, Limpiar' });
+    fireEvent.click(btnConfirmar);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Formulario limpiado localmente', expect.any(Object));
+    });
+  });
 });
