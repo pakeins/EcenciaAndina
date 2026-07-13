@@ -139,6 +139,20 @@ describe('Rutas de Ordenes', () => {
         return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
 
+      // Intercept telegram subscriptions query for notification coverage
+      if (urlStr.includes('/rest/v1/telegram_subscriptions')) {
+        return new Response(JSON.stringify({
+          chat_id: '123456789',
+          consent_status: 'accepted',
+          is_active: true
+        }), { status: 200, headers: { 'Content-Type': 'application/vnd.pgrst.object+json' } });
+      }
+
+      // Intercept internal sendMessage calls
+      if (urlStr.includes('internal/sendMessage')) {
+        return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+
       return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
     });
   });
@@ -232,6 +246,25 @@ describe('Rutas de Ordenes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/suficiente/i);
+    });
+
+    it('Procesa cancelacion y envia notificacion asincronica por Telegram', async () => {
+      const res = await request(app)
+        .put(`/api/ordenes/${UUID_MONEDERO_EXACTO}/estado`)
+        .set('Authorization', 'Bearer token')
+        .send({ id_estado: 3 }); // 3 = CANCELLED
+
+      expect(res.status).toBe(200);
+      expect(res.body.mensaje).toMatch(/actualizado/i);
+
+      // Esperar a que la microtarea asincronica termine
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Validar que se intentó llamar al microservicio de telegram
+      const fetchCalls = fetchSpy.mock.calls;
+      const telegramCall = fetchCalls.find(call => call[0].includes('internal/sendMessage'));
+      expect(telegramCall).toBeDefined();
+      expect(telegramCall[1].body).toContain('Pedido Cancelado');
     });
   });
 

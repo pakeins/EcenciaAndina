@@ -308,4 +308,22 @@ describe('Rutas de Convenios', () => {
       expect(res.status).toBe(200); // 200 porque multer lo procesa y el fetchSpy de POST conveniohistorial o convenios no se interpone (o mejor dicho responde vacío)
     });
   });
+
+  describe('Helpers Privados del Router', () => {
+    it('debe detectar firmas de archivos validos', () => {
+      const helpers = conveniosRouter._private;
+      expect(helpers.detectDocumentMimeType(Buffer.from('%PDF-1.7'))).toBe('application/pdf');
+      expect(helpers.detectDocumentMimeType(Buffer.from([0xff, 0xd8, 0xff, 0x00]))).toBe('image/jpeg');
+      expect(helpers.detectDocumentMimeType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe('image/png');
+      expect(helpers.detectDocumentMimeType(Buffer.from('not-a-valid-header'))).toBeNull();
+    });
+
+    it('debe generar rutas validas de objeto para almacenamiento de documentos', () => {
+      const helpers = conveniosRouter._private;
+      const path = helpers.createAgreementObjectPath('agreement-123', 'image/jpeg');
+      expect(path).toMatch(/^agreement-123\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.jpg$/);
+      const pathFallback = helpers.createAgreementObjectPath('agreement-123', 'application/unknown');
+      expect(pathFallback).toMatch(/^agreement-123\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.bin$/);
+    });
+  });
 });

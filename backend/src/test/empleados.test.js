@@ -53,7 +53,8 @@ describe('Empleados Routes', () => {
       }
       
       if (urlStr.includes('/rest/v1/empleados')) {
-        if (forceDbError) {
+        const isMiddlewareCheck = urlStr.includes('select=id%2Cesta_activo%2Croles%28nombre_rol%29');
+        if (forceDbError && !isMiddlewareCheck) {
           return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
         }
         
