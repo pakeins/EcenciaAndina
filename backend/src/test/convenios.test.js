@@ -44,11 +44,21 @@ describe('Rutas de Convenios', () => {
       // ----------------- /rest/v1/convenios -----------------
       if (isConvenios) {
         if (method === 'GET' && !urlStr.includes('id_convenio=eq.')) {
-          // Listar todos
-          return new Response(JSON.stringify([{
-            id_convenio: 'conv-1', ruc: '1790000000001', nombre_empresa: 'Empresa A',
-            esta_activo: true, cupo_maximo: 10, clientes_convenios: [{ count: 2 }]
-          }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          // Listar todos - uno completo y uno vacío para cubrir todas las ramas de formatConvenio
+          return new Response(JSON.stringify([
+            {
+              id_convenio: 'conv-1', ruc: '1790000000001', nombre_empresa: 'Empresa A',
+              esta_activo: true, cupo_maximo: 10, clientes_convenios: [{ count: 2 }],
+              representante: 'Don Juan', telefono: '0999999999', email: 'juan@test.com',
+              tipos_almuerzo_permitidos: [1, 2], archivo_firmado: 'documento.pdf'
+            },
+            {
+              id_convenio: 'conv-2', ruc: '1790000000002', nombre_empresa: 'Empresa B',
+              esta_activo: false, cupo_maximo: 0, clientes_convenios: null,
+              representante: null, telefono: null, email: null,
+              tipos_almuerzo_permitidos: null, archivo_firmado: null
+            }
+          ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         if (method === 'GET' && urlStr.includes('id_convenio=eq.')) {
           // Get single
@@ -134,9 +144,17 @@ describe('Rutas de Convenios', () => {
     it('Lista los convenios correctamente formateados', async () => {
       const res = await request(app).get('/api/convenios').set('Authorization', 'Bearer token');
       expect(res.status).toBe(200);
-      expect(res.body).toHaveLength(1);
+      expect(res.body).toHaveLength(2);
+      
+      // Valida primer convenio (completamente poblado)
       expect(res.body[0].id).toBe('conv-1');
       expect(res.body[0].totalColaboradores).toBe(2);
+      expect(res.body[0].archivo_firmado).toBe('http://localhost:3001/uploads/convenios/documento.pdf');
+      
+      // Valida segundo convenio (vacío/por defecto)
+      expect(res.body[1].id).toBe('conv-2');
+      expect(res.body[1].totalColaboradores).toBe(0);
+      expect(res.body[1].archivo_firmado).toBeNull();
     });
 
     it('Retorna 500 si hay error en la base de datos', async () => {
