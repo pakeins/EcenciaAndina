@@ -159,4 +159,57 @@ describe('notificaciones de estado por Telegram', () => {
     expect(result).toMatchObject({ status: 'failed', error: 'Database connection failed' });
     expect(client.audits[0]).toMatchObject({ status: 'failed', error_message: 'Database connection failed' });
   });
+
+  it('handles invalid notification state', async () => {
+    const result = await notifyOrderStatusChange(null, { nextState: 999 });
+    expect(result).toBeNull();
+  });
+
+  it('handles missing client id in findAcceptedTelegramSubscription', async () => {
+    const result = await orderNotifications.findAcceptedTelegramSubscription(null, null);
+    expect(result).toBeNull();
+  });
+
+  it('handles database error in auditOrderNotification and logs warning', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = {
+      from: vi.fn(() => ({
+        insert: vi.fn(async () => ({ error: new Error('Audit insert failed') })),
+      })),
+    };
+
+    await expect(orderNotifications.auditOrderNotification(client, { status: 'sent' })).resolves.not.toThrow();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      'No se pudo registrar auditoria de notificacion de pedido:',
+      'Audit insert failed'
+    );
+    consoleWarnSpy.mockRestore();
+  });
+
+  it('truncates very long errors correctly', async () => {
+    const client = makeClient([
+      {
+        id: 'sub-1',
+        id_cliente: 'client-1',
+        chat_id: '123',
+        consent_status: 'accepted',
+        is_active: true,
+      },
+    ]);
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: async () => 'A'.repeat(2000)
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const result = await notifyOrderStatusChange(
+      client,
+      { idOrden: 'order-1', idCliente: 'client-1', nextState: 3 }
+    );
+    vi.unstubAllGlobals();
+
+    expect(result.error.length).toBe(1000);
+    expect(result.error.endsWith('...')).toBe(true);
+  });
 });
