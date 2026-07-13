@@ -117,4 +117,36 @@ const cancelConfirmKeyboard = (orderId) =>
     [{ text: 'No, mantener mi reserva', callback_data: `pedido:keep:${orderId}` }],
   ]);
 
-module.exports = { TIPOS_ALMUERZO, inlineKeyboard, optionsKeyboard, tipoAlmuerzoKeyboard, consentKeyboard, revokeConfirmKeyboard, contactKeyboard, removeKeyboard, quantityKeyboard, confirmacionKeyboard, modificarPasosKeyboard, confirmationKeyboard, pedidoKeyboard, cancelConfirmKeyboard };
+const buildOrderSummaryMessage = (order, detail) => {
+  const opc = detail?.opciones || {};
+  const estadoStr = order._estadoNombre || String(order.id_estado);
+  return (
+    '✅ <b>Ya tienes una reserva activa para hoy:</b>\n\n' +
+    `🍱 <b>Tipo:</b> ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
+    (opc.entrada ? `🥗 <b>Entrada:</b> ${opc.entrada}\n` : '') +
+    (opc.sopa ? `🍜 <b>Sopa:</b> ${opc.sopa}\n` : '') +
+    (opc.segundo ? `🍽️ <b>Plato fuerte:</b> ${opc.segundo}\n` : '') +
+    (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
+    (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
+    `\nℹ️ <b>Estado:</b> ${estadoStr}\n` +
+    `🆔 <b>Orden:</b> #${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}\n\n` +
+    '<i>Usa los botones de abajo si deseas interactuar con tu pedido.</i>'
+  );
+};
+
+const buildPedidoMessage = (order, detail) => {
+  const opc = detail?.opciones || {};
+  return (
+    '📋 <b>Tu reserva de hoy:</b>\n\n' +
+    `🍱 <b>Producto:</b> ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
+    (opc.entrada ? `🥗 <b>Entrada:</b> ${opc.entrada}\n` : '') +
+    (opc.sopa ? `🍜 <b>Sopa:</b> ${opc.sopa}\n` : '') +
+    (opc.segundo ? `🍽️ <b>Plato fuerte:</b> ${opc.segundo}\n` : '') +
+    (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
+    (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
+    '\nℹ️ <b>Estado:</b> Reservado\n' +
+    `🆔 <b>Orden:</b> #${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}`
+  );
+};
+
+module.exports = { TIPOS_ALMUERZO, inlineKeyboard, optionsKeyboard, tipoAlmuerzoKeyboard, consentKeyboard, revokeConfirmKeyboard, contactKeyboard, removeKeyboard, quantityKeyboard, confirmacionKeyboard, modificarPasosKeyboard, confirmationKeyboard, pedidoKeyboard, cancelConfirmKeyboard, buildPedidoMessage, buildOrderSummaryMessage };
