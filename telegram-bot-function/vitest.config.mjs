@@ -12,6 +12,13 @@ export default defineConfig({
       TELEGRAM_BOT_TOKEN: 'test_bot_token',
       TELEGRAM_WEBHOOK_SECRET: 'test_secret'
     },
+    server: {
+      deps: {
+        inline: [
+          /src[/\\]/
+        ]
+      }
+    },
     coverage: {
       provider: 'istanbul',
       reporter: ['text', 'json', 'html', 'lcov'],
