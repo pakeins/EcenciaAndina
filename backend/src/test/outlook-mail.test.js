@@ -220,4 +220,26 @@ describe('getGraphAccessToken and sendOutlookMail API calls', () => {
 
     delete global.__mockNodemailerSendMailError;
   });
+
+  it('sendOutlookMail lanza error si Microsoft Graph rechaza la solicitud', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'tkn' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: 'Graph sending failed' } }), { status: 400 }));
+
+    await expect(sendOutlookMail({ to: 'recipient@test.com', subject: 'hi', text: 'body' }, {
+      fetchImpl: mockFetch,
+      env: dummyEnv
+    })).rejects.toThrow('Graph sending failed');
+  });
+
+  it('sendOutlookMail lanza error generico si la respuesta de Microsoft Graph no es JSON', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'tkn' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response('Plain text error', { status: 500 }));
+
+    await expect(sendOutlookMail({ to: 'recipient@test.com', subject: 'hi', text: 'body' }, {
+      fetchImpl: mockFetch,
+      env: dummyEnv
+    })).rejects.toThrow('Plain text error');
+  });
 });
