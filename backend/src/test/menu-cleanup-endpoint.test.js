@@ -2,7 +2,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import app from '../../index.js';
 
-vi.mock('../services/menuImageCleanup.js', () => ({
+vi.mock('../services/menuImageCleanup', () => ({
   cleanupOldMenuImages: vi.fn().mockResolvedValue({
     retentionDays: 14,
     cutoffDate: '2026-07-01',
