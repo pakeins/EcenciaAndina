@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    maxWorkers: 1,
+    minWorkers: 1,
     env: {
       SUPABASE_URL: 'https://test.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'test_key',
@@ -11,7 +13,7 @@ export default defineConfig({
       TELEGRAM_WEBHOOK_SECRET: 'test_secret'
     },
     coverage: {
-      provider: 'istanbul',
+      provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       reportsDirectory: './coverage',
       exclude: ['src/test/**/*', 'node_modules/**/*']

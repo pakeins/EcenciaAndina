@@ -6,8 +6,10 @@ dotenv.config({ path: './.env.local', override: true });
 
 export default defineConfig({
   test: {
+    maxWorkers: 1,
+    minWorkers: 1,
     coverage: {
-      provider: 'istanbul',
+      provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       reportsDirectory: './coverage',
     },
