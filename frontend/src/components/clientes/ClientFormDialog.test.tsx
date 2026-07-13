@@ -25,6 +25,26 @@ vi.mock('sonner', () => ({
   }
 }));
 
+vi.mock('@/components/ui/select', () => {
+  return {
+    Select: ({ children, value, onValueChange, disabled }: any) => (
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onValueChange && onValueChange(e.target.value)}
+        data-testid="mock-select"
+      >
+        {children}
+      </select>
+    ),
+    SelectTrigger: ({ children }: any) => <>{children}</>,
+    SelectValue: ({ placeholder }: any) => <option value="">{placeholder}</option>,
+    SelectContent: ({ children }: any) => <>{children}</>,
+    SelectItem: ({ children, value }: any) => <option value={value}>{children}</option>,
+  };
+});
+
+
 describe('ClientFormDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,5 +102,67 @@ describe('ClientFormDialog', () => {
       expect(defaultProps.onSuccess).toHaveBeenCalled();
       expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
     });
+  });
+
+  it('permite editar un cliente existente, cambiar telefono, tipo y convenio, y cancelar', async () => {
+    const editingClient = {
+      id: 'c1',
+      cedula: '1712345678',
+      nombre: 'Juan',
+      apellido: 'Perez',
+      correo: 'juan@test.com',
+      telefono: '022222222',
+      id_tipo_cliente: 2, // Directo
+      id_convenio: '',
+    };
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'c1', nombre: 'Juan Modificado' })
+    });
+
+    const props = {
+      ...defaultProps,
+      editingClient,
+    };
+
+    render(<ClientFormDialog {...props} />);
+
+    expect(screen.getByText('Editar Cliente')).toBeInTheDocument();
+
+    // Cambiar teléfono
+    const inputTelefono = screen.getByLabelText(/Teléfono/i);
+    fireEvent.change(inputTelefono, { target: { value: '0999999999a' } }); // non-digits should be filtered out
+    expect(inputTelefono).toHaveValue('0999999999');
+
+    // Cambiar tipo de cliente a convenio (1)
+    const selects = screen.getAllByTestId('mock-select');
+    const selectTipo = selects[0];
+    await act(async () => {
+      fireEvent.change(selectTipo, { target: { value: '1' } }); // 1 is Convenio
+    });
+
+    // Cambiar convenio
+    const updatedSelects = await screen.findAllByTestId('mock-select');
+    const selectConvenio = updatedSelects[1];
+    await act(async () => {
+      fireEvent.change(selectConvenio, { target: { value: 'conv1' } });
+    });
+
+    // Guardar cambios
+    const btnGuardar = screen.getByRole('button', { name: /Guardar Cambios/i });
+    await act(async () => {
+      fireEvent.click(btnGuardar);
+    });
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/clientes/c1', expect.objectContaining({ method: 'PUT' }));
+      expect(toast.success).toHaveBeenCalledWith('Cliente actualizado correctamente');
+    });
+
+    // Clic en Cancelar
+    const btnCancelar = screen.getByRole('button', { name: /Cancelar/i });
+    fireEvent.click(btnCancelar);
+    expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
   });
 });

@@ -288,6 +288,57 @@ describe('Rutas HTTP de Auth', () => {
   // ─── Tests para helpers privados ───────────────────────────────────────
 
   describe('Helpers privados', () => {
+    it('findEmployeeByUsername devuelve null si hay error de DB', async () => {
+      const { findEmployeeByUsername } = authRouter._private;
+      const adminClient = {
+        from: () => ({
+          select: () => ({
+            limit: async () => ({ data: null, error: new Error('DB error') })
+          })
+        })
+      };
+      expect(await findEmployeeByUsername(adminClient, 'admin')).toBeNull();
+    });
+
+    it('findEmployeeByUsername devuelve null si hay mas de un empleado con el mismo nombre_usuario', async () => {
+      const { findEmployeeByUsername } = authRouter._private;
+      const adminClient = {
+        from: () => ({
+          select: () => ({
+            limit: async () => ({
+              data: [
+                { nombre_usuario: 'Admin', correo: 'admin1@test.com' },
+                { nombre_usuario: 'Admin', correo: 'admin2@test.com' },
+              ],
+              error: null
+            })
+          })
+        })
+      };
+      expect(await findEmployeeByUsername(adminClient, 'admin')).toBeNull();
+    });
+
+    it('requestPasswordReset llama resetPasswordForEmail si el empleado existe y esta activo', async () => {
+      const { requestPasswordReset, PASSWORD_RESET_RESPONSE } = authRouter._private;
+      const adminClient = {
+        from: () => ({
+          select: () => ({
+            ilike: () => ({
+              maybeSingle: async () => ({
+                data: { correo: 'admin@test.com', esta_activo: true },
+                error: null
+              })
+            })
+          })
+        })
+      };
+      const authClient = { auth: { resetPasswordForEmail: vi.fn().mockResolvedValue({}) } };
+      
+      const result = await requestPasswordReset({ email: 'admin@test.com', adminClient, authClient, redirectTo: '/login' });
+      expect(result).toEqual(PASSWORD_RESET_RESPONSE);
+      expect(authClient.auth.resetPasswordForEmail).toHaveBeenCalledWith('admin@test.com', { redirectTo: '/login' });
+    });
+
     it('findEmployeeByUsername encuentra el empleado correcto', async () => {
       const adminClient = {
         from: () => ({

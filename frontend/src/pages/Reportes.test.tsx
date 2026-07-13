@@ -21,7 +21,7 @@ vi.mock('@/lib/api', () => ({
 
 vi.mock('@/lib/html', () => ({
   escapeHtml: (str: string) => str,
-  formatMoney: (val: number) => val.toFixed(2),
+  formatMoney: (val: number) => (val ?? 0).toFixed(2),
   openPrintWindow: () => ({ focus: vi.fn(), print: vi.fn() }),
   toFiniteNumber: (val: any) => Number(val) || 0,
 }));
@@ -85,11 +85,11 @@ describe('Reportes', () => {
 
   it('se renderiza correctamente y carga catalogos', async () => {
     (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
-      if (url.includes('/clientes')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
       }
-      if (url.includes('/convenios')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', nombre_empresa: 'Empresa A', activo: true }]) });
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', nombre_empresa: 'Empresa A', activo: true }]) });
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
@@ -100,6 +100,23 @@ describe('Reportes', () => {
     });
   });
 
+  it('valida el rango de fechas al generar reporte', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) }));
+    await renderComponent();
+
+    const dateInputs = document.querySelectorAll('input[type="date"]');
+    
+    // Simular cambio de fechas
+    fireEvent.change(dateInputs[0], { target: { value: '2026-07-15' } });
+    fireEvent.change(dateInputs[1], { target: { value: '2026-07-10' } });
+
+    const btnGenerar = screen.getByText('Generar Reporte');
+    fireEvent.click(btnGenerar);
+
+    // Toast error mock check (we mock toast but just check that apiFetch wasn't called)
+    expect(apiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/reportes/ventas'));
+  });
+
   it('permite generar reporte de ventas e interactuar con exportacion', async () => {
     const mockVentas = [{
       metodo_pago: 'Efectivo', almuerzosPrincipales: 10, ejecutivoCompleto: 5,
@@ -107,7 +124,13 @@ describe('Reportes', () => {
       otrosAlmuerzos: 0, extrasCantidad: 2, valorExtras: 10, totalConsumo: 110,
     }];
 
-    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation(() => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', nombre_empresa: 'Empresa A', activo: true }]) });
+      }
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentas) });
     });
 
@@ -126,6 +149,7 @@ describe('Reportes', () => {
       b.textContent?.includes('Exportar CSV') || 
       b.textContent?.includes('Facturación (XML)')
     );
+    expect(exportBtns.length).toBeGreaterThan(0);
     exportBtns.forEach(btn => fireEvent.click(btn));
   });
 
@@ -140,10 +164,14 @@ describe('Reportes', () => {
     }];
 
     (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
-      if (url.includes('/reporte')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConvenios) });
-      if (url.includes('/convenios')) return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', nombre_empresa: 'Empresa A', activo: true }]) });
-      if (url.includes('/ventas/reporte-convenios')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConvenios) });
-      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.includes('/reporte') || url.includes('/reportes/')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConvenios) });
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', nombre_empresa: 'Empresa A', activo: true }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConvenios) });
     });
 
     await renderComponent();
@@ -174,11 +202,150 @@ describe('Reportes', () => {
     fireEvent.click(btnGenerar);
 
     await waitFor(() => {
-      // Debe aparecer el resultado
       expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
     });
 
+    // Toggle desglosarConvenio
+    const switchEl = screen.getByRole('switch');
+    fireEvent.click(switchEl);
+
     // Clic en botones de exportación (Convenios)
+    const exportBtns = screen.getAllByRole('button').filter(b => 
+      b.textContent?.includes('Exportar PDF') || 
+      b.textContent?.includes('Exportar CSV') || 
+      b.textContent?.includes('Facturación (XML)')
+    );
+    exportBtns.forEach(btn => fireEvent.click(btn));
+  });
+
+  it('permite generar reporte de estados y exportar', async () => {
+    const mockEstados = [{
+      fecha: '2026-07-01T12:00:00Z',
+      cliente: 'Maria Lopez',
+      estado: 'Entregado',
+      descripcion: 'Almuerzo Ejecutivo',
+      totalConsumo: 15.5
+    }];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', nombre_empresa: 'Empresa A', activo: true }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockEstados) });
+    });
+
+    await renderComponent();
+
+    // Cambiar a pestaña estados
+    const comboboxes = screen.getAllByRole('combobox');
+    fireEvent.click(comboboxes[0]);
+    const option = await screen.findByText('Pedidos por Estado');
+    fireEvent.click(option);
+
+    // Seleccionar estado especifico o dejar en "all"
+    const btnGenerar = screen.getByText('Generar Reporte');
+    fireEvent.click(btnGenerar);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
+    });
+
+    const exportBtns = screen.getAllByRole('button').filter(b => 
+      b.textContent?.includes('Exportar PDF') || 
+      b.textContent?.includes('Exportar CSV') || 
+      b.textContent?.includes('Facturación (XML)')
+    );
+    exportBtns.forEach(btn => fireEvent.click(btn));
+  });
+
+  it('permite generar reporte de productos y exportar', async () => {
+    const mockProductos = [{
+      nombre: 'Almuerzo Dia',
+      categoria: 'Almuerzos',
+      cantidadVendida: 25,
+      ingresosGenerados: 112.5
+    }];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', nombre_empresa: 'Empresa A', activo: true }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockProductos) });
+    });
+
+    await renderComponent();
+
+    // Cambiar a pestaña productos
+    const comboboxes = screen.getAllByRole('combobox');
+    fireEvent.click(comboboxes[0]);
+    const option = await screen.findByText('Popularidad de Productos');
+    fireEvent.click(option);
+
+    const btnGenerar = screen.getByText('Generar Reporte');
+    fireEvent.click(btnGenerar);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
+    });
+
+    const exportBtns = screen.getAllByRole('button').filter(b => 
+      b.textContent?.includes('Exportar PDF') || 
+      b.textContent?.includes('Exportar CSV')
+    );
+    exportBtns.forEach(btn => fireEvent.click(btn));
+  });
+
+  it('permite generar reporte de clientes y exportar', async () => {
+    const mockClientesReport = [{
+      fecha: '2026-07-02T12:00:00Z',
+      convenio: 'Empresa A',
+      estado: 'Completado',
+      descripcion: '1x Almuerzo Ejecutivo',
+      totalConsumo: 6.99
+    }];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', nombre_empresa: 'Empresa A', activo: true }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockClientesReport) });
+    });
+
+    await renderComponent();
+
+    // Cambiar a pestaña clientes
+    const comboboxes = screen.getAllByRole('combobox');
+    fireEvent.click(comboboxes[0]);
+    const option = await screen.findByText('Consumos por Cliente');
+    fireEvent.click(option);
+
+    // Debe aparecer el combobox de cliente
+    await waitFor(() => {
+      expect(screen.getAllByRole('combobox').length).toBeGreaterThan(1);
+    });
+
+    const cliCombobox = screen.getAllByRole('combobox')[1];
+    fireEvent.click(cliCombobox);
+
+    const cliOption = await screen.findByRole('option', { name: /Juan Perez/i });
+    fireEvent.click(cliOption);
+
+    const btnGenerar = screen.getAllByText('Generar Reporte')[0];
+    fireEvent.click(btnGenerar);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
+    });
+
     const exportBtns = screen.getAllByRole('button').filter(b => 
       b.textContent?.includes('Exportar PDF') || 
       b.textContent?.includes('Exportar CSV') || 

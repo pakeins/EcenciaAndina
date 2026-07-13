@@ -60,7 +60,8 @@ describe('Clientes', () => {
               cedula: '1712345678', 
               correo: 'juan@test.com', 
               activo: true, 
-              tipo_nombre: 'Frecuente' 
+              tipo_nombre: 'Frecuente',
+              id_tipo_cliente: 2
             }
           ])
         });
@@ -163,5 +164,48 @@ describe('Clientes', () => {
         fireEvent.click(btnConfirm);
       });
     }
+  });
+
+  it('permite abrir el monedero virtual', async () => {
+    // Modify mock inside test or use default DIRECT client (we will set beforeEach to direct)
+    await renderComponent();
+
+    const btnWallet = await screen.findByTitle(/Monedero Virtual/i);
+    await act(async () => {
+      fireEvent.click(btnWallet);
+    });
+
+    // Check if wallet dialog shows (wallet dialog title is 'Monedero Virtual' or similar)
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('permite abrir la gestion de Telegram', async () => {
+    await renderComponent();
+
+    const btnTelegram = await screen.findByTitle(/Gestionar Telegram/i);
+    await act(async () => {
+      fireEvent.click(btnTelegram);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('permite cambiar el estado activo del cliente al clickear el Switch', async () => {
+    await renderComponent();
+
+    const switches = await screen.findAllByRole('switch');
+    expect(switches.length).toBeGreaterThan(0);
+    
+    await act(async () => {
+      fireEvent.click(switches[0]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
   });
 });
