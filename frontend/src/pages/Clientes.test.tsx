@@ -113,9 +113,22 @@ describe('Clientes', () => {
     
     // Simulate search
     await act(async () => {
-      fireEvent.change(searchInput, { target: { value: '171234' } });
+      fireEvent.change(searchInput, { target: { value: 'Inexistente' } });
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText('No se encontraron clientes con esa búsqueda')).toBeInTheDocument();
     });
 
+    // Test clear filters button
+    const clearBtn = screen.getByRole('button', { name: /Limpiar/i });
+    await act(async () => {
+      fireEvent.click(clearBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Juan Perez')).toBeInTheDocument();
+    });
   });
 
   it('permite abrir el modal para nuevo cliente y guardar', async () => {
@@ -249,15 +262,80 @@ describe('Clientes', () => {
       if (url.includes('/telegram/invitacion') && options?.method === 'POST') {
         return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo reinvitar al cliente' }) });
       }
+      if (url.includes('/telegram/revocar') && options?.method === 'POST') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo revocar al cliente' }) });
+      }
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
 
-    const btnReinvitar = await screen.findByRole('button', { name: /Reinvitar por Mail/i }).catch(() => null);
+    const btnReinvitar = await screen.findByRole('button', { name: /Enviar nueva invitación/i }).catch(() => null);
     if (btnReinvitar) {
       await act(async () => {
         fireEvent.click(btnReinvitar);
       });
       expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('No se pudo reinvitar al cliente'));
+    }
+
+    const btnRevocar = await screen.findByRole('button', { name: /Revocar acceso al Bot/i }).catch(() => null);
+    if (btnRevocar) {
+      await act(async () => {
+        fireEvent.click(btnRevocar);
+      });
+      const btnConfirmRevocar = await screen.findByRole('button', { name: /Sí, Revocar/i });
+      await act(async () => {
+        fireEvent.click(btnConfirmRevocar);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('No se pudo revocar al cliente'));
+    }
+  });
+
+  it('permite abrir la gestion de Telegram y manejar exito al reinvitar y revocar', async () => {
+    await renderComponent();
+
+    const btnTelegram = await screen.findByTitle(/Gestionar Telegram/i);
+    await act(async () => {
+      fireEvent.click(btnTelegram);
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (url.includes('/telegram/invitacion') && options?.method === 'POST') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ telegram_onboarding: { status: 'sent' } }) });
+      }
+      if (url.includes('/telegram/revocar') && options?.method === 'POST') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ message: 'Revocado' }) });
+      }
+      if (url.includes('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const btnReinvitar = await screen.findByRole('button', { name: /Enviar nueva invitación/i }).catch(() => null);
+    if (btnReinvitar) {
+      await act(async () => {
+        fireEvent.click(btnReinvitar);
+      });
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Aviso enviado al chat vinculado'));
+    }
+
+    // Reopen since dialog closes on success
+    await act(async () => {
+      fireEvent.click(btnTelegram);
+    });
+
+    const btnRevocar = await screen.findByRole('button', { name: /Revocar acceso al Bot/i }).catch(() => null);
+    if (btnRevocar) {
+      await act(async () => {
+        fireEvent.click(btnRevocar);
+      });
+      const btnConfirmRevocar = await screen.findByRole('button', { name: /Sí, Revocar/i });
+      await act(async () => {
+        fireEvent.click(btnConfirmRevocar);
+      });
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Acceso revocado correctamente'));
     }
   });
 
