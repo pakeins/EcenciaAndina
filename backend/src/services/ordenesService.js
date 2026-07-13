@@ -372,7 +372,7 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
         }
       }
     } catch (err) {
-      console.error('Error enviando notificación de estado a Telegram:', err.message);
+      console.error('Error enviando notificación de estado a Telegram:', String(err?.message || err || '').replace(/[\r\n]/g, '_'));
     }
   })();
 

@@ -268,7 +268,7 @@ const resolvePrivacyRequest = async (adminClient, requestId, payload, user) => {
         '✅ <b>Solicitud Atendida</b>\n\nTu solicitud de eliminacion de datos ha sido procesada exitosamente. Como resultado, <b>tu suscripcion al bot ha sido revocada</b> y ya no recibiras el menu diario.\n\nPara cualquier duda adicional, acercate a Ecencia Andina.',
         { remove_keyboard: true },
         'HTML'
-      ).catch((err) => console.error('No se pudo enviar notificacion de privacidad por Telegram:', err));
+      ).catch((err) => console.error('No se pudo enviar notificacion de privacidad por Telegram:', String(err?.message || err || '').replace(/[\r\n]/g, '_')));
     } else if (status === 'rejected' && clearResult.data?.chat_id) {
       const motivo = resolution_notes ? `\n\n<b>Motivo:</b> ${resolution_notes}` : '';
       await sendMessage(
@@ -276,7 +276,7 @@ const resolvePrivacyRequest = async (adminClient, requestId, payload, user) => {
         `❌ <b>Solicitud Rechazada</b>\n\nTu solicitud de eliminacion de datos ha sido rechazada por la administracion.${motivo}\n\nPara cualquier duda adicional, acercate a Ecencia Andina.`,
         null,
         'HTML'
-      ).catch((err) => console.error('No se pudo enviar notificacion de privacidad (rechazo) por Telegram:', err));
+      ).catch((err) => console.error('No se pudo enviar notificacion de privacidad (rechazo) por Telegram:', String(err?.message || err || '').replace(/[\r\n]/g, '_')));
     }
   }
   return data;
@@ -814,7 +814,7 @@ const deleteCliente = async (adminClient, idCliente) => {
       '🚫 <b>Cuenta Eliminada</b>\n\nTu cuenta ha sido eliminada del sistema de Ecencia Andina. Como resultado, tu suscripcion al bot de Telegram ha sido revocada permanentemente y todos tus datos asociados han sido borrados.\n\nGracias por utilizar nuestro servicio.',
       { remove_keyboard: true },
       'HTML'
-    ).catch((err) => console.error('No se pudo notificar eliminacion de cuenta por Telegram:', err));
+    ).catch((err) => console.error('No se pudo notificar eliminacion de cuenta por Telegram:', String(err?.message || err || '').replace(/[\r\n]/g, '_')));
   }
 
   return { success: true, message: 'Cliente eliminado correctamente' };
@@ -861,7 +861,7 @@ const hardDeleteCliente = async (adminClient, idCliente) => {
       '🚫 <b>Cuenta Eliminada (Borrado Forzado)</b>\n\nTu cuenta ha sido eliminada completamente del sistema de Ecencia Andina junto con todos tus datos y registros financieros. Ya no tienes acceso al bot.\n\nGracias por utilizar nuestro servicio.',
       { remove_keyboard: true },
       'HTML'
-    ).catch((err) => console.error('No se pudo notificar eliminacion forzada por Telegram:', err));
+    ).catch((err) => console.error('No se pudo notificar eliminacion forzada por Telegram:', String(err?.message || err || '').replace(/[\r\n]/g, '_')));
   }
 
   return { success: true, message: 'Cliente y todo su historial han sido eliminados de forma forzada.' };
