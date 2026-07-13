@@ -168,10 +168,39 @@ jobs:
           path: frontend/coverage
           if-no-files-found: warn
 
+  test-telegram:
+    name: Unit Tests (Telegram Bot) - Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install & Test Telegram Bot
+        working-directory: telegram-bot-function
+        run: |
+          npm ci
+          set -o pipefail
+          CI=true NO_COLOR=1 npm run test:coverage -- 2>&1 | tee test_output_raw.txt || true
+          sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt
+          if grep -q "Failed Tests" test_output_raw.txt; then exit 1; fi
+      - name: Telegram coverage summary
+        if: always()
+        working-directory: telegram-bot-function
+        run: |
+          echo "### 🤖 Telegram Bot Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          cat test_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-telegram
+          path: telegram-bot-function/coverage
+          if-no-files-found: warn
+
   sonarcloud:
     name: Code Analysis - SonarCloud
     runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend]
+    needs: [test-backend, test-frontend, test-telegram]
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
@@ -190,12 +219,20 @@ jobs:
         with:
           name: coverage-frontend
           path: frontend/coverage
+      - name: Download Telegram Coverage
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: coverage-telegram
+          path: telegram-bot-function/coverage
       - name: Fix coverage paths for SonarScanner
         run: |
           sed -i 's/^SF:.*backend\/src\//SF:backend\/src\//' backend/coverage/lcov.info || true
           sed -i 's/^SF:.*frontend\/src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
+          sed -i 's/^SF:.*telegram-bot-function\/src\//SF:telegram-bot-function\/src\//' telegram-bot-function/coverage/lcov.info || true
           sed -i 's/^SF:src\//SF:backend\/src\//' backend/coverage/lcov.info || true
           sed -i 's/^SF:src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
+          sed -i 's/^SF:src\//SF:telegram-bot-function\/src\//' telegram-bot-function/coverage/lcov.info || true
       - name: Set SonarQube Project Keys
         run: |
           if [ "${{ github.repository_owner }}" = "pakeins" ]; then

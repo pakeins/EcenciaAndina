@@ -1,4 +1,4 @@
-const { getAdminClient } = require('../config/supabase');
+const supabase = require('../config/supabase');
 const { getConsentVersion, privacyText } = require('./telegramConsent');
 const { normalizePhone } = require('../validation/ecencia');
 
@@ -7,7 +7,7 @@ const stateKey = (chatId) => `session:${chatId}`;
 const consentKey = (chatId) => `consent:${chatId}`;
 
 const getState = async (key) => {
-  const { data, error } = await getAdminClient()
+  const { data, error } = await supabase.getAdminClient()
     .from('telegram_bot_state')
     .select('value')
     .eq('key', key)
@@ -17,7 +17,7 @@ const getState = async (key) => {
 };
 
 const setState = async (key, value) => {
-  const { error } = await getAdminClient()
+  const { error } = await supabase.getAdminClient()
     .from('telegram_bot_state')
     .upsert(
       { key, value: { ...(value || {}), updatedAt: new Date().toISOString() } },
@@ -27,7 +27,7 @@ const setState = async (key, value) => {
 };
 
 const deleteState = async (key) => {
-  const { error } = await getAdminClient().from('telegram_bot_state').delete().eq('key', key);
+  const { error } = await supabase.getAdminClient().from('telegram_bot_state').delete().eq('key', key);
   if (error) throw error;
 };
 
@@ -36,7 +36,7 @@ const deleteChatStates = async (chatId) => {
 };
 
 const getSubscriptionByChat = async (chatId) => {
-  const { data, error } = await getAdminClient()
+  const { data, error } = await supabase.getAdminClient()
     .from('telegram_subscriptions')
     .select('*')
     .eq('chat_id', String(chatId))
@@ -47,7 +47,7 @@ const getSubscriptionByChat = async (chatId) => {
 
 const getSubscriptionByClient = async (idCliente) => {
   if (!idCliente) return null;
-  const { data, error } = await getAdminClient()
+  const { data, error } = await supabase.getAdminClient()
     .from('telegram_subscriptions')
     .select('*')
     .eq('id_cliente', idCliente)
@@ -59,7 +59,7 @@ const getSubscriptionByClient = async (idCliente) => {
 const getSubscriptionByPhone = async (phone) => {
   const normalized = normalizePhone(phone);
   if (!normalized) return null;
-  const { data, error } = await getAdminClient()
+  const { data, error } = await supabase.getAdminClient()
     .from('telegram_subscriptions')
     .select('*')
     .eq('phone_normalized', normalized)
@@ -69,7 +69,7 @@ const getSubscriptionByPhone = async (phone) => {
 };
 
 const getClientById = async (id) => {
-  const { data, error } = await getAdminClient()
+  const { data, error } = await supabase.getAdminClient()
     .from('clientes')
     .select(
       'id_cliente,cedula,nombre,apellido,telefono,esta_activo,clientes_convenios(id_convenio,convenios(id_convenio,nombre_empresa,esta_activo,fecha_caducidad,tipos_almuerzo_permitidos))',
@@ -122,7 +122,7 @@ const ensurePendingSubscription = async (
 
   const existing = byClient || byChat;
   if (existing) {
-    const { data, error } = await getAdminClient()
+    const { data, error } = await supabase.getAdminClient()
       .from('telegram_subscriptions')
       .update(payload)
       .eq('id', existing.id)
@@ -132,11 +132,11 @@ const ensurePendingSubscription = async (
     return data;
   }
 
-  const { data, error } = await getAdminClient()
-    .from('telegram_subscriptions')
-    .insert(payload)
-    .select()
-    .single();
+  const { data, error } = await supabase.getAdminClient()
+      .from('telegram_subscriptions')
+      .insert(payload)
+      .select()
+      .single();
   if (error) throw error;
   return data;
 };
