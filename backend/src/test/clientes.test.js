@@ -46,7 +46,7 @@ describe('Rutas de Clientes Completo', () => {
       const isClientes = /\/rest\/v1\/clientes(\?|$)/.test(urlStr);
       const isConvenios = /\/rest\/v1\/convenios(\?|$)/.test(urlStr);
       const isClientesConvenios = /\/rest\/v1\/clientes_convenios(\?|$)/.test(urlStr);
-      const isRecargas = /\/rest\/v1\/recargas(\?|$)/.test(urlStr);
+      const isRecargas = /\/rest\/v1\/recargas(_saldo)?(\?|$)/.test(urlStr);
       const isDescuentos = /\/rest\/v1\/clientes_descuentos(\?|$)/.test(urlStr);
       const isTelegramPrivacy = /\/rest\/v1\/telegram_privacy_requests(\?|$)/.test(urlStr);
       const isTelegramSubscriptions = /\/rest\/v1\/telegram_subscriptions(\?|$)/.test(urlStr);
@@ -72,6 +72,13 @@ describe('Rutas de Clientes Completo', () => {
         if (method === 'PATCH' || method === 'GET') {
           return new Response(JSON.stringify({ chat_id: 123456 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
+        if (method === 'DELETE') {
+          return new Response(JSON.stringify([{}]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+
+      if (isOrdenes) {
+        return new Response(JSON.stringify([{ id_orden: 'order-1' }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
 
       if (isConvenios) {
@@ -331,6 +338,86 @@ describe('Rutas de Clientes Completo', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('cedula o RUC ecuatoriano valido');
+    });
+  });
+
+  describe('Nuevos Endpoints: Saldo, Recarga, Historial y Telegram Privacidad', () => {
+    it('GET /api/clientes/:id/saldo retorna el saldo del cliente', async () => {
+      const res = await request(app).get('/api/clientes/cli-1/saldo').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(200);
+      // Fallback a 0 en el mock si no se define, revisemos el mock
+    });
+
+    it('GET /api/clientes/:id/saldo retorna 500 si hay error DB', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/clientes/cli-1/saldo').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('POST /api/clientes/:id/recargar recarga el saldo', async () => {
+      const res = await request(app).post('/api/clientes/cli-1/recargar').set('Authorization', 'Bearer valid-token').send({
+        id_producto: 1,
+        cantidad_comprada: 1,
+        monto_total: 25.50,
+        numero_factura: 'F-001'
+      });
+      expect(res.status).toBe(201);
+      expect(res.body.mensaje).toContain('Recarga registrada exitosamente');
+    });
+
+    it('POST /api/clientes/:id/recargar falla si falta monto', async () => {
+      const res = await request(app).post('/api/clientes/cli-1/recargar').set('Authorization', 'Bearer valid-token').send({
+        metodo_pago: 'Transferencia'
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/clientes/:id/recargar retorna 500 si hay error DB', async () => {
+      forceDbError = true;
+      const res = await request(app).post('/api/clientes/cli-1/recargar').set('Authorization', 'Bearer valid-token').send({ 
+        id_producto: 1, cantidad_comprada: 1, monto_total: 10, numero_factura: 'F-001' 
+      });
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /api/clientes/:id/historial retorna historial de recargas y ordenes', async () => {
+      const res = await request(app).get('/api/clientes/cli-1/historial').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      if (res.body.length > 0) {
+        expect(res.body[0]).toHaveProperty('tipo');
+        expect(res.body[0]).toHaveProperty('producto');
+      }
+    });
+
+    it('GET /api/clientes/:id/historial retorna 500 si hay error DB', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/clientes/cli-1/historial').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('POST /api/clientes/:id/telegram/revocar revoca el acceso a Telegram', async () => {
+      const res = await request(app).post('/api/clientes/cli-1/telegram/revocar').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(200);
+      expect(res.body.message).toContain('Suscripcion revocada correctamente');
+    });
+
+    it('POST /api/clientes/:id/telegram/revocar retorna 500 si hay error DB', async () => {
+      forceDbError = true;
+      const res = await request(app).post('/api/clientes/cli-1/telegram/revocar').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /api/clientes/telegram/privacidad-solicitudes retorna solicitudes pendientes', async () => {
+      const res = await request(app).get('/api/clientes/telegram/privacidad-solicitudes').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(200);
+      expect(res.body[0].id).toBe('req-1');
+    });
+
+    it('PATCH /api/clientes/telegram/privacidad-solicitudes/:requestId actualiza el estado', async () => {
+      const res = await request(app).patch('/api/clientes/telegram/privacidad-solicitudes/req-1').set('Authorization', 'Bearer valid-token').send({ status: 'resolved' });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('resolved');
     });
   });
 });

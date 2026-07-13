@@ -190,6 +190,61 @@ describe('routes/menu — sistema y dashboard', () => {
     });
   });
 
+  it('GET /activo retorna el menu activo', async () => {
+    store.menu_settings = [{ id: 1, active_date: '2026-06-10' }];
+    store.menu_diario = [
+      menuRow('2026-06-10', 'Locro', 1, 'Sopas'),
+      menuRow('2026-06-10', 'Seco de pollo', 2, 'Segundos'),
+    ];
+
+    const res = await request(app).get('/api/menu/activo');
+    expect(res.status).toBe(200);
+    expect(res.body.fecha).toBe('2026-06-10');
+  });
+
+  it('GET /activo retorna 404 si no hay menu activo', async () => {
+    store.menu_settings = [];
+    const res = await request(app).get('/api/menu/activo');
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /activo retorna 404 si el menu activo no tiene opciones registradas', async () => {
+    store.menu_settings = [{ id: 1, active_date: '2026-06-10' }];
+    store.menu_diario = [];
+    const res = await request(app).get('/api/menu/activo');
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /:fecha/activar activa el menu', async () => {
+    store.menu_diario = [
+      menuRow('2026-06-10', 'Locro', 1, 'Sopas'),
+      menuRow('2026-06-10', 'Seco de pollo', 2, 'Segundos'),
+    ];
+    store.menu_settings = [{ id: 1 }];
+
+    const res = await request(app).post('/api/menu/2026-06-10/activar');
+    expect(res.status).toBe(200);
+    
+    // Verifica que se haya actualizado menu_settings con la nueva fecha
+    const updateOp = writes.find(w => w.table === 'menu_settings' && w.op === 'upsert' && w.payload.active_date === '2026-06-10');
+    expect(updateOp).toBeDefined();
+  });
+
+  it('POST /:fecha/activar retorna 400 si falta sopa o segundo', async () => {
+    store.menu_diario = [
+      menuRow('2026-06-10', 'Locro', 1, 'Sopas') // Falta segundo
+    ];
+    const res = await request(app).post('/api/menu/2026-06-10/activar');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('al menos sopa y segundo');
+  });
+
+  it('POST /:fecha/activar retorna 404 si no existe menu en la fecha', async () => {
+    store.menu_diario = [];
+    const res = await request(app).post('/api/menu/2026-06-10/activar');
+    expect(res.status).toBe(404);
+  });
+
   it('PUT /:fecha rechaza una fecha con formato invalido', async () => {
     const res = await request(app).put('/api/menu/no-es-fecha').send(validBody);
     expect(res.status).toBe(400);
