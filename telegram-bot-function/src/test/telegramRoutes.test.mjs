@@ -309,6 +309,23 @@ describe('telegramRoutes - Main Router', () => {
       expect(spies.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('cancelada'));
     });
 
+    it('debe manejar /pedido cuando el usuario no tiene reserva activa hoy', async () => {
+      const update = {
+        message: {
+          chat: { id: 123 },
+          message_id: 456,
+          text: '/pedido',
+          from: { id: 789 }
+        }
+      };
+      spies.getSubscriptionByChat.mockResolvedValue({ id: 1, id_cliente: 456 });
+      spies.hasCurrentConsent.mockReturnValue(true);
+      spies.findActiveTodayOrder.mockResolvedValue(null);
+
+      await handleTelegramUpdate(update);
+      expect(spies.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('No tienes una reserva registrada'));
+    });
+
     it('debe manejar /pedido', async () => {
       const update = {
         message: {
@@ -346,6 +363,23 @@ describe('telegramRoutes - Main Router', () => {
       expect(spies.promptMenu).toHaveBeenCalled();
     });
 
+    it('debe rechazar /menu si no tiene consentimiento', async () => {
+      const update = {
+        message: {
+          chat: { id: 123 },
+          message_id: 456,
+          text: '/menu',
+          from: { id: 789 }
+        }
+      };
+      spies.getSubscriptionByChat.mockResolvedValue({ id: 1, id_cliente: 456 });
+      spies.hasCurrentConsent.mockReturnValue(false);
+
+      await handleTelegramUpdate(update);
+      expect(spies.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('Tu cuenta no está activa o no has aceptado'));
+      expect(spies.promptMenu).not.toHaveBeenCalled();
+    });
+
     it('debe procesar callback de pedido', async () => {
       const update = {
         callback_query: {
@@ -378,6 +412,126 @@ describe('telegramRoutes - Main Router', () => {
       await handleTelegramUpdate(update);
       expect(spies.createOrderTrace).toHaveBeenCalled();
       expect(spies.handleAcceptedSession).toHaveBeenCalledWith(expect.any(Object), 'trace_123');
+    });
+
+    it('debe manejar /menu cuando ya existe una reserva activa para hoy', async () => {
+      const update = {
+        message: {
+          chat: { id: 123 },
+          message_id: 456,
+          text: '/menu',
+          from: { id: 789 }
+        }
+      };
+      spies.getSubscriptionByChat.mockResolvedValue({ id: 1, id_cliente: 456 });
+      spies.hasCurrentConsent.mockReturnValue(true);
+      spies.isBusinessDay.mockReturnValue(true);
+      spies.getClientById.mockResolvedValue({ esta_activo: true });
+      spies.findActiveTodayOrder.mockResolvedValue({ id_orden: 'order_123', id_estado: 1 });
+      spies.getOrderDetail.mockResolvedValue({ id_orden: 'order_123' });
+
+      await handleTelegramUpdate(update);
+      expect(spies.deleteState).toHaveBeenCalledWith('session:123');
+      expect(spies.sendMessage).toHaveBeenCalledWith('123', expect.any(String), expect.any(Object), 'HTML');
+      expect(spies.promptMenu).not.toHaveBeenCalled();
+    });
+
+    it('debe rechazar /menu si no es día hábil', async () => {
+      const update = {
+        message: {
+          chat: { id: 123 },
+          message_id: 456,
+          text: '/menu',
+          from: { id: 789 }
+        }
+      };
+      spies.getSubscriptionByChat.mockResolvedValue({ id: 1, id_cliente: 456 });
+      spies.hasCurrentConsent.mockReturnValue(true);
+      spies.isBusinessDay.mockReturnValue(false);
+
+      await handleTelegramUpdate(update);
+      expect(spies.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('lunes a viernes'));
+      expect(spies.promptMenu).not.toHaveBeenCalled();
+    });
+
+    it('debe rechazar /menu si el cliente vinculado está inactivo', async () => {
+      const update = {
+        message: {
+          chat: { id: 123 },
+          message_id: 456,
+          text: '/menu',
+          from: { id: 789 }
+        }
+      };
+      spies.getSubscriptionByChat.mockResolvedValue({ id: 1, id_cliente: 456 });
+      spies.hasCurrentConsent.mockReturnValue(true);
+      spies.isBusinessDay.mockReturnValue(true);
+      spies.getClientById.mockResolvedValue({ esta_activo: false });
+
+      await handleTelegramUpdate(update);
+      expect(spies.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('no esta activo'));
+      expect(spies.promptMenu).not.toHaveBeenCalled();
+    });
+
+    it('debe atrapar error en handleAcceptedSession, actualizar trace y lanzar error', async () => {
+      const update = {
+        callback_query: {
+          id: 'cb_123',
+          message: { chat: { id: 123 }, message_id: 456 },
+          data: 'tipo:ejecutivo',
+          from: { id: 789 }
+        }
+      };
+      spies.getSubscriptionByChat.mockResolvedValue({ id: 1, id_cliente: 456 });
+      spies.hasCurrentConsent.mockReturnValue(true);
+      spies.createOrderTrace.mockResolvedValue('trace_123');
+      
+      const testError = new Error('Session processing failed');
+      spies.handleAcceptedSession.mockRejectedValue(testError);
+
+      await expect(handleTelegramUpdate(update)).rejects.toThrow('Session processing failed');
+      
+      expect(spies.updateOrderTrace).toHaveBeenCalledWith('trace_123', expect.objectContaining({
+        id_cliente: 456,
+        subscription_id: 1,
+        outcome: 'failed',
+        error_message: 'Session processing failed'
+      }));
+    });
+
+    it('debe ignorar callback si activeProcessing ya tiene el chat (race condition)', async () => {
+      const update = {
+        callback_query: {
+          id: 'cb_123',
+          message: { chat: { id: 123 }, message_id: 456 },
+          data: 'tipo:ejecutivo',
+          from: { id: 789 }
+        }
+      };
+      spies.getSubscriptionByChat.mockResolvedValue({ id: 1, id_cliente: 456 });
+      spies.hasCurrentConsent.mockReturnValue(true);
+      spies.createOrderTrace.mockResolvedValue('trace_123');
+      
+      // We block the handleAcceptedSession to keep it in activeProcessing
+      let resolveSession;
+      const sessionPromise = new Promise(resolve => resolveSession = resolve);
+      spies.handleAcceptedSession.mockImplementation(() => sessionPromise);
+
+      // First call starts processing and gets blocked
+      const firstCallPromise = handleTelegramUpdate(update);
+      
+      // Second call happens while first call is in activeProcessing
+      await handleTelegramUpdate(update);
+      
+      // Resolve the first call to clean up
+      resolveSession();
+      await firstCallPromise;
+      
+      // It should only have called createOrderTrace ONCE (from the first call)
+      // Wait, createOrderTrace is called BEFORE activeProcessing check!
+      // So createOrderTrace is called twice, but handleAcceptedSession is called ONCE.
+      expect(spies.createOrderTrace).toHaveBeenCalledTimes(2);
+      expect(spies.handleAcceptedSession).toHaveBeenCalledTimes(1);
     });
   });
 });

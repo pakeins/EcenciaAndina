@@ -259,6 +259,12 @@ describe('telegramOrderHandler - Comprehensive Suite', () => {
       expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('solo acepta botones'));
     });
 
+    it('envía mensaje si no hay sesión activa y el callback no está manejado', async () => {
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(null);
+      await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'random:data', messageId: 999 }, 'trace_123');
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', 'No hay una seleccion activa. Usa /menu y luego los botones.');
+    });
+
     it('maneja modstep para reencaminar flujo', async () => {
       const session = {
         date: helpers.todayInTimezone(),
@@ -342,13 +348,29 @@ describe('telegramOrderHandler - Comprehensive Suite', () => {
         tipoAlmuerzo: { requiresSopa: true, requiresSegundo: true }
       };
       vi.spyOn(telegramState, 'getState').mockResolvedValue(session);
-      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
 
       await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'sopa:0:sid123', messageId: 999 }, 'trace_123');
       expect(telegramState.setState).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
         opciones: { sopa: 'Locro' },
         step: 'segundo'
       }));
+    });
+
+    it('paso dinámico avanza al paso confirmar si no hay más requerimientos', async () => {
+      const session = {
+        step: 'sopa',
+        date: helpers.todayInTimezone(),
+        sid: 'sid123',
+        menu: { sopas: ['Locro'] },
+        tipoAlmuerzo: { requiresSopa: true, requiresSegundo: false, requiresBebida: false, requiresPostre: false }
+      };
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(session);
+
+      await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'sopa:0:sid123', messageId: 999 }, 'trace_123');
+      
+      // Because there are no more steps, nextStep is 'confirmar'
+      // promptForStep should send the confirmation message
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('Confirmas tu reserva'), expect.any(Object), 'HTML');
     });
   });
 
