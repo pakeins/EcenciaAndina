@@ -46,7 +46,13 @@ const spies = {
 };
 
 // Now require telegramRoutes, so it gets the spied functions!
-const { handleTelegramUpdate, _private } = require('../functions/telegramRoutes.js');
+let handleTelegramUpdate, _private;
+
+beforeAll(async () => {
+  const routes = await import('../functions/telegramRoutes.js');
+  handleTelegramUpdate = routes.handleTelegramUpdate;
+  _private = routes._private;
+});
 
 describe('telegramRoutes - Main Router', () => {
   beforeEach(() => {

@@ -71,24 +71,14 @@ vi.spyOn(telegramState, 'setState').mockImplementation(() => Promise.resolve(nul
 vi.spyOn(telegramState, 'deleteState').mockImplementation(() => Promise.resolve(null));
 vi.spyOn(telegramOrderTrace, 'updateOrderTrace').mockImplementation(() => Promise.resolve(true));
 
-const {
-  orderSummary,
-  buildComponentPlan,
-  getNextStep,
-  optionFromCallback,
-  insertOrder,
-  findActiveTodayOrder,
-  getOrderDetail,
-  getEstadoName,
-  handlePedidoCallback,
-  handleAcceptedSession,
-  promptMenu,
-  promptForStep,
-  startSessionForClient,
-  getActiveMenu,
-  sessionSidValid,
-  extractSidFromCallback
-} = require('../handlers/telegramOrderHandler.js');
+let orderSummary, buildComponentPlan, getNextStep, optionFromCallback, insertOrder, findActiveTodayOrder, getOrderDetail, getEstadoName, handlePedidoCallback, handleAcceptedSession, promptMenu, promptForStep, startSessionForClient, getActiveMenu, sessionSidValid, extractSidFromCallback;
+
+beforeAll(async () => {
+  const handler = await import('../handlers/telegramOrderHandler.js');
+  ({
+    orderSummary, buildComponentPlan, getNextStep, optionFromCallback, insertOrder, findActiveTodayOrder, getOrderDetail, getEstadoName, handlePedidoCallback, handleAcceptedSession, promptMenu, promptForStep, startSessionForClient, getActiveMenu, sessionSidValid, extractSidFromCallback
+  } = handler);
+});
 
 describe('telegramOrderHandler - Comprehensive Suite', () => {
   beforeEach(() => {

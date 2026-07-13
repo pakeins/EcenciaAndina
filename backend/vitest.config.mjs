@@ -9,8 +9,9 @@ export default defineConfig({
     maxWorkers: 1,
     minWorkers: 1,
     coverage: {
-      provider: 'istanbul',
+      provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
+      include: ['src/**/*.js', 'src/**/*.ts', 'src/**/*.jsx', 'src/**/*.tsx'],
       exclude: [
         'node_modules/',
         'src/test/',

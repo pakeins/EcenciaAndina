@@ -1,4 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+
+beforeAll(async () => {
+  await import('../services/telegramState.js');
+});
 
 describe('telegramState service', () => {
   const makeChainableMock = (finalValue) => {

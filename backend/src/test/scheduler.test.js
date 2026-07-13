@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 
 const cron = require('node-cron');
 const supabase = require('../config/supabase');
@@ -17,7 +17,14 @@ const mockSupabase = {
 vi.spyOn(supabase, 'getAdminClient').mockReturnValue(mockSupabase);
 vi.spyOn(menuImageCleanupService, 'cleanupOldMenuImages').mockResolvedValue({ deletedCount: 5 });
 
-const { initScheduler, expireMenuAndCleanImages } = require('../services/scheduler');
+let initScheduler;
+let expireMenuAndCleanImages;
+
+beforeAll(async () => {
+  const scheduler = await import('../services/scheduler.js');
+  initScheduler = scheduler.initScheduler || scheduler.default?.initScheduler;
+  expireMenuAndCleanImages = scheduler.expireMenuAndCleanImages || scheduler.default?.expireMenuAndCleanImages;
+});
 
 describe('scheduler service', () => {
   beforeEach(() => {
