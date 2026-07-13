@@ -1,6 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import nodemailer from 'nodemailer';
 import outlookMail from '../services/outlookMail.js';
 
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: vi.fn(),
+  },
+  createTransport: vi.fn(),
+}));
 const { buildInvitationEmail, sendOutlookMail, MAIL_STATUSES, _private } = outlookMail;
 const {
   buildPublicAssetUrl,
@@ -176,5 +183,50 @@ describe('getGraphAccessToken and sendOutlookMail API calls', () => {
     ).rejects.toThrow(/Quota exceeded/);
 
     process.env.GMAIL_USER = originalGmailUser;
+  });
+
+  it('sendOutlookMail utiliza Gmail fallback si GMAIL_USER y GMAIL_APP_PASSWORD estan configurados', async () => {
+    const mockSendMail = vi.fn().mockResolvedValue({ messageId: 'gmail-123' });
+    nodemailer.createTransport.mockReturnValue({ sendMail: mockSendMail });
+
+    const envWithGmail = {
+      ...dummyEnv,
+      GMAIL_USER: 'test@gmail.com',
+      GMAIL_APP_PASSWORD: 'app-password',
+    };
+
+    const res = await sendOutlookMail({ to: 'recipient@test.com', subject: 'hi', text: 'body', html: '<h1>body</h1>' }, {
+      env: envWithGmail
+    });
+
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(expect.objectContaining({ host: 'smtp.gmail.com' }));
+    expect(mockSendMail).toHaveBeenCalled();
+    expect(res.status).toBe(MAIL_STATUSES.sent);
+    expect(res.providerRequestId).toBe('gmail-123');
+  });
+
+  it('sendOutlookMail continua con Graph API si Gmail falla', async () => {
+    const mockSendMail = vi.fn().mockRejectedValue(new Error('SMTP Error'));
+    nodemailer.createTransport.mockReturnValue({ sendMail: mockSendMail });
+
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'tkn' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: { 'request-id': 'graph-req-123' } }));
+
+    const envWithGmail = {
+      ...dummyEnv,
+      GMAIL_USER: 'test@gmail.com',
+      GMAIL_APP_PASSWORD: 'app-password',
+    };
+
+    const res = await sendOutlookMail({ to: 'recipient@test.com', subject: 'hi', text: 'body', html: '<h1>body</h1>' }, {
+      fetchImpl: mockFetch,
+      env: envWithGmail
+    });
+
+    expect(nodemailer.createTransport).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(2); // Fallback to Graph API occurred
+    expect(res.status).toBe(MAIL_STATUSES.sent);
+    expect(res.providerRequestId).toBe('graph-req-123');
   });
 });

@@ -13,10 +13,13 @@ export default defineConfig({
       TELEGRAM_WEBHOOK_SECRET: 'test_secret'
     },
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'lcov', 'html'],
-      reportsDirectory: './coverage',
-      exclude: ['src/test/**/*', 'node_modules/**/*']
-    }
+      provider: 'istanbul',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        'src/test/',
+        'src/utils/testHelpers.js',
+      ],
+    },
   }
 });

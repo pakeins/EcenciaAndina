@@ -320,28 +320,60 @@ describe('Clientes', () => {
     }
   });
 
-  it('permite cambiar el estado activo del cliente al clickear el Switch', async () => {
+  it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error de red', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: any) => {
+      if (url.includes('/clientes/tipos')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.includes('/clientes') && !options) return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678', activo: true, id_tipo_cliente: 2 }]) });
+      if (options && options.method === 'PUT') return Promise.reject(new Error('Network error'));
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
     await renderComponent();
 
-    const switches = await screen.findAllByRole('switch');
-    expect(switches.length).toBeGreaterThan(0);
-    
-    await act(async () => {
-      fireEvent.click(switches[0]);
+    await waitFor(() => {
+      expect(screen.getByText('Juan Perez')).toBeInTheDocument();
     });
+
+    const activeSwitch = screen.getAllByRole('switch')[0];
+    await act(async () => {
+      fireEvent.click(activeSwitch);
+    });
+
+    const confirmButton = screen.getByRole('button', { name: /Desactivar/i });
+    await act(async () => {
+      fireEvent.click(confirmButton);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Error de conexión'));
+    consoleSpy.mockRestore();
+  });
+
+  it('permite activar un cliente inactivo directamente sin confirmacion', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: any) => {
+      if (url.includes('/clientes/tipos')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.includes('/clientes') && !options) return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c2', nombre: 'Maria', apellido: 'Gomez', cedula: '1712345679', activo: false, id_tipo_cliente: 2 }]) });
+      if (options && options.method === 'PUT') return Promise.resolve({ ok: true, json: () => Promise.resolve({ mensaje: 'Estado actualizado' }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    await renderComponent();
 
     await waitFor(() => {
-      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+      expect(screen.getByText('Maria Gomez')).toBeInTheDocument();
     });
 
-    const btnConfirm = screen.getByRole('button', { name: /Sí, desactivar/i });
+    const inactiveSwitch = screen.getAllByRole('switch')[0];
+
     await act(async () => {
-      fireEvent.click(btnConfirm);
+      fireEvent.click(inactiveSwitch);
     });
 
-    await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('desactivado'));
-    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/clientes/c2'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ activo: true }) })
+    );
   });
 
   it('permite abrir la gestion de privacidad', async () => {

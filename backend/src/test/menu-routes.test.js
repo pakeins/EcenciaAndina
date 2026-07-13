@@ -103,15 +103,6 @@ beforeAll(async () => {
 
 afterAll(() => {
   delete process.env.N8N_MENU_WEBHOOK_SECRET;
-  [
-    '../config/supabase.js',
-    '../middlewares/authMiddleware.js',
-    '../middlewares/roleMiddleware.js',
-    '../services/menuImageCleanup.js',
-    '../routes/menu.js',
-  ].forEach((relPath) => {
-    try { delete require.cache[require.resolve(relPath)]; } catch { /* noop */ }
-  });
 });
 
 beforeEach(() => {

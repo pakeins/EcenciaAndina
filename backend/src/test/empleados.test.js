@@ -16,12 +16,7 @@ let fetchSpy;
 let simulateDuplicateCorreo = false;
 let simulateDuplicateUsername = false;
 
-beforeAll(async () => {
-  const resolvedPath = require.resolve('../routes/empleados.js');
-  delete require.cache[resolvedPath];
-  empleadosRouter = (await import('../routes/empleados.js')).default;
-});
-
+import empleadosRouter from '../routes/empleados.js';
 const app = express();
 app.use(express.json());
 app.use('/empleados', (req, res, next) => empleadosRouter(req, res, next));

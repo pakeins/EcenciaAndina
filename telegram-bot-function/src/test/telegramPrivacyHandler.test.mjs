@@ -453,4 +453,79 @@ describe('telegramPrivacyHandler', () => {
       expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('revocar tu acceso'), expect.anything());
     });
   });
+
+  describe('rejectConsent y manejo de errores de handleStartInvitation', () => {
+    it('rejectConsent debe abortar si el estado no es awaiting_decision o no existe', async () => {
+      const telegramApi = require('../services/telegramApi.js');
+      vi.spyOn(telegramApi, 'removeInlineKeyboard');
+      
+      await rejectConsent({ chatId: '123' }, null, null);
+      expect(telegramApi.removeInlineKeyboard).not.toHaveBeenCalled();
+
+      await rejectConsent({ chatId: '123' }, null, { status: 'accepted' });
+      expect(telegramApi.removeInlineKeyboard).not.toHaveBeenCalled();
+    });
+
+    it('rejectConsent debe cancelar la suscripcion y borrar el estado', async () => {
+      const telegramApi = require('../services/telegramApi.js');
+      const telegramState = require('../services/telegramState.js');
+      const telegramConsent = require('../services/telegramConsent.js');
+      
+      vi.spyOn(telegramApi, 'removeInlineKeyboard').mockResolvedValue();
+      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
+      vi.spyOn(telegramState, 'deleteState').mockResolvedValue();
+      vi.spyOn(telegramConsent, 'recordConsentEvent').mockResolvedValue();
+
+      const mockUpdate = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockResolvedValue({ data: null, error: null });
+      const supabase = require('../config/supabase.js');
+      vi.spyOn(supabase, 'getAdminClient').mockReturnValue({
+        from: () => ({ update: mockUpdate, eq: mockEq })
+      });
+
+      await rejectConsent(
+        { chatId: '789', messageId: 10, telegramUserId: 'u1' },
+        { id: 123 },
+        { status: 'awaiting_decision', subscriptionId: 123, idCliente: 456, policyVersion: '1.0' }
+      );
+
+      expect(telegramApi.removeInlineKeyboard).toHaveBeenCalledWith('789', 10);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('Has rechazado'));
+      expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ consent_status: 'rejected' }));
+      expect(telegramConsent.recordConsentEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'consent_rejected' }));
+      expect(telegramState.deleteState).toHaveBeenCalledWith('consent:789');
+    });
+
+    it('handleStartInvitation lanza error si falla el insert de la suscripcion', async () => {
+      const telegramConsent = require('../services/telegramConsent.js');
+      vi.spyOn(telegramConsent, 'getInvitationByToken').mockResolvedValue({ id: 'inv1' });
+      vi.spyOn(telegramConsent, 'claimInvitation').mockResolvedValue({ 
+        valid: true, 
+        invitation: { id: 'inv1', clientes: { id_cliente: 456 } } 
+      });
+
+      const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
+      const mockMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+      
+      const mockInsert = vi.fn().mockReturnThis();
+      const mockInsertSelect = vi.fn().mockReturnThis();
+      const mockInsertSingle = vi.fn().mockResolvedValue({ data: null, error: new Error('Insert Error') });
+      
+      const supabase = require('../config/supabase.js');
+      vi.spyOn(supabase, 'getAdminClient').mockImplementation(() => ({
+        from: (table) => {
+          if (table === 'telegram_subscriptions') {
+            return {
+              select: mockSelect, eq: mockEq, maybeSingle: mockMaybeSingle,
+              insert: () => ({ select: () => ({ single: mockInsertSingle }) })
+            };
+          }
+        }
+      }));
+
+      await expect(handleStartInvitation({ chatId: '789', telegramUserId: 'user1' }, 'token_valido'))
+        .rejects.toThrow('Insert Error');
+    });
+  });
 });

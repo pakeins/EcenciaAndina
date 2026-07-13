@@ -9,9 +9,12 @@ export default defineConfig({
     maxWorkers: 1,
     minWorkers: 1,
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'lcov', 'html'],
-      reportsDirectory: './coverage',
+      provider: 'istanbul',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        'src/test/',
+      ],
     },
   },
 });

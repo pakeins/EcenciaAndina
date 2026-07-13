@@ -1,13 +1,4 @@
-let nodemailer = require('nodemailer');
-if (process.env.NODE_ENV === 'test') {
-  nodemailer = {
-    createTransport: () => ({
-      sendMail: async (options) => {
-        return { messageId: 'mock-gmail-id' };
-      }
-    })
-  };
-}
+import nodemailer from 'nodemailer';
 const GRAPH_SEND_MAIL_URL = 'https://graph.microsoft.com/v1.0/me/sendMail';
 
 const MAIL_STATUSES = {

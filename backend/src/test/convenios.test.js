@@ -376,5 +376,52 @@ describe('Rutas de Convenios', () => {
       const res = await request(app).get('/api/convenios/conv-1/reporte?fecha_inicio=2026-06-01&fecha_fin=2026-06-11').set('Authorization', 'Bearer token');
       expect(res.status).toBe(500);
     });
+
+    it('POST /api/convenios/:id/clientes retorna 400 si hay duplicate key', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockImplementation(async (url, options) => {
+        const urlStr = url.toString();
+        if (urlStr.includes('/rest/v1/clientes') && options?.method === 'POST') {
+          return new Response(JSON.stringify({ message: 'duplicate key value violates unique constraint' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+        }
+        return originalFetch(url, options);
+      });
+
+      const response = await request(app)
+        .post('/api/convenios/conv-1/clientes/nuevo')
+        .set('Authorization', 'Bearer token')
+        .send({ cedula: '1712345678', nombre: 'Test', apellido: 'Test', telefono: '0999999999' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('Ya existe un cliente');
+      global.fetch = originalFetch;
+    });
+
+    it('DELETE /api/convenios/:id/clientes/:clienteId retorna 500 si DB falla', async () => {
+      forceDbError = true;
+      const response = await request(app)
+        .delete('/api/convenios/conv-1/clientes/c1')
+        .set('Authorization', 'Bearer token');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('PUT /api/convenios/:id falla validacion ruc en actualizacion', async () => {
+      const response = await request(app)
+        .put('/api/convenios/conv-1')
+        .set('Authorization', 'Bearer token')
+        .send({ ruc: 'invalid' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('GET /api/convenios/:id/historial retorna 500 si DB falla', async () => {
+      forceDbError = true;
+      const response = await request(app)
+        .get('/api/convenios/conv-1/historial')
+        .set('Authorization', 'Bearer token');
+
+      expect(response.status).toBe(500);
+    });
   });
 });
