@@ -84,4 +84,16 @@ const activeConvenio = (client, today) => {
   return null;
 };
 
-module.exports = { normalizeText, todayInTimezone, dayOfWeekInTimezone, isBusinessDay, tomorrowFromDate, labelForStep, quantityFromText, parseStartToken, generateSid, activeConvenio };
+const orderConfirmation = (session, order) => {
+  const numOrden = order.numero_orden || (order.id_orden ? order.id_orden.split('-')[0].substring(0, 5).toUpperCase() : '');
+  const numText = numOrden ? ` #${numOrden}` : '';
+  return (
+    `✅ <b>¡Reserva Registrada Exitosamente!</b>\n\n` +
+    `Tu pedido ha sido registrado con éxito.\n\n` +
+    `🆔 <b>Orden:</b>${numText}\n` +
+    `👤 <b>Cliente:</b> ${session.cliente?.nombre || ''} ${session.cliente?.apellido || ''}\n\n` +
+    `<i>Puedes consultar o modificar tu reserva en cualquier momento usando el comando /pedido.</i>`
+  );
+};
+
+module.exports = { normalizeText, todayInTimezone, dayOfWeekInTimezone, isBusinessDay, tomorrowFromDate, labelForStep, quantityFromText, parseStartToken, generateSid, activeConvenio, orderConfirmation };

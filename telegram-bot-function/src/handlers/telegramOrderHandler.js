@@ -1,7 +1,7 @@
 const supabase = require('../config/supabase');
 const telegramApi = require('../services/telegramApi');
-const { labelForStep, todayInTimezone, dayOfWeekInTimezone, isBusinessDay, generateSid, activeConvenio } = require('../utils/telegramHelpers');
-const { tipoAlmuerzoKeyboard, optionsKeyboard, confirmacionKeyboard, modificarPasosKeyboard, confirmationKeyboard, pedidoKeyboard, buildPedidoMessage, buildOrderSummaryMessage, cancelConfirmKeyboard } = require('../ui/telegramKeyboards');
+const { labelForStep, todayInTimezone, dayOfWeekInTimezone, isBusinessDay, generateSid, activeConvenio, tomorrowFromDate } = require('../utils/telegramHelpers');
+const { tipoAlmuerzoKeyboard, optionsKeyboard, confirmacionKeyboard, modificarPasosKeyboard, confirmationKeyboard, pedidoKeyboard, buildPedidoMessage, buildOrderSummaryMessage, cancelConfirmKeyboard, inlineKeyboard } = require('../ui/telegramKeyboards');
 const telegramState = require('../services/telegramState');
 const telegramOrderTrace = require('../services/telegramOrderTrace');
 const { orderConfirmation } = require('../utils/telegramHelpers');
@@ -131,6 +131,18 @@ const optionFromCallback = (text, kind, options) => {
   const index = Number(rawIndex);
   if (!Number.isInteger(index) || index < 0 || index >= options.length) return '';
   return options[index];
+};
+
+const getProduct = async () => {
+  const { data, error } = await supabase.getAdminClient()
+    .from('productos')
+    .select('id_producto,nombre_producto,precio_unitario')
+    .eq('esta_activo', true)
+    .order('id_producto', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) throw new Error('No hay producto activo para registrar la reserva.');
+  return data;
 };
 
 const insertOrder = async (session) => {
@@ -300,6 +312,7 @@ const handlePedidoCallback = async (parsed, subscription) => {
       await telegramApi.sendMessage(chatId, 'Esta reserva ya no esta en estado Reservado y no puede modificarse.');
       return true;
     }
+    const { getClientById } = require('./telegramPrivacyHandler');
     const client = await getClientById(subscription.id_cliente);
     if (!client) return true;
 
@@ -485,7 +498,7 @@ const handleAcceptedSession = async (parsed, traceId) => {
     
     session.opciones = { ...(session.opciones || {}), [session.step]: chosen };
     
-    await telegramRequest('editMessageText', {
+    await telegramApi.telegramRequest('editMessageText', {
       chat_id: String(chatId),
       message_id: Number(messageId),
       text: `✅ <b>${labelForStep(session.step)}:</b> ${chosen}`,

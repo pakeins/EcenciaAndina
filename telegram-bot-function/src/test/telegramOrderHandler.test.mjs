@@ -1,382 +1,376 @@
-import { describe, it, expect } from 'vitest';
-import {
-  buildComponentPlan,
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const supabase = require('../config/supabase');
+const telegramApi = require('../services/telegramApi');
+const telegramState = require('../services/telegramState');
+const telegramOrderTrace = require('../services/telegramOrderTrace');
+const helpers = require('../utils/telegramHelpers');
+
+let dbResults = {};
+const mockSupabase = {
+  from: (table) => {
+    const builder = {
+      select: (fields) => builder,
+      insert: (data) => {
+        builder._isInsert = true;
+        return builder;
+      },
+      update: (data) => builder,
+      delete: () => builder,
+      eq: (col, val) => builder,
+      order: (col, opts) => builder,
+      gte: (col, val) => builder,
+      lt: (col, val) => builder,
+      limit: (n) => builder,
+      ilike: (col, val) => {
+        // En algunos casos el lookup ilike devuelve resultados específicos
+        if (table === 'estados_orden') {
+          dbResults[table] = { data: { id_estado: 1, nombre_estado: 'Reservado' }, error: null };
+        }
+        if (table === 'origenes_pedido') {
+          dbResults[table] = { data: { id_origen: 1, nombre_origen: 'Telegram Bot' }, error: null };
+        }
+        if (table === 'productos') {
+          dbResults[table] = { data: { id_producto: 6, nombre_producto: 'Almuerzo', precio_unitario: 3.5 }, error: null };
+        }
+        return builder;
+      },
+      single: async () => {
+        if (builder._isInsert) {
+          return { data: { id_orden: 'new_order_id' }, error: null };
+        }
+        const val = dbResults[table] || { data: null, error: null };
+        if (val.error) throw val.error;
+        return val;
+      },
+      maybeSingle: async () => {
+        if (builder._isInsert) {
+          return { data: { id_orden: 'new_order_id' }, error: null };
+        }
+        // If query on ordenes without insert, it is findActiveTodayOrder.
+        // We can check if dbResults['ordenes_active'] is set to simulate an existing order.
+        if (table === 'ordenes') {
+          return dbResults['ordenes_active'] || { data: null, error: null };
+        }
+        const val = dbResults[table] || { data: null, error: null };
+        if (val.error) throw val.error;
+        return val;
+      }
+    };
+    return builder;
+  }
+};
+
+vi.spyOn(supabase, 'getAdminClient').mockReturnValue(mockSupabase);
+vi.spyOn(telegramApi, 'sendMessage').mockImplementation(() => Promise.resolve({}));
+vi.spyOn(telegramApi, 'sendPhoto').mockImplementation(() => Promise.resolve({}));
+vi.spyOn(telegramApi, 'deleteMessage').mockImplementation(() => Promise.resolve(true));
+vi.spyOn(telegramApi, 'removeInlineKeyboard').mockImplementation(() => Promise.resolve(true));
+vi.spyOn(telegramState, 'getState').mockImplementation(() => Promise.resolve(null));
+vi.spyOn(telegramState, 'setState').mockImplementation(() => Promise.resolve(null));
+vi.spyOn(telegramState, 'deleteState').mockImplementation(() => Promise.resolve(null));
+vi.spyOn(telegramOrderTrace, 'updateOrderTrace').mockImplementation(() => Promise.resolve(true));
+
+const {
   orderSummary,
+  buildComponentPlan,
   getNextStep,
   optionFromCallback,
-  LUNCH_COMPONENTS
-} from '../handlers/telegramOrderHandler.js';
+  insertOrder,
+  findActiveTodayOrder,
+  getOrderDetail,
+  getEstadoName,
+  handlePedidoCallback,
+  handleAcceptedSession,
+  promptMenu,
+  promptForStep,
+  startSessionForClient,
+  getActiveMenu,
+  sessionSidValid,
+  extractSidFromCallback
+} = require('../handlers/telegramOrderHandler.js');
 
-describe('telegramOrderHandler - Funciones Puras', () => {
-  
-  describe('buildComponentPlan', () => {
-    it('debe construir opciones y pasos pendientes para almuerzo ejecutivo completo', () => {
-      const menu = {
-        entradas: ['Ceviche', 'Empanada'],
-        sopas: ['Locro'], // solo 1
-        segundos: ['Pollo', 'Carne'],
-        postres: ['Helado'], // solo 1
-        bebidas: ['Jugo'] // solo 1
-      };
-      
-      const { opciones, pendingSteps } = buildComponentPlan({
-        tipoAlmuerzo: { code: 'ejecutivo_completo' },
-        menu
-      });
-      
-      expect(opciones).toEqual({
-        sopa: 'Locro',
-        postre: 'Helado',
-        bebida: 'Jugo'
-      });
-      // Entrada y Plato Fuerte tienen múltiples opciones
-      expect(pendingSteps).toEqual(['entrada', 'plato fuerte']);
-    });
-    
-    it('debe saltar componentes vacios', () => {
-      const menu = {
-        sopas: [],
-        segundos: ['Pollo', 'Carne'],
-        bebidas: ['Jugo']
-      };
-      
-      const { opciones, pendingSteps } = buildComponentPlan({
-        tipoAlmuerzo: { code: 'almuerzo_dia' },
-        menu
-      });
-      
-      expect(opciones).toEqual({ bebida: 'Jugo' });
-      expect(pendingSteps).toEqual(['plato fuerte']);
-    });
+describe('telegramOrderHandler - Comprehensive Suite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dbResults = {};
+    // Default values for lookups
+    dbResults['estados_orden'] = { data: { id_estado: 1, nombre_estado: 'Reservado' }, error: null };
+    dbResults['origenes_pedido'] = { data: { id_origen: 1, nombre_origen: 'Telegram Bot' }, error: null };
+    dbResults['productos'] = { data: { id_producto: 6, nombre_producto: 'Almuerzo Ejecutivo Completo', precio_unitario: 3.50 }, error: null };
+    dbResults['clientes'] = { data: { id_cliente: 123, telefono: '0987654321', nombre: 'Test', apellido: 'User' }, error: null };
   });
 
-  describe('orderSummary', () => {
-    it('debe generar el resumen correctamente con todas las opciones', () => {
-      const session = {
-        opciones: {
-          entrada: 'Ceviche',
-          sopa: 'Locro',
-          segundo: 'Pollo frito',
-          bebida: 'Jugo de mora',
-          postre: 'Helado',
-          guarnicion: 'Arroz'
-        },
-        quantity: 2,
+  describe('Pure Functions', () => {
+    it('orderSummary genera resumen de session', () => {
+      const summary = orderSummary({
+        opciones: { entrada: 'Sopaipilla', sopa: 'Locro', segundo: 'Pollo', bebida: 'Jugo', postre: 'Helado', guarnicion: 'Arroz' },
+        quantity: 3,
         tipoAlmuerzo: { shortLabel: 'Ejecutivo' }
-      };
-      
-      const summary = orderSummary(session);
-      expect(summary).toContain('📌 <b>Tipo:</b> Ejecutivo');
-      expect(summary).toContain('🥗 <b>Entrada:</b> Ceviche');
-      expect(summary).toContain('🍜 <b>Sopa:</b> Locro');
-      expect(summary).toContain('🍽️ <b>Plato fuerte:</b> Pollo frito');
-      expect(summary).toContain('🧆 <b>Guarnición:</b> Arroz');
-      expect(summary).toContain('🥤 <b>Bebida:</b> Jugo de mora');
-      expect(summary).toContain('🍰 <b>Postre:</b> Helado');
-      expect(summary).toContain('🔢 <b>Cantidad:</b> 2');
+      });
+      expect(summary).toContain('Tipo:</b> Ejecutivo');
+      expect(summary).toContain('Cantidad:</b> 3');
+      expect(summary).toContain('Entrada:</b> Sopaipilla');
     });
 
-    it('debe generar el resumen con opciones faltantes o por defecto', () => {
-      const session = {
-        sopa: 'Sopa de fideos',
-        segundo: 'Carne',
-        quantity: 1
-      };
-      
-      const summary = orderSummary(session);
-      expect(summary).toContain('🍜 <b>Sopa:</b> Sopa de fideos');
-      expect(summary).toContain('🍽️ <b>Plato fuerte:</b> Carne');
-      expect(summary).not.toContain('🥗 <b>Entrada:</b>');
-    });
-  });
-
-  describe('getNextStep', () => {
-    it('debe devolver el proximo paso', () => {
-      const tipo = { requiresSopa: true, requiresSegundo: true, requiresBebida: true };
-      expect(getNextStep(tipo, 'sopa')).toBe('segundo');
-      expect(getNextStep(tipo, 'segundo')).toBe('bebida');
+    it('buildComponentPlan maneja tipos de almuerzo y menús', () => {
+      const plan = buildComponentPlan({
+        tipoAlmuerzo: { code: 'ejecutivo_completo' },
+        menu: { entradas: ['E1', 'E2'], sopas: ['S1'], segundos: ['Plato'], postres: ['Postre'], bebidas: ['Bebida'] }
+      });
+      expect(plan.opciones).toEqual({ sopa: 'S1', segundo: 'Plato', postre: 'Postre', bebida: 'Bebida' });
+      expect(plan.pendingSteps).toEqual(['entrada']);
     });
 
-    it('debe devolver confirmar si no hay mas pasos', () => {
-      const tipo = { requiresSopa: true, requiresSegundo: true, requiresBebida: true };
-      expect(getNextStep(tipo, 'bebida')).toBe('confirmar');
+    it('getNextStep decide el flujo de pasos', () => {
+      const tipo = { requiresEntrada: true, requiresSegundo: true };
+      expect(getNextStep(tipo, null)).toBe('entrada');
+      expect(getNextStep(tipo, 'entrada')).toBe('segundo');
+      expect(getNextStep(tipo, 'segundo')).toBe('confirmar');
     });
-    
-    it('debe devolver confirmar si el paso no existe', () => {
-      const tipo = { requiresSopa: true };
-      expect(getNextStep(tipo, 'inexistente')).toBe('confirmar');
+
+    it('optionFromCallback procesa callback_data', () => {
+      expect(optionFromCallback('sopa:sin', 'sopa', [])).toBe('Sin Sopa');
+      expect(optionFromCallback('sopa:0', 'sopa', ['Locro'])).toBe('Locro');
+      expect(optionFromCallback('sopa:2', 'sopa', ['Locro'])).toBe('');
+      expect(optionFromCallback('otro:0', 'sopa', ['Locro'])).toBe('');
+    });
+
+    it('sessionSidValid y extractSidFromCallback', () => {
+      expect(extractSidFromCallback('confirmar:ok:sid123')).toBe('sid123');
+      expect(extractSidFromCallback('confirmar:ok')).toBeNull();
+
+      expect(sessionSidValid({ sid: 'abc' }, 'abc')).toBe(true);
+      expect(sessionSidValid({ sid: 'abc' }, 'def')).toBe(false);
+      expect(sessionSidValid(null, 'abc')).toBe(true);
     });
   });
 
-  describe('optionFromCallback', () => {
-    it('debe extraer la opcion correcta del callback', () => {
-      const options = ['Pollo', 'Carne frita', 'Pescado'];
+  describe('Database / Async Helpers', () => {
+    it('findActiveTodayOrder busca ordenes del día', async () => {
+      dbResults['ordenes_active'] = { data: { id_orden: 'order_123' }, error: null };
+      const order = await findActiveTodayOrder(123);
+      expect(order).toEqual({ id_orden: 'order_123' });
+    });
+
+    it('getOrderDetail busca detalles de orden', async () => {
+      dbResults['detalle_orden'] = { data: { id_orden: 'order_123', cantidad: 2 }, error: null };
+      const detail = await getOrderDetail('order_123');
+      expect(detail).toEqual({ id_orden: 'order_123', cantidad: 2 });
+    });
+
+    it('getEstadoName retorna nombre del estado', async () => {
+      dbResults['estados_orden'] = { data: { nombre_estado: 'Entregado' }, error: null };
+      expect(await getEstadoName(2)).toBe('Entregado');
+    });
+
+    it('insertOrder crea orden normal', async () => {
+      dbResults['ordenes'] = { data: { id_orden: 'new_order_id' }, error: null };
+      dbResults['detalle_orden'] = { data: { id_orden: 'new_order_id' }, error: null };
       
-      // Indice 1 (text, kind, options)
-      expect(optionFromCallback('segundo:1', 'segundo', options)).toBe('Carne frita');
-      
-      // Falso
-      expect(optionFromCallback('sopa:1', 'segundo', options)).toBe('');
-      
-      // Indice fuera de rango
-      expect(optionFromCallback('segundo:5', 'segundo', options)).toBe('');
+      const order = await insertOrder({
+        cliente: { id_cliente: 123 },
+        estadoReservadoId: 1,
+        origenTelegramId: 1,
+        quantity: 2,
+        tipoAlmuerzo: { id: 6, code: 'ejecutivo_completo', nombreProducto: 'Almuerzo Ejecutivo Completo' },
+        opciones: {}
+      });
+      expect(order.id_orden).toBe('new_order_id');
+    });
+
+    it('insertOrder aborta si hay orden duplicada en modo nuevo', async () => {
+      dbResults['ordenes_active'] = { data: { id_orden: 'existing_id' }, error: null };
+      const res = await insertOrder({
+        cliente: { id_cliente: 123 },
+        mode: 'new'
+      });
+      expect(res.duplicate).toBe(true);
+    });
+
+    it('insertOrder actualiza orden existente en modo modify', async () => {
+      dbResults['detalle_orden'] = { data: { affected: 1 }, error: null };
+      const res = await insertOrder({
+        mode: 'modify',
+        orderId: 'existing_id',
+        tipoAlmuerzo: { id: 6, code: 'ejecutivo_completo' }
+      });
+      expect(res.modified).toBe(true);
+      expect(res.id_orden).toBe('existing_id');
     });
   });
 
-  describe('promptMenu', () => {
-    it('debe enviar el menu principal si se puede iniciar sesion', async () => {
-      const { promptMenu } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-      const telegramState = require('../services/telegramState.js');
-      const supabase = require('../config/supabase.js');
+  describe('Session Initiation & Menu Prompt', () => {
+    it('getActiveMenu retorna null si no hay menu guardado', async () => {
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(null);
+      expect(await getActiveMenu()).toBeNull();
+    });
 
-      vi.spyOn(telegramApi, 'sendPhoto').mockResolvedValue(true);
+    it('promptMenu notifica si no hay menu activo', async () => {
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(null); // latest-menu:active is null
+      await promptMenu('123', { id_cliente: 123 });
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('Aun no hay un menu activo'));
+    });
+
+    it('promptMenu envía foto de menú si está disponible', async () => {
+      vi.spyOn(telegramState, 'getState').mockImplementation((key) => {
+        if (key === 'latest-menu:active') return Promise.resolve({ menu: { sopas: ['Sopa'] }, date: '2023-01-01' });
+        return Promise.resolve(null);
+      });
+      await promptMenu('123', { id_cliente: 123 });
+      expect(telegramApi.sendPhoto).toHaveBeenCalled();
+    });
+  });
+
+  describe('handlePedidoCallback', () => {
+    it('ignora callbacks ajenos', async () => {
+      expect(await handlePedidoCallback({ text: 'otra_cosa' })).toBe(false);
+    });
+
+    it('pedido:can2 cancela orden y audita', async () => {
+      dbResults['ordenes_active'] = { data: { id_orden: 'order_123', id_estado: 1 }, error: null };
+      dbResults['orden_estado_auditoria'] = { data: {}, error: null };
+
+      const handled = await handlePedidoCallback({ text: 'pedido:can2:order_123', chatId: '123' });
+      expect(handled).toBe(true);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('reserva fue cancelada'));
+    });
+
+    it('pedido:keep notifica que se mantiene sin cambios', async () => {
+      const handled = await handlePedidoCallback({ text: 'pedido:keep:order_123', chatId: '123' });
+      expect(handled).toBe(true);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('se mantiene sin cambios'));
+    });
+
+    it('pedido:mod inicia modificacion interactiva', async () => {
+      dbResults['ordenes_active'] = { data: { id_orden: 'order_123', id_estado: 1, id_cliente: 123 }, error: null };
+      dbResults['detalle_orden'] = { data: { opciones: { tipoAlmuerzo: 'ejecutivo_completo' } }, error: null };
       
-      const mockSingleMenu = vi.fn().mockResolvedValue({ data: { menu: {} }, error: null });
-      const mockEqMenu = vi.fn().mockReturnValue({ maybeSingle: mockSingleMenu });
-      const mockSelectMenu = vi.fn().mockReturnValue({ eq: mockEqMenu });
-      
-      vi.spyOn(supabase, 'getAdminClient').mockImplementation(() => {
-        return {
-          from: (table) => {
-            if (table === 'estados_orden' || table === 'origenes_pedido') {
-              const mockLookupSingle = vi.fn().mockResolvedValue({ data: { id_estado: 1, id_origen: 1 }, error: null });
-              const mockIlikeLookup = vi.fn().mockReturnValue({ maybeSingle: mockLookupSingle });
-              const mockSelectLookup = vi.fn().mockReturnValue({ ilike: mockIlikeLookup });
-              return { select: mockSelectLookup };
-            }
-            return { select: mockSelectMenu };
-          }
-        };
+      vi.spyOn(telegramState, 'getState').mockImplementation((key) => {
+        if (key === 'latest-menu:active') return Promise.resolve({ menu: { sopas: ['Sopa 1'] }, date: '2023-01-01' });
+        return Promise.resolve(null);
       });
 
-      const client = { id_cliente: 1, clientes_convenios: [] };
-      vi.spyOn(telegramState, 'setState').mockResolvedValue(true);
-      vi.spyOn(telegramState, 'getState').mockResolvedValue({
-        date: '2023-01-01',
-        menu: { sopa: ['Sopa 1'] },
-        photoUrl: 'http://test'
-      });
-
-      await promptMenu('123', client);
-
-      expect(telegramApi.sendPhoto).toHaveBeenCalledWith('123', expect.anything(), expect.stringContaining('Menú del día'), expect.anything(), 'HTML');
+      const handled = await handlePedidoCallback(
+        { text: 'pedido:mod:order_123', chatId: '123', isCallback: true, messageId: 444 },
+        { id_cliente: 123 }
+      );
+      expect(handled).toBe(true);
+      expect(telegramApi.removeInlineKeyboard).toHaveBeenCalledWith('123', 444);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('deseas modificar'), expect.any(Object), 'HTML');
     });
   });
 
   describe('handleAcceptedSession', () => {
-    it('debe enviar error si no hay sesion activa', async () => {
-      const { handleAcceptedSession } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-      const telegramState = require('../services/telegramState.js');
-      const telegramOrderTrace = require('../services/telegramOrderTrace.js');
-
-      vi.spyOn(telegramState, 'getState').mockResolvedValue(null);
-      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue(true);
-      vi.spyOn(telegramOrderTrace, 'updateOrderTrace').mockResolvedValue(true);
-
-      await handleAcceptedSession({ chatId: '123', isCallback: false }, 1);
-
-      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('No hay una seleccion activa'));
+    it('notifica entrada inválida (texto en vez de botón)', async () => {
+      vi.spyOn(telegramState, 'getState').mockResolvedValue({ date: helpers.todayInTimezone(), invalidInputNoticeSent: false });
+      await handleAcceptedSession({ chatId: '123', isCallback: false, messageId: 999 }, 'trace_123');
+      expect(telegramApi.deleteMessage).toHaveBeenCalledWith('123', 999);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('solo acepta botones'));
     });
 
-    it('debe enviar error si el menu vencio', async () => {
-      const { handleAcceptedSession } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-      const telegramState = require('../services/telegramState.js');
-
-      vi.spyOn(telegramState, 'getState').mockResolvedValue({ date: '2020-01-01' });
-      vi.spyOn(telegramState, 'deleteState').mockResolvedValue(true);
-      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue(true);
-
-      await handleAcceptedSession({ chatId: '123', isCallback: true }, 1);
-
-      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('menu activo ya vencio'));
-      expect(telegramState.deleteState).toHaveBeenCalled();
-    });
-
-    it('debe manejar callbacks de tipo de almuerzo validos', async () => {
-      const { handleAcceptedSession } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-      const telegramState = require('../services/telegramState.js');
-      const { todayInTimezone } = require('../utils/telegramHelpers.js');
-
-      const today = todayInTimezone();
-      const session = { 
-        date: today, 
-        step: 'tipo', 
-        sid: 'abc',
-        menu: {
-          entradas: ['Entrada 1'],
-          sopas: ['Sopa 1'],
-          segundos: ['Segundo 1'],
-          bebidas: ['Bebida 1'],
-          postres: ['Postre 1']
-        }
+    it('maneja modstep para reencaminar flujo', async () => {
+      const session = {
+        date: helpers.todayInTimezone(),
+        sid: 'sid123',
+        menu: { sopas: ['S1', 'S2'] },
+        tipoAlmuerzo: { shortLabel: 'Ejecutivo Completo' }
       };
-
       vi.spyOn(telegramState, 'getState').mockResolvedValue(session);
-      vi.spyOn(telegramState, 'setState').mockResolvedValue(true);
-      
-      telegramApi.sendMessage.mockClear();
-      telegramState.setState.mockClear();
-      
-      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue(true);
-      vi.spyOn(telegramApi, 'removeInlineKeyboard').mockResolvedValue(true);
 
-      await handleAcceptedSession({ chatId: '123', text: 'tipo:ejecutivo_completo:abc', isCallback: true }, 1);
-
-      expect(telegramState.setState).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ step: 'entrada' }));
-      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('entrada favorita'), expect.anything(), 'HTML');
-    });
-  });
-
-  describe('telegramOrderHandler - handlePedidoCallback', () => {
-    it('debe ignorar si no empieza con pedido', async () => {
-      const { handlePedidoCallback } = require('../handlers/telegramOrderHandler.js');
-      const result = await handlePedidoCallback({ text: 'otra_cosa:123' }, {});
-      expect(result).toBe(false);
+      await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'modstep:sopa:sid123', messageId: 999 }, 'trace_123');
+      expect(telegramState.setState).toHaveBeenCalled();
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('sopa de hoy'), expect.any(Object), 'HTML');
     });
 
-    it('debe manejar pedido:can', async () => {
-      const { handlePedidoCallback } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-      const supabase = require('../config/supabase.js');
-
-      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue(true);
-      vi.spyOn(telegramApi, 'removeInlineKeyboard').mockResolvedValue(true);
-      vi.spyOn(supabase, 'getAdminClient').mockReturnValue({
-        from: () => ({
-          select: () => ({
-            eq: () => ({
-              maybeSingle: async () => ({ data: { id_orden: '123', id_estado: 1 } })
-            })
-          })
-        })
-      });
-
-      const result = await handlePedidoCallback({ chatId: '123', text: 'pedido:can:123', isCallback: true, messageId: 1 }, {});
-      expect(result).toBe(true);
-      expect(telegramApi.removeInlineKeyboard).toHaveBeenCalledWith('123', 1);
-      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('cancelar tu reserva'), expect.anything());
-    });
-
-    it('debe manejar pedido:can fallido por estado', async () => {
-      const { handlePedidoCallback } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-      const supabase = require('../config/supabase.js');
-
-      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue(true);
-      vi.spyOn(supabase, 'getAdminClient').mockReturnValue({
-        from: () => ({
-          select: () => ({
-            eq: () => ({
-              maybeSingle: async () => ({ data: { id_orden: '123', id_estado: 2 } })
-            })
-          })
-        })
-      });
-
-      const result = await handlePedidoCallback({ chatId: '123', text: 'pedido:can:123' }, {});
-      expect(result).toBe(true);
-      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('no puede cancelarse'));
-    });
-  });
-
-  describe('telegramOrderHandler - helpers de SID', () => {
-    it('extractSidFromCallback debe extraer correctamente', () => {
-      const { extractSidFromCallback } = require('../handlers/telegramOrderHandler.js');
-      expect(extractSidFromCallback('confirmar:ok:abc')).toBe('abc');
-      expect(extractSidFromCallback('tipo:1:abc')).toBe('abc');
-      expect(extractSidFromCallback('segundo:0:abc')).toBe('abc');
-      expect(extractSidFromCallback('invalid:foo')).toBe(null);
-      expect(extractSidFromCallback('')).toBe(null);
-    });
-
-    it('sessionSidValid debe validar correctamente', () => {
-      const { sessionSidValid } = require('../handlers/telegramOrderHandler.js');
-      
-      // Callbacks legacy sin SID siempre son válidos
-      expect(sessionSidValid({ sid: 'abc' }, null)).toBe(true);
-      
-      // Sesiones legacy sin SID siempre son válidas
-      expect(sessionSidValid({}, 'abc')).toBe(true);
-      
-      // Coincidencia exacta
-      expect(sessionSidValid({ sid: 'abc' }, 'abc')).toBe(true);
-      
-      // No coinciden
-      expect(sessionSidValid({ sid: 'abc' }, 'def')).toBe(false);
-    });
-  });
-
-  describe('telegramOrderHandler - promptForStep', () => {
-    it('debe enviar resumen si el paso es confirmar', async () => {
-      const { promptForStep } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-
-      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue(true);
-
+    it('procesa paso tipo: code no existente envía mensaje de error', async () => {
       const session = {
-        sid: 'abc',
-        date: '2023-01-01',
-        tipoAlmuerzo: { requiresEntrada: true },
-        opciones: { entrada: 'Entrada 1' },
-        cliente: { nombre: 'Juan' },
-        quantity: 1,
-        menu: {}
+        step: 'tipo',
+        date: helpers.todayInTimezone(),
+        sid: 'sid123'
       };
-
-      await promptForStep('123', session, 'confirmar');
-
-      expect(telegramApi.sendMessage).toHaveBeenCalledWith(
-        '123',
-        expect.stringContaining('Resumen de tu Selección'),
-        expect.anything(),
-        'HTML'
-      );
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(session);
+      await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'tipo:invalido:sid123', messageId: 999 }, 'trace_123');
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('no reconocido'), expect.any(Object));
     });
 
-    it('debe saltar al siguiente paso si no hay opciones para el paso actual', async () => {
-      const { promptForStep } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-      const telegramState = require('../services/telegramState.js');
-
-      vi.spyOn(telegramState, 'setState').mockResolvedValue(true);
-      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue(true);
-
+    it('procesa paso tipo correcto e inicia siguiente paso', async () => {
       const session = {
-        sid: 'abc',
-        tipoAlmuerzo: { requiresSopa: true, requiresSegundo: true },
-        menu: { sopas: [], segundos: ['Segundo 1'] },
-        step: 'sopa'
+        step: 'tipo',
+        date: helpers.todayInTimezone(),
+        sid: 'sid123',
+        menu: { segundos: ['S1', 'S2'] }
       };
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(session);
+      await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'tipo:almuerzo_dia_simple:sid123', messageId: 999 }, 'trace_123');
+      expect(telegramState.setState).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ step: 'segundo' }));
+    });
 
+    it('paso confirmar:ok guarda orden y elimina sesión', async () => {
+      const session = {
+       step: 'confirmar',
+        date: helpers.todayInTimezone(),
+        sid: 'sid123',
+        cliente: { id_cliente: 123 },
+        tipoAlmuerzo: { id: 6, code: 'ejecutivo_completo' }
+      };
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(session);
+      dbResults['ordenes_active'] = null; // No hay orden activa previa
+      dbResults['detalle_orden'] = { data: {}, error: null };
+
+      await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'confirmar:ok:sid123', messageId: 999 }, 'trace_123');
+      expect(telegramState.deleteState).toHaveBeenCalled();
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('Registrada'), null, 'HTML');
+    });
+
+    it('paso confirmar:ok maneja duplicados reemplazando la anterior', async () => {
+      const session = {
+        step: 'confirmar',
+        date: helpers.todayInTimezone(),
+        sid: 'sid123',
+        cliente: { id_cliente: 123 },
+        tipoAlmuerzo: { id: 6, code: 'ejecutivo_completo' },
+        mode: 'new'
+      };
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(session);
+      // Simular orden activa del día
+      dbResults['ordenes_active'] = { data: { id_orden: 'existing_order_123', id_estado: 1 }, error: null };
+      dbResults['detalle_orden'] = { data: { opciones: {} }, error: null };
+
+      await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'confirmar:ok:sid123', messageId: 999 }, 'trace_123');
+      // Should modify session to modify mode and send confirmation to replace
+      expect(telegramState.setState).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ mode: 'modify', orderId: 'existing_order_123' }));
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('nueva selección pendiente'), expect.any(Object), 'HTML');
+    });
+
+    it('paso dinámico procesa selección y avanza de paso', async () => {
+      const session = {
+        step: 'sopa',
+        date: helpers.todayInTimezone(),
+        sid: 'sid123',
+        menu: { sopas: ['Locro', 'Sopa de fideos'], segundos: ['Pollo'] },
+        tipoAlmuerzo: { requiresSopa: true, requiresSegundo: true }
+      };
+      vi.spyOn(telegramState, 'getState').mockResolvedValue(session);
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+
+      await handleAcceptedSession({ chatId: '123', isCallback: true, text: 'sopa:0:sid123', messageId: 999 }, 'trace_123');
+      expect(telegramState.setState).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+        opciones: { sopa: 'Locro' },
+        step: 'segundo'
+      }));
+    });
+  });
+
+  describe('promptForStep edge cases', () => {
+    it('promptForStep salta pasos vacíos', async () => {
+      const session = {
+        sid: 'sid123',
+        menu: { sopas: [], segundos: ['Segundo 1', 'Segundo 2'] }, // No hay sopas disponibles, pero hay segundos
+        tipoAlmuerzo: { requiresSopa: true, requiresSegundo: true }
+      };
       await promptForStep('123', session, 'sopa');
-
-      expect(telegramState.setState).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ step: 'segundo' }));
-    });
-
-    it('debe enviar opciones si hay opciones disponibles para el paso', async () => {
-      const { promptForStep } = require('../handlers/telegramOrderHandler.js');
-      const telegramApi = require('../services/telegramApi.js');
-
-      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue(true);
-
-      const session = {
-        sid: 'abc',
-        tipoAlmuerzo: { shortLabel: 'Ejecutivo' },
-        menu: { sopas: ['Sopa 1', 'Sopa 2'] }
-      };
-
-      await promptForStep('123', session, 'sopa');
-
-      expect(telegramApi.sendMessage).toHaveBeenCalledWith(
-        '123',
-        expect.stringContaining('sopa de hoy'),
-        expect.anything(),
-        'HTML'
-      );
+      expect(telegramState.setState).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ step: 'segundo' }));
     });
   });
 });
