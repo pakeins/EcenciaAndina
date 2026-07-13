@@ -26,4 +26,15 @@ describe('endpoint interno de limpieza de menus', () => {
       .send({});
     expect(res.status).toBe(401);
   });
+
+  it('permite limpiar las imágenes con secreto válido', async () => {
+    process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
+
+    const res = await request(app)
+      .post('/api/menu/system/limpiar-imagenes')
+      .set('X-Ecencia-Webhook-Secret', 'secret-test')
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.mensaje).toContain('Limpieza de imagenes ejecutada');
+  });
 });

@@ -295,4 +295,76 @@ describe('routes/menu — sistema y dashboard', () => {
       delete process.env.N8N_MENU_WEBHOOK_URL;
     }
   });
+
+  describe('Casos borde adicionales para menu.js', () => {
+    it('PUT /:fecha con fecha inválida retorna 400', async () => {
+      const res = await request(app).put('/api/menu/invalid-date').send(validBody);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('formato YYYY-MM-DD');
+    });
+
+    it('POST /:fecha/activar con fecha inválida retorna 400', async () => {
+      const res = await request(app).post('/api/menu/invalid-date/activar').send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('formato YYYY-MM-DD');
+    });
+
+    it('POST /enviar con clientIds array con elementos vacíos o nulos los limpia correctamente', async () => {
+      process.env.N8N_MENU_WEBHOOK_URL = 'https://n8n.example.test/webhook/menu';
+      const originalFetch = global.fetch;
+      global.fetch = async () => ({ ok: true, status: 200, text: async () => 'ok' });
+      try {
+        const bodyWithClients = {
+          ...validBody,
+          clientIds: ['  ', 'cli-1', '', 'cli-2'],
+        };
+        const res = await request(app).post('/api/menu/enviar').send(bodyWithClients);
+        expect(res.status).toBe(202);
+      } finally {
+        global.fetch = originalFetch;
+        delete process.env.N8N_MENU_WEBHOOK_URL;
+      }
+    });
+
+    it('POST /enviar lanza error en producción si falta la URL del webhook', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      delete process.env.N8N_MENU_WEBHOOK_URL;
+      try {
+        const res = await request(app).post('/api/menu/enviar').send(validBody);
+        expect(res.status).toBe(500);
+        expect(res.body.error).toContain('Falta N8N_MENU_WEBHOOK_URL');
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
+    });
+
+    it('POST /enviar lanza error en producción si la URL no usa HTTPS', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      process.env.N8N_MENU_WEBHOOK_URL = 'http://n8n.example.test/webhook/menu';
+      try {
+        const res = await request(app).post('/api/menu/enviar').send(validBody);
+        expect(res.status).toBe(500);
+        expect(res.body.error).toContain('debe usar HTTPS');
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+        delete process.env.N8N_MENU_WEBHOOK_URL;
+      }
+    });
+
+    it('POST /enviar lanza error en producción si apunta a localhost', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      process.env.N8N_MENU_WEBHOOK_URL = 'https://localhost/webhook/menu';
+      try {
+        const res = await request(app).post('/api/menu/enviar').send(validBody);
+        expect(res.status).toBe(500);
+        expect(res.body.error).toContain('no puede apuntar a localhost');
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+        delete process.env.N8N_MENU_WEBHOOK_URL;
+      }
+    });
+  });
 });

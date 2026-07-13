@@ -9,9 +9,11 @@ import app from '../../index.js';
 describe('Rutas de Clientes Completo', () => {
   let fetchSpy;
   let forceDbError = false;
+  let forceFkError = false;
 
   beforeEach(() => {
     forceDbError = false;
+    forceFkError = false;
 
     fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url, options) => {
       const urlStr = url.toString();
@@ -27,6 +29,10 @@ describe('Rutas de Clientes Completo', () => {
 
       if (forceDbError) {
         return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      if (forceFkError) {
+        return new Response(JSON.stringify({ code: '23503', message: 'violates foreign key' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
       }
 
       const isTipos = /\/rest\/v1\/tipos_cliente(\?|$)/.test(urlStr);
@@ -300,6 +306,24 @@ describe('Rutas de Clientes Completo', () => {
       forceDbError = true;
       const res = await request(app).delete('/api/clientes/cli-1/hard-delete').set('Authorization', 'Bearer valid-token');
       expect(res.status).toBe(500);
+    });
+
+    it('DELETE /api/clientes/:id (soft delete) falla con 400 ante violación de clave foránea (error 23503)', async () => {
+      forceFkError = true;
+      const res = await request(app).delete('/api/clientes/cli-1').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('No se puede eliminar el cliente');
+    });
+
+    it('POST /api/clientes rechaza cédula/RUC con longitud incorrecta', async () => {
+      const res = await request(app).post('/api/clientes').set('Authorization', 'Bearer valid-token').send({
+        cedula: '12345',
+        nombre: 'Pedro',
+        apellido: 'Paramo',
+        id_tipo_cliente: 1,
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('cedula o RUC ecuatoriano valido');
     });
   });
 });

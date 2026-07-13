@@ -24,7 +24,7 @@ describe('Rutas de Convenios', () => {
       const isClientes = /\/rest\/v1\/clientes(\?|$)/.test(urlStr);
       const isOrdenes = /\/rest\/v1\/ordenes(\?|$)/.test(urlStr);
 
-      if (forceDbError && (isConvenios || isClientesConvenios) && method === 'GET') {
+      if (forceDbError && !urlStr.includes('/auth/v1/user') && !urlStr.includes('/rest/v1/empleados') && !urlStr.includes('/rest/v1/usuarios')) {
         return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       }
 
@@ -324,6 +324,57 @@ describe('Rutas de Convenios', () => {
       expect(path).toMatch(/^agreement-123\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.jpg$/);
       const pathFallback = helpers.createAgreementObjectPath('agreement-123', 'application/unknown');
       expect(pathFallback).toMatch(/^agreement-123\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.bin$/);
+    });
+  });
+
+  describe('Flujos de Error de Base de Datos para Convenios', () => {
+    it('GET /api/convenios retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/convenios').set('Authorization', 'Bearer token');
+      expect(res.status).toBe(500);
+    });
+
+    it('POST /api/convenios retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).post('/api/convenios').set('Authorization', 'Bearer token').send({
+        nombre_empresa: 'Error DB',
+        cupo_maximo: 10,
+        fecha_caducidad: '2030-01-01',
+      });
+      expect(res.status).toBe(500);
+    });
+
+    it('PUT /api/convenios/:id retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).put('/api/convenios/conv-1').set('Authorization', 'Bearer token').send({
+        nombre_empresa: 'Error DB',
+        cupo_maximo: 10,
+        fecha_caducidad: '2030-01-01',
+      });
+      expect(res.status).toBe(500);
+    });
+
+    it('POST /api/convenios/:id/clientes retorna 404 si la base de datos falla al buscar el convenio', async () => {
+      forceDbError = true;
+      const res = await request(app).post('/api/convenios/conv-1/clientes').set('Authorization', 'Bearer token').send({
+        id_cliente: 'cli-1',
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('POST /api/convenios/:id/upload retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .post('/api/convenios/conv-1/upload')
+        .set('Authorization', 'Bearer token')
+        .attach('archivo', Buffer.from('fake pdf data'), 'convenio.pdf');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /api/convenios/:id/reporte retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/convenios/conv-1/reporte?fecha_inicio=2026-06-01&fecha_fin=2026-06-11').set('Authorization', 'Bearer token');
+      expect(res.status).toBe(500);
     });
   });
 });
