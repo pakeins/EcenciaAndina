@@ -295,7 +295,7 @@ describe('menuImageCleanup service', () => {
       
       const hundredFiles = Array.from({ length: 100 }, (_, i) => ({
         id: i,
-        name: `menu-dashboard-1784010000000.jpg`,
+        name: 'menu-dashboard-1784010000000.jpg',
         created_at: '2026-07-10T10:00:00.000Z'
       }));
 

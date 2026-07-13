@@ -147,7 +147,7 @@ describe('Reportes', () => {
     const exportBtns = screen.getAllByRole('button').filter(b => 
       b.textContent?.includes('Exportar PDF') || 
       b.textContent?.includes('Exportar CSV') || 
-      b.textContent?.includes('Facturación (XML)')
+      b.textContent?.includes('Exportar XML')
     );
     expect(exportBtns.length).toBeGreaterThan(0);
     exportBtns.forEach(btn => fireEvent.click(btn));
@@ -205,17 +205,25 @@ describe('Reportes', () => {
       expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
     });
 
+    // Exportar con desglosar = false (por defecto)
+    const exportBtns = screen.getAllByRole('button').filter(b => 
+      b.textContent?.includes('Exportar PDF') || 
+      b.textContent?.includes('Exportar CSV') || 
+      b.textContent?.includes('Exportar XML')
+    );
+    exportBtns.forEach(btn => fireEvent.click(btn));
+
     // Toggle desglosarConvenio
     const switchEl = screen.getByRole('switch');
     fireEvent.click(switchEl);
 
     // Clic en botones de exportación (Convenios)
-    const exportBtns = screen.getAllByRole('button').filter(b => 
+    const exportBtns2 = screen.getAllByRole('button').filter(b => 
       b.textContent?.includes('Exportar PDF') || 
       b.textContent?.includes('Exportar CSV') || 
-      b.textContent?.includes('Facturación (XML)')
+      b.textContent?.includes('Exportar XML')
     );
-    exportBtns.forEach(btn => fireEvent.click(btn));
+    exportBtns2.forEach(btn => fireEvent.click(btn));
   });
 
   it('permite generar reporte de estados y exportar', async () => {

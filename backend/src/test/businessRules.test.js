@@ -35,7 +35,7 @@ describe('businessRules', () => {
     expect(normalizePersonName(null)).toBe('');
 
     expect(validatePersonName('Juan Perez', 'Nombre').value).toBe('Juan Perez');
-    expect(validatePersonName("O'Brien", 'Nombre').value).toBe("O'Brien");
+    expect(validatePersonName('O\'Brien', 'Nombre').value).toBe('O\'Brien');
     expect(validatePersonName('García-López', 'Nombre').value).toBe('García-López');
     expect(validatePersonName('123<script>', 'Nombre').error).toBeTruthy();
     expect(validatePersonName('%%%999', 'Apellido').error).toBeTruthy();

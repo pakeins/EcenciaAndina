@@ -258,25 +258,83 @@ describe('Usuarios', () => {
     });
   });
 
-  it('maneja fallos de red/API al cambiar estado o contraseña', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (apiFetch as any).mockImplementationOnce((url: string) => {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockUsers) });
-    }).mockRejectedValueOnce(new Error('Network error'));
-    
+
+
+  it('permite auto-generar contraseña', async () => {
     await renderComponent();
     await waitFor(() => expect(screen.getByText('Ana López')).toBeInTheDocument());
 
-    const switchAna = screen.getAllByRole('switch')[0];
-    fireEvent.click(switchAna);
-
-    await waitFor(() => expect(screen.getByText('¿Desactivar empleado?')).toBeInTheDocument());
+    const editBtns = await screen.findAllByTitle('Editar empleado');
+    fireEvent.click(editBtns[0]);
     
-    const btnConfirmar = screen.getByText('Sí, desactivar');
-    fireEvent.click(btnConfirmar);
+    await waitFor(() => expect(screen.getByText('Editar Empleado')).toBeInTheDocument());
 
+    const changePwdBtn = screen.getByRole('button', { name: /Cambiar contraseña ahora/i });
+    fireEvent.click(changePwdBtn);
+    
+    const autoGenBtn = await screen.findByRole('button', { name: /Auto-generar/i });
+    fireEvent.click(autoGenBtn);
+    
+    const pwdInput = await screen.findByPlaceholderText('Escriba la nueva contraseña') as HTMLInputElement;
+    expect(pwdInput.value.length).toBeGreaterThan(0);
+  });
+
+  it('permite cancelar el cambio de contraseña', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByText('Ana López')).toBeInTheDocument());
+
+    const editBtns = await screen.findAllByTitle('Editar empleado');
+    fireEvent.click(editBtns[0]);
+    
+    await waitFor(() => expect(screen.getByText('Editar Empleado')).toBeInTheDocument());
+
+    const changePwdBtn = screen.getByRole('button', { name: /Cambiar contraseña ahora/i });
+    fireEvent.click(changePwdBtn);
+    
+    const cancelBtns = await screen.findAllByRole('button', { name: 'Cancelar' });
+    fireEvent.click(cancelBtns[0]);
+    
+    expect(screen.queryByPlaceholderText('Escriba la nueva contraseña')).toBeNull();
+  });
+
+  it('muestra el modal de confirmación al intentar desactivar y permite cancelar o confirmar', async () => {
+    await renderComponent();
+    const toggleBtns = await screen.findAllByRole('switch');
+    
+    // Intentar desactivar al primer usuario (que esta activo)
+    fireEvent.click(toggleBtns[0]);
+    
+    const confirmDialog = await screen.findByText('¿Desactivar empleado?');
+    expect(confirmDialog).not.toBeNull();
+    
+    const cancelBtn = await screen.findByText('Cancelar');
+    fireEvent.click(cancelBtn);
+    
+    // Volver a abrir y confirmar
+    fireEvent.click(toggleBtns[0]);
+    const confirmAction = await screen.findByText('Sí, desactivar');
+    fireEvent.click(confirmAction);
+    
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalled();
+    });
+  });
+
+  it('maneja fallos de red/API al cambiar estado', async () => {
+    await renderComponent();
+    
+    // Fallar la siguiente peticion (el PUT)
+    vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Network error'));
+    
+    const toggleBtns = await screen.findAllByRole('switch');
+    fireEvent.click(toggleBtns[0]);
+    
+    const confirmAction = await screen.findByText('Sí, desactivar');
+    fireEvent.click(confirmAction);
+    
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Error de conexión');
     });
   });
 });
+

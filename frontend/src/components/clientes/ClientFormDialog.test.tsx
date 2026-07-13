@@ -27,20 +27,20 @@ vi.mock('sonner', () => ({
 
 vi.mock('@/components/ui/select', () => {
   return {
-    Select: ({ children, value, onValueChange, disabled }: any) => (
+    Select: ({ children, value, onValueChange, disabled }: Record<string, unknown>) => (
       <select
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onValueChange && onValueChange(e.target.value)}
+        value={value as string}
+        disabled={disabled as boolean}
+        onChange={(e) => typeof onValueChange === 'function' && onValueChange(e.target.value)}
         data-testid="mock-select"
       >
-        {children}
+        {children as React.ReactNode}
       </select>
     ),
-    SelectTrigger: ({ children }: any) => <>{children}</>,
-    SelectValue: ({ placeholder }: any) => <option value="">{placeholder}</option>,
-    SelectContent: ({ children }: any) => <>{children}</>,
-    SelectItem: ({ children, value }: any) => <option value={value}>{children}</option>,
+    SelectTrigger: ({ children }: Record<string, unknown>) => <>{children as React.ReactNode}</>,
+    SelectValue: ({ placeholder }: Record<string, unknown>) => <option value="">{placeholder as string}</option>,
+    SelectContent: ({ children }: Record<string, unknown>) => <>{children as React.ReactNode}</>,
+    SelectItem: ({ children, value }: Record<string, unknown>) => <option value={value as string}>{children as React.ReactNode}</option>,
   };
 });
 

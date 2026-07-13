@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
@@ -275,6 +275,22 @@ describe('Rutas de Ordenes', () => {
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
+
+    it('Rechaza el consumo si no hay saldo en ninguna categoria aplicable', async () => {
+      const res = await request(app)
+        .post('/api/ordenes')
+        .set('Authorization', 'Bearer token')
+        .send({
+          id_cliente: UUID_MONEDERO_VACIO,
+          id_origen: 1,
+          canal_origen: 'WhatsApp',
+          metodo_pago: 'Monedero',
+          detalles: [{ id_producto: 1, cantidad: 1 }]
+        });
+      expect(res.status).toBe(400);
+    });
+
+
 
     it('PUT /api/ordenes/:id reemplaza los detalles correctamente', async () => {
       const res = await request(app)

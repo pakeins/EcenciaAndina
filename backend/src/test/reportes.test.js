@@ -187,8 +187,13 @@ describe('Rutas de Reportes', () => {
     });
 
     it('GET /clientes retorna 400 si id_cliente falta o es all', async () => {
-      const res = await request(app)
+      let res = await request(app)
         .get('/api/reportes/clientes?fecha_inicio=2026-06-01&fecha_fin=2026-06-11')
+        .set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(400);
+
+      res = await request(app)
+        .get('/api/reportes/clientes?fecha_inicio=2026-06-01&fecha_fin=2026-06-11&id_cliente=all')
         .set('Authorization', 'Bearer valid-token');
       expect(res.status).toBe(400);
     });

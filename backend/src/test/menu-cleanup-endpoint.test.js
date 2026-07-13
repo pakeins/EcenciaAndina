@@ -34,8 +34,8 @@ afterAll(() => {
   if (originalSecret === undefined) delete process.env.N8N_MENU_WEBHOOK_SECRET;
   else process.env.N8N_MENU_WEBHOOK_SECRET = originalSecret;
   
-  try { delete require.cache[require.resolve('../services/menuImageCleanup.js')]; } catch {}
-  try { delete require.cache[require.resolve('../../index.js')]; } catch {}
+  try { delete require.cache[require.resolve('../services/menuImageCleanup.js')]; } catch { /* ignore */ }
+  try { delete require.cache[require.resolve('../../index.js')]; } catch { /* ignore */ }
 });
 
 describe('endpoint interno de limpieza de menus', () => {

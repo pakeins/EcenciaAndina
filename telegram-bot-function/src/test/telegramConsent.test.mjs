@@ -250,6 +250,63 @@ describe('claimInvitation', () => {
     expect(result.invitation).toBe(inv);
   });
 
+  it('reclama la invitacion exitosamente si no ha sido reclamada', async () => {
+    const inv = { id: 'inv-unclaimed', claimed_chat_id: null, expires_at: futureDate, clientes: { esta_activo: true } };
+    const dbMock = {
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { ...inv, claimed_chat_id: '222' }, error: null })
+    };
+    
+    const result = await claimInvitation(inv, { chatId: '222' }, () => dbMock);
+    expect(result.valid).toBe(true);
+    expect(result.invitation.claimed_chat_id).toBe('222');
+  });
+
+  it('lanza error si la base de datos falla al intentar actualizar', async () => {
+    const inv = { id: 'inv-error', claimed_chat_id: null, expires_at: futureDate, clientes: { esta_activo: true } };
+    const dbMock = {
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: new Error('DB Error') })
+    };
+    
+    await expect(claimInvitation(inv, { chatId: '333' }, () => dbMock)).rejects.toThrow('DB Error');
+  });
+
+  it('vuelve a consultar la base si tal vez otro cliente reclamo concurrentemente', async () => {
+    const inv = { id: 'inv-race', claimed_chat_id: null, expires_at: futureDate, clientes: { esta_activo: true } };
+    
+    let callCount = 0;
+    const dbMock = {
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // El update no afecto a ninguna fila
+          return Promise.resolve({ data: null, error: null });
+        } else {
+          // La consulta (select) encuentra que ahora está reclamada por otro
+          return Promise.resolve({ data: { ...inv, claimed_chat_id: '999' }, error: null });
+        }
+      })
+    };
+    
+    const result = await claimInvitation(inv, { chatId: '444' }, () => dbMock);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('claimed');
+  });
+
   describe('createInvitation', () => {
     it('crea una invitacion revocando las anteriores pendientes', async () => {
       const client = makeFakeClient();
@@ -286,6 +343,21 @@ describe('claimInvitation', () => {
       const client = makeFakeClient();
       await consumeInvitation('inv-123', () => client);
       // Completa sin errores
+    });
+
+    it('no hace nada si el invitationId es nulo o indefinido', async () => {
+      const client = makeFakeClient();
+      await consumeInvitation(null, () => client);
+    });
+
+    it('lanza error si falla la actualización en base de datos', async () => {
+      const dbMock = {
+        from: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockResolvedValue({ error: new Error('Consume failed') })
+      };
+      await expect(consumeInvitation('inv-err', () => dbMock)).rejects.toThrow('Consume failed');
     });
   });
 

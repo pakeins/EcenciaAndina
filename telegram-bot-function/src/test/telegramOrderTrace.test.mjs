@@ -71,6 +71,13 @@ describe('telegramOrderTrace service', () => {
       expect(traceId).toBe('');
     });
 
+    it('debe procesar mensajes que no son callbacks', async () => {
+      const dbMock = makeChainableMock({ data: { id: 'trace_msg' }, error: null });
+      const update = { isCallback: false, text: '/start', chatId: '123' };
+      const res = await createOrderTrace(update, { clientId: 456 }, () => dbMock);
+      expect(res).toBe('trace_msg');
+    });
+
     it('debe crear un trazo en base de datos para acciones válidas', async () => {
       const dbMock = makeChainableMock({ data: { id: 'trace_123' }, error: null });
       const update = { isCallback: true, text: 'pedir:123', chatId: '123' };

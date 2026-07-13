@@ -387,9 +387,9 @@ describe('Convenios', () => {
     });
 
     // Fill new client data
-    const inputCedula = screen.getByText('Cédula *').closest('div')?.querySelector('input')!;
-    const inputNombre = screen.getByText('Nombre *').closest('div')?.querySelector('input')!;
-    const inputApellido = screen.getByText('Apellido *').closest('div')?.querySelector('input')!;
+    const inputCedula = screen.getByText('Cédula *').closest('div')!.querySelector('input')!;
+    const inputNombre = screen.getByText('Nombre *').closest('div')!.querySelector('input')!;
+    const inputApellido = screen.getByText('Apellido *').closest('div')!.querySelector('input')!;
 
     await act(async () => {
       fireEvent.change(inputCedula, { target: { value: '9999999999' } });

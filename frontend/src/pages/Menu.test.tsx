@@ -251,4 +251,78 @@ describe('Menu', () => {
       expect(toast.success).toHaveBeenCalledWith('Formulario limpiado localmente', expect.any(Object));
     });
   });
+
+  it('permite añadir y eliminar opciones de una categoria', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
+
+    // Añadir opcion
+    const addBtns = screen.getAllByRole('button', { name: /Añadir Opción/i });
+    fireEvent.click(addBtns[0]); // Añadir opcion a Sopa (cat 1)
+
+    // Verificar que se añadió
+    const newOptions = menuStore.get().categoryOptions[1] || [];
+    expect(newOptions.length).toBeGreaterThan(0);
+    
+    // Eliminar opcion (deberia aparecer el boton con el ícono trash)
+    // El boton trash tiene un titulo o un icono, podemos usar getAllByTestId o getByRole
+    const trashBtns = screen.getAllByRole('button').filter(b => b.querySelector('[data-testid="icon-trash"]'));
+    if(trashBtns.length > 0) {
+      fireEvent.click(trashBtns[0]);
+    }
+  });
+
+  it('muestra confirmación al intentar guardar con cambios que requieren confirmación y permite confirmar', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
+
+    // Mock de confirmación requerida
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options) => {
+      if (url.includes('/menu/') && options?.body?.includes('"confirmarEdicion":false')) {
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          json: () => Promise.resolve({ requireConfirmation: true, error: 'Este menu esta activo. Confirma la edicion.' }),
+        });
+      }
+      if (url.includes('/menu/') && options?.body?.includes('"confirmarEdicion":true')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    act(() => {
+      menuStore.setCategoryOptions(1, ['Sopa de pollo']); // id 1 = Sopa
+      menuStore.setCategoryOptions(2, ['Pollo al horno']); // id 2 = Segundo
+    });
+
+    const btnGuardar = screen.getByText('Guardar cambios');
+    fireEvent.click(btnGuardar);
+
+    await waitFor(() => expect(screen.getByText('¿Confirmar Edición?')).toBeInTheDocument());
+
+    const btnConfirmar = screen.getByRole('button', { name: 'Sí, Confirmar' });
+    fireEvent.click(btnConfirmar);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Menu guardado correctamente');
+    });
+  });
+
+  it('muestra confirmación al limpiar opciones y permite confirmar', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
+
+    const btnLimpiar = screen.getByRole('button', { name: 'Limpiar' });
+    fireEvent.click(btnLimpiar);
+
+    await waitFor(() => expect(screen.getByText('¿Limpiar Opciones?')).toBeInTheDocument());
+
+    const btnConfirmar = screen.getByRole('button', { name: 'Sí, Limpiar' });
+    fireEvent.click(btnConfirmar);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Formulario limpiado localmente', expect.any(Object));
+    });
+  });
 });
