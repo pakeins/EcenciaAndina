@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 let store;
@@ -40,7 +40,10 @@ const makeClient = () => {
       return rows;
     }
     _record() { writes.push({ table: this.t, op: this.op, payload: this.payload, filters: this.f }); }
-    maybeSingle() { return Promise.resolve({ data: this._rows()[0] || null, error: null }); }
+    maybeSingle() { 
+      if (mocks.forceDbError) return Promise.resolve({ data: null, error: { message: 'DB Error' } });
+      return Promise.resolve({ data: this._rows()[0] || null, error: null }); 
+    }
     single() {
       if (this.op === 'insert') {
         this._record();
@@ -123,6 +126,7 @@ afterAll(() => {
   delete process.env.N8N_MENU_WEBHOOK_SECRET;
 });
 
+afterEach(() => { mocks.forceDbError = false; });
 beforeEach(() => {
   store = {
     categorias_menu: [
@@ -523,6 +527,48 @@ describe('routes/menu — sistema y dashboard', () => {
         process.env.NODE_ENV = originalEnv;
         delete process.env.N8N_MENU_WEBHOOK_URL;
       }
+    });
+
+    it('GET /activo retorna 500 si la BD falla', async () => {
+      mocks.forceDbError = true;
+      const res = await request(app).get('/api/menu/activo');
+      expect(res.status).toBe(500);
+    });
+
+    it('POST /:fecha/activar retorna 500 si hay error DB', async () => {
+      mocks.forceDbError = true;
+      const res = await request(app).post('/api/menu/2026-06-10/activar');
+      expect(res.status).toBe(500);
+    });
+
+    it('PUT /:fecha retorna 500 si hay error de DB', async () => {
+      mocks.forceDbError = true;
+      const res = await request(app).put('/api/menu/2026-06-10').send(validBody);
+      expect(res.status).toBe(500);
+    });
+
+    it('PUT /:fecha rechaza menu si falta sopa o segundo', async () => {
+      const invalid = { opciones: { 'c-sopa': ['Locro'] } }; // falta segundo
+      const res = await request(app).put('/api/menu/2026-06-10').send(invalid);
+      expect(res.status).toBe(400);
+    });
+
+    it('PUT /:fecha retorna error si es dia activo sin confirmacion', async () => {
+      store.menu_settings = [{ id: 1, active_date: '2026-06-10' }];
+      const res = await request(app).put('/api/menu/2026-06-10').send({ ...validBody, confirmarEdicion: false });
+      expect(res.status).toBe(409);
+      expect(res.body.requireConfirmation).toBe(true);
+    });
+
+    it('PUT /:fecha actualiza menu de dia activo si hay confirmacion', async () => {
+      store.menu_settings = [{ id: 1, active_date: '2026-06-10' }];
+      const res = await request(app).put('/api/menu/2026-06-10').send({ ...validBody, confirmarEdicion: true });
+      expect(res.status).toBe(200);
+    });
+
+    it('PUT /:fecha actualiza menu aunque no tenga imagen (path === null)', async () => {
+      const res = await request(app).put('/api/menu/2026-06-10').send({ opciones: validBody.opciones }); // sin imagen
+      expect(res.status).toBe(200);
     });
   });
 });

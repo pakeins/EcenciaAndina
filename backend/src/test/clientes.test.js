@@ -186,8 +186,35 @@ describe('Rutas de Clientes Completo', () => {
       expect(res.status).toBe(400);
     });
 
+      it('PUT /api/clientes/:id falla por cedula o correo duplicado (409)', async () => {
+        fetchSpy.mockImplementation(async (url, options) => {
+          if (options && options.method === 'PATCH') {
+            return new Response(JSON.stringify({ code: '23505', message: 'duplicate key' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+          }
+          return new Response(JSON.stringify([{id: 'cli-1'}]), {status: 200, headers: { 'Content-Type': 'application/json' }});
+        });
+      const res = await request(app).put('/api/clientes/cli-1').set('Authorization', 'Bearer valid-token').send({ 
+        cedula: '1716499841'
+      });
+      expect(res.status).toBe(500);
+    });
+
     it('PUT /api/clientes/:id actualiza cliente', async () => {
-      const res = await request(app).put('/api/clientes/cli-1').set('Authorization', 'Bearer valid-token').send({ nombre: 'Editado' });
+        const res = await request(app).put('/api/clientes/cli-1').set('Authorization', 'Bearer valid-token').send({ 
+          nombre: 'Editado',
+          apellido: 'Editado',
+          telefono: '0999999999',
+          correo: 'edit@test.com',
+          cedula: '1716499841',
+          activo: true,
+          id_tipo_cliente: 2,
+          id_convenio: null
+        });
+      expect(res.status).toBe(200);
+    });
+
+    it('PUT /api/clientes/:id sin campos opcionales', async () => {
+      const res = await request(app).put('/api/clientes/cli-1').set('Authorization', 'Bearer valid-token').send({});
       expect(res.status).toBe(200);
     });
 
@@ -276,6 +303,24 @@ describe('Rutas de Clientes Completo', () => {
         telefono: '123'
       });
       expect(res.status).toBe(400); // Bad Request por Joi
+    });
+
+    it('GET /api/clientes falla si hay error de bd', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/clientes').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /api/clientes/tipos falla si hay error de bd', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/clientes/tipos').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /api/clientes/telegram/privacidad-solicitudes falla si hay error de bd', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/clientes/telegram/privacidad-solicitudes').set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
     });
 
     it('PUT /api/clientes/:id falla correctamente ante error de red', async () => {
