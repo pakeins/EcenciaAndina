@@ -1,36 +1,52 @@
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect } from 'vitest';
+import { createRequire } from 'node:module';
 import request from 'supertest';
-import app from '../../index.js';
 
-vi.mock('../services/menuImageCleanup', () => ({
-  cleanupOldMenuImages: vi.fn().mockResolvedValue({
-    retentionDays: 14,
-    cutoffDate: '2026-07-01',
-    scanned: 10,
-    protected: 5,
-    deleted: 2,
-    referencesCleared: 1,
-  })
-}));
+const require = createRequire(import.meta.url);
 
+const injectModule = (relPath, exportsObj) => {
+  const filename = require.resolve(relPath);
+  require.cache[filename] = { id: filename, filename, loaded: true, exports: exportsObj, children: [], paths: [] };
+};
+
+let app;
 const originalSecret = process.env.N8N_MENU_WEBHOOK_SECRET;
 
-afterEach(() => {
+beforeAll(() => {
+  process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
+
+  // Mockear el servicio ANTES de requerir app para inyectarlo en CJS
+  injectModule('../services/menuImageCleanup.js', {
+    cleanupOldMenuImages: async () => ({
+      retentionDays: 14,
+      cutoffDate: '2026-07-01',
+      scanned: 10,
+      protected: 5,
+      deleted: 2,
+      referencesCleared: 1,
+    })
+  });
+
+  app = require('../../index.js');
+});
+
+afterAll(() => {
   if (originalSecret === undefined) delete process.env.N8N_MENU_WEBHOOK_SECRET;
   else process.env.N8N_MENU_WEBHOOK_SECRET = originalSecret;
+  
+  try { delete require.cache[require.resolve('../services/menuImageCleanup.js')]; } catch {}
+  try { delete require.cache[require.resolve('../../index.js')]; } catch {}
 });
 
 describe('endpoint interno de limpieza de menus', () => {
   it('falla de forma cerrada si el secreto no esta configurado', async () => {
     delete process.env.N8N_MENU_WEBHOOK_SECRET;
-
     const res = await request(app).post('/api/menu/system/limpiar-imagenes').send({});
     expect(res.status).toBe(503);
+    process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test'; // restore para el resto
   });
 
   it('rechaza una llamada programada con secreto incorrecto', async () => {
-    process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
-
     const res = await request(app)
       .post('/api/menu/system/limpiar-imagenes')
       .set('X-Ecencia-Webhook-Secret', 'otro-secret')
@@ -39,8 +55,6 @@ describe('endpoint interno de limpieza de menus', () => {
   });
 
   it('permite limpiar las imágenes con secreto válido', async () => {
-    process.env.N8N_MENU_WEBHOOK_SECRET = 'secret-test';
-
     const res = await request(app)
       .post('/api/menu/system/limpiar-imagenes')
       .set('X-Ecencia-Webhook-Secret', 'secret-test')
