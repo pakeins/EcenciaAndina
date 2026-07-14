@@ -61,7 +61,7 @@ class FakeTraceQuery {
     return this;
   }
 
-  then(resolve, reject) {
+  then(resolve, reject) { // NOSONAR - Intentional thenable to mock Supabase query builder
     const filtered = this.rows.filter((row) =>
       this.filters.every((filter) => String(row[filter.column]) === String(filter.value)),
     );
@@ -96,7 +96,7 @@ class EmptyQuery {
     return Promise.resolve({ data: null, error: null });
   }
 
-  then(resolve, reject) {
+  then(resolve, reject) { // NOSONAR - Intentional thenable to mock Supabase query builder
     return Promise.resolve({ data: [], error: null }).then(resolve, reject);
   }
 }

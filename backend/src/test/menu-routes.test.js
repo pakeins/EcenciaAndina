@@ -52,7 +52,7 @@ const makeClient = () => {
       }
       return Promise.resolve({ data: this._rows()[0] || null, error: null });
     }
-    then(resolve, reject) {
+    then(resolve, reject) { // NOSONAR - Intentional thenable to mock Supabase query builder
       if (this.op === 'select') return Promise.resolve({ data: this._rows(), error: null }).then(resolve, reject);
       this._record();
       return Promise.resolve({ error: null }).then(resolve, reject);
