@@ -85,7 +85,7 @@ const getN8nMenuWebhookUrl = () => {
   }
 
   if (process.env.NODE_ENV === 'production') {
-    if (parsedUrl.protocol !== 'https:') {
+    if (parsedUrl.protocol !== 'https:' && parsedUrl.hostname !== 'n8n') {
       const error = new Error('N8N_MENU_WEBHOOK_URL debe usar HTTPS en produccion.');
       error.status = 500;
       throw error;

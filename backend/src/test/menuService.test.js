@@ -159,6 +159,10 @@ describe('menuService', () => {
       // Non-HTTPS validation in prod
       process.env.N8N_MENU_WEBHOOK_URL = 'http://production.url';
       expect(() => menuService.getN8nMenuWebhookUrl()).toThrow('N8N_MENU_WEBHOOK_URL debe usar HTTPS en produccion.');
+
+      // Allow n8n internal http in prod
+      process.env.N8N_MENU_WEBHOOK_URL = 'http://n8n:5678/webhook/ECENCIA-enviar-menu-manual';
+      expect(menuService.getN8nMenuWebhookUrl()).toBe('http://n8n:5678/webhook/ECENCIA-enviar-menu-manual');
     });
 
     it('isIsoDate validates correctly', () => {
