@@ -3,18 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vite
 import express from 'express';
 import request from 'supertest';
 
-let reportesRouter;
+import reportesRouter from '../routes/reportes.js';
 
 describe('Rutas de Reportes', () => {
   let app;
   let fetchSpy;
   let forceDbError = false;
 
-  beforeAll(async () => {
-    const resolvedPath = require.resolve('../routes/reportes.js');
-    delete require.cache[resolvedPath];
-    reportesRouter = (await import('../routes/reportes.js')).default;
-  });
+  
 
   beforeEach(() => {
     forceDbError = false;

@@ -8,18 +8,14 @@ vi.mock('../validation/ecencia', () => ({
   schemas: {
     categoriaProducto: {}
   },
-  sendValidationError: vi.fn(() => false)
+  sendValidationError: vi.fn((res, error) => { if (error.isValidationError) { res.status(400).json({ error: 'Validation Error' }); return true; } return false; })
 }));
 
-let categoriasRouter;
+import categoriasRouter from '../routes/categorias.js';
 let forceDbError = false;
 let fetchSpy;
 
-beforeAll(async () => {
-  const resolvedPath = require.resolve('../routes/categorias.js');
-  delete require.cache[resolvedPath];
-  categoriasRouter = (await import('../routes/categorias.js')).default;
-});
+
 
 const app = express();
 app.use(express.json());
@@ -103,6 +99,23 @@ describe('Categorias Routes', () => {
       expect(response.status).toBe(500);
       expect(response.body.error).toBe('DB Error');
     });
+
+    it('debe retornar error 400 de validacion', async () => {
+      const { parseBody } = await import('../validation/ecencia');
+      parseBody.mockImplementationOnce(() => {
+        const err = new Error('Invalid');
+        err.isValidationError = true;
+        throw err;
+      });
+
+      const response = await request(app)
+        .post('/categorias')
+        .set('Authorization', 'Bearer token')
+        .send({ nombre_categoria: '' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toMatch(/Invalid input/);
+    });
   });
 
   describe('PUT /categorias/:id', () => {
@@ -126,6 +139,23 @@ describe('Categorias Routes', () => {
 
       expect(response.status).toBe(500);
       expect(response.body.error).toBe('DB Error');
+    });
+
+    it('debe retornar error 400 de validacion al actualizar', async () => {
+      const { parseBody } = await import('../validation/ecencia');
+      parseBody.mockImplementationOnce(() => {
+        const err = new Error('Invalid');
+        err.isValidationError = true;
+        throw err;
+      });
+
+      const response = await request(app)
+        .put('/categorias/1')
+        .set('Authorization', 'Bearer token')
+        .send({ nombre_categoria: '' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toMatch(/Invalid input/);
     });
   });
 });
