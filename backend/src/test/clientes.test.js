@@ -21,10 +21,14 @@ describe('Rutas de Clientes Completo', () => {
   beforeEach(() => {
     forceDbError = false;
     forceFkError = false;
+    process.env.GMAIL_USER = '';
+    process.env.GMAIL_APP_PASSWORD = '';
+    process.env.OUTLOOK_TOKEN_CLIENT_ID = '';
 
     fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url, options) => {
       const urlStr = url.toString();
       const method = options?.method || 'GET';
+      console.log('FETCH SPY CALLED:', method, urlStr);
       const body = options?.body ? JSON.parse(options.body) : null;
 
       if (urlStr.includes('/auth/v1/user')) {

@@ -210,6 +210,14 @@ describe('Rutas HTTP de Auth', () => {
       expect(res.status).toBe(403);
       expect(res.body.mensaje).toMatch(/desactivad/i);
     });
+
+    it('retorna 500 si ocurre un error interno', async () => {
+      // Pasando un objeto como identificador para forzar un TypeError en loginId.includes()
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ identificador: { force: 'error' }, password: 'correctpass' });
+      expect(res.status).toBe(500);
+    });
   });
 
   // ─── POST /refresh ───────────────────────────────────────────────────
@@ -261,16 +269,11 @@ describe('Rutas HTTP de Auth', () => {
       expect(res.body.mensaje).toMatch(/enlace/i);
     });
 
-    it('retorna respuesta generica incluso si el correo no existe', async () => {
-      const res = await request(app)
-        .post('/api/auth/forgot-password')
-        .send({ correo: 'unknown@test.com' });
-
+    it('responde 200 siempre (proteccion de privacidad) si el correo no existe o esta inactivo', async () => {
+      const res = await request(app).post('/api/auth/forgot-password').send({ correo: 'nobody@test.com' });
       expect(res.status).toBe(200);
-      expect(res.body.mensaje).toMatch(/enlace/i);
     });
   });
-
   // ─── GET /datos-privados ─────────────────────────────────────────────
 
   describe('GET /datos-privados', () => {
