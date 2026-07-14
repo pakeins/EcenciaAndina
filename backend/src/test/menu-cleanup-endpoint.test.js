@@ -11,6 +11,16 @@ vi.mock('../config/supabase.js', () => ({
 }));
 
 vi.mock('../services/menuImageCleanup.js', () => ({
+  default: {
+    cleanupOldMenuImages: async () => ({
+      retentionDays: 14,
+      cutoffDate: '2026-07-01',
+      scanned: 10,
+      protected: 5,
+      deleted: 2,
+      referencesCleared: 1,
+    }),
+  },
   cleanupOldMenuImages: async () => ({
     retentionDays: 14,
     cutoffDate: '2026-07-01',
