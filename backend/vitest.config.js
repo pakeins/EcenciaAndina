@@ -2,10 +2,15 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    pool: 'forks', // Usa procesos hijos en lugar de hilos (worker_threads) para evitar memory leaks o crashes con supertest
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        isolate: false // Runs tests in the same context so v8 coverage isn't lost across files
+      }
+    },
     setupFiles: ['dotenv/config'],
     coverage: {
-      provider: 'istanbul',
+      all: true,
       reporter: ['text', 'lcov', 'html'],
       reportsDirectory: './coverage',
     },
