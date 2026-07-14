@@ -510,8 +510,8 @@ jobs:
             git fetch --all
             git reset --hard origin/main
             
-            if [ -f "/home/${{ secrets.AZURE_USER }}/ECenciaAPP/backend/.env" ]; then
-              cp /home/${{ secrets.AZURE_USER }}/ECenciaAPP/backend/.env backend/.env
+            if [ -f "/home/${{ secrets.AZURE_USER }}/EcenciaAPP/backend/.env" ]; then
+              cp /home/${{ secrets.AZURE_USER }}/EcenciaAPP/backend/.env backend/.env
             else
               touch backend/.env
             fi
@@ -537,6 +537,7 @@ jobs:
             set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD || 'dummy-password' }}"
             set_env "INTERNAL_API_SECRET" "${{ secrets.INTERNAL_API_SECRET || 'dev-internal-secret-123' }}"
             set_env "TELEGRAM_MICROSERVICE_URL" "https://${{ secrets.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api"
+            set_env "AZURE_DOMAIN" "${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}"
             
             # Exportar variables necesarias para docker-compose
             export GITHUB_REPOSITORY=${{ github.repository }}
