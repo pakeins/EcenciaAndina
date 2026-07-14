@@ -183,7 +183,7 @@ export default function Menu() {
   // Aplicar menu activo inicial
   useEffect(() => {
     if (menus.length > 0 && !hasAppliedActiveMenu) {
-      const active = menus.find(m => m.estado === 'activo') || menus[0];
+      const active = menus.find(m => m.estado === 'activo');
       if (active) {
         if (active.opciones) {
           for (const [catId, options] of Object.entries(active.opciones)) {
@@ -192,6 +192,9 @@ export default function Menu() {
         }
         menuStore.setDailyImage(active.imagen_url);
         setSelectedMenuDate(active.fecha);
+      } else {
+        menuStore.reset();
+        setSelectedMenuDate(null);
       }
       setHasAppliedActiveMenu(true);
     }
