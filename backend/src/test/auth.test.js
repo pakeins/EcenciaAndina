@@ -15,16 +15,28 @@ describe('Rutas HTTP de Auth', () => {
     });
 
   const EMPLEADO_ADMIN = {
-    id: '11111111-1111-4111-8111-111111111111',
-    nombre: 'Admin',
-    apellido: 'Test',
-    nombre_usuario: 'admin',
-    correo: 'admin@test.com',
-    esta_activo: true,
-    roles: { nombre_rol: 'administrador' },
-  };
+  id: '11111111-1111-4111-8111-111111111111',
+  nombre: 'Admin',
+  apellido: 'Test',
+  nombre_usuario: 'admin',
+  correo: 'admin@test.com',
+  esta_activo: true,
+  roles: { nombre_rol: 'administrador' },
+  Roles: { nombre_rol: 'administrador' }
+};
 
-  const EMPLEADO_INACTIVO = {
+const EMPLEADO_CAJA = {
+  id: '33333333-3333-4333-8333-333333333333',
+  nombre: 'Cajero',
+  apellido: 'Test',
+  nombre_usuario: 'cajero',
+  correo: 'cajero@test.com',
+  esta_activo: true,
+  roles: { nombre_rol: 'caja' },
+  Roles: { nombre_rol: 'caja' }
+};
+
+const EMPLEADO_INACTIVO = {
     ...EMPLEADO_ADMIN,
     id: '22222222-2222-4222-8222-222222222222',
     correo: 'inactive@test.com',
@@ -56,6 +68,19 @@ describe('Rutas HTTP de Auth', () => {
               id: '11111111-1111-4111-8111-111111111111',
               email: 'admin@test.com',
               user_metadata: { rol: 'caja', esta_activo: true }
+            }
+          });
+        }
+        if (body?.email === 'cajero@test.com' && body?.password === 'correctpass') {
+          return jsonResponse({
+            access_token: 'valid-access-token-cajero',
+            refresh_token: 'valid-refresh-token-cajero',
+            expires_in: 3600,
+            token_type: 'bearer',
+            user: {
+              id: '33333333-3333-4333-8333-333333333333',
+              email: 'cajero@test.com',
+              user_metadata: { rol: 'desactualizado' }
             }
           });
         }
@@ -124,17 +149,26 @@ describe('Rutas HTTP de Auth', () => {
         if (urlStr.includes('nombre_usuario=eq.admin')) {
           return returnData([EMPLEADO_ADMIN]);
         }
+        if (urlStr.includes('nombre_usuario=eq.cajero')) {
+          return returnData([EMPLEADO_CAJA]);
+        }
         if (urlStr.includes('nombre_usuario=eq.unknown')) {
           return jsonResponse(isSingle ? { code: 'PGRST116', message: 'Not found' } : [], isSingle ? 406 : 200);
         }
         if (urlStr.includes('id=eq.11111111-1111-4111-8111-111111111111') || urlStr.includes('correo=eq.admin@test.com')) {
           return returnData([EMPLEADO_ADMIN]);
         }
+        if (urlStr.includes('id=eq.33333333-3333-4333-8333-333333333333') || urlStr.includes('correo=eq.cajero@test.com')) {
+          return returnData([EMPLEADO_CAJA]);
+        }
         if (urlStr.includes('id=eq.22222222-2222-4222-8222-222222222222') || urlStr.includes('correo=eq.inactive@test.com')) {
           return returnData([EMPLEADO_INACTIVO]);
         }
         if (urlStr.includes('correo=ilike.admin')) {
           return jsonResponse(EMPLEADO_ADMIN);
+        }
+        if (urlStr.includes('correo=ilike.cajero')) {
+          return jsonResponse(EMPLEADO_CAJA);
         }
         if (urlStr.includes('correo=ilike.inactive')) {
           return jsonResponse(EMPLEADO_INACTIVO);
@@ -186,6 +220,17 @@ describe('Rutas HTTP de Auth', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.token).toBeDefined();
+    });
+
+    it('login exitoso con nombre de usuario cajero (actualiza metadata)', async () => {
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ identificador: 'cajero', password: 'correctpass' });
+      expect(res.status).toBe(200);
+      expect(res.body.user.email).toBe('cajero@test.com');
+      // Debe haber llamado a updateUserById
+      const updateCalls = fetchSpy.mock.calls.filter(call => call[0].toString().includes('/auth/v1/admin/users/'));
+      expect(updateCalls.length).toBeGreaterThan(0);
     });
 
     it('retorna 401 si el usuario no existe en la BD (nombre_usuario)', async () => {
