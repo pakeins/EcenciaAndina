@@ -10,7 +10,7 @@ const { findOrCreateFood } = require('../services/menuCatalog');
 
 const router = express.Router();
 
-const DEFAULT_N8N_MENU_WEBHOOK_URL = 'http://localhost:7000/webhook/ecencia-enviar-menu-manual';
+const DEFAULT_N8N_MENU_WEBHOOK_URL = 'https://localhost:7000/webhook/ecencia-enviar-menu-manual';
 const MENU_ASSETS_BUCKET = 'ecencia-menu-assets';
 const TIMEZONE = 'America/Bogota';
 const DEFAULT_IMAGE_RETENTION_DAYS = 14;

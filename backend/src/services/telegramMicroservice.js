@@ -1,5 +1,5 @@
 // Using global fetch natively available in Node >= 18
-const MICROSERVICE_URL = process.env.TELEGRAM_MICROSERVICE_URL || 'http://localhost:7071/api';
+const MICROSERVICE_URL = process.env.TELEGRAM_MICROSERVICE_URL || 'https://localhost:7071/api';
 const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || 'dev-internal-secret-123';
 
 const callMicroservice = async (endpoint, payload = null, method = 'POST') => {

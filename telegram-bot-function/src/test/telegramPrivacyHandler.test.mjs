@@ -497,4 +497,124 @@ describe('telegramPrivacyHandler', () => {
         .rejects.toThrow('Insert Error');
     });
   });
+
+  describe('handlePrivacyCommand - Casos Adicionales', () => {
+    it('handlePrivacyCommand /revocar debe retornar ya revocado si la suscripcion esta bloqueada', async () => {
+      const telegramApi = require('../services/telegramApi.js');
+      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
+      const subscription = { consent_status: 'rejected' };
+      const res = await handlePrivacyCommand('/revocar', { chatId: '789' }, subscription);
+      expect(res).toBe(true);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('Ya estas revocado'), null, 'HTML');
+    });
+
+    it('handlePrivacyCommand revocar:cancel debe cancelar la revocacion', async () => {
+      const telegramApi = require('../services/telegramApi.js');
+      vi.spyOn(telegramApi, 'removeInlineKeyboard').mockResolvedValue();
+      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
+      const res = await handlePrivacyCommand('revocar:cancel', { chatId: '789', isCallback: true, messageId: 10, text: 'revocar:cancel' }, {});
+      expect(res).toBe(true);
+      expect(telegramApi.removeInlineKeyboard).toHaveBeenCalledWith('789', 10);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('Accion Cancelada'), null, 'HTML');
+    });
+
+    it('handlePrivacyCommand revocar:confirm debe revocar la suscripcion', async () => {
+      const telegramApi = require('../services/telegramApi.js');
+      const telegramState = require('../services/telegramState.js');
+      const supabase = require('../config/supabase.js');
+
+      vi.spyOn(telegramApi, 'removeInlineKeyboard').mockResolvedValue();
+      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
+      vi.spyOn(telegramState, 'deleteChatStates').mockResolvedValue();
+
+      const mockEq = vi.fn().mockResolvedValue({ error: null });
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockEq });
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
+      vi.spyOn(supabase, 'getAdminClient').mockReturnValue({
+        from: (table) => {
+          if (table === 'telegram_subscriptions') return { update: mockUpdate };
+          if (table === 'telegram_privacy_audits') return { insert: mockInsert };
+        }
+      });
+
+      const res = await handlePrivacyCommand('revocar:confirm', { chatId: '789', isCallback: true, messageId: 10, text: 'revocar:confirm' }, { id: 'sub-1' });
+      expect(res).toBe(true);
+      expect(telegramApi.removeInlineKeyboard).toHaveBeenCalledWith('789', 10);
+      expect(mockEq).toHaveBeenCalledWith('id', 'sub-1');
+      expect(telegramState.deleteChatStates).toHaveBeenCalledWith('789');
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('Consentimiento Revocado'), expect.anything(), 'HTML');
+    });
+
+    it('handlePrivacyCommand /eliminarmisdatos debe retornar sin datos si no hay suscripcion', async () => {
+      const telegramApi = require('../services/telegramApi.js');
+      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
+      const res = await handlePrivacyCommand('/eliminarmisdatos', { chatId: '789' }, null);
+      expect(res).toBe(true);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('Sin datos'), null, 'HTML');
+    });
+
+    it('handlePrivacyCommand /eliminarmisdatos debe retornar solicitud en curso si ya existe una', async () => {
+      const telegramApi = require('../services/telegramApi.js');
+      const supabase = require('../config/supabase.js');
+      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
+
+      // Mock getClientById
+      const mockSingleClient = vi.fn().mockResolvedValue({ data: { id_cliente: 'cli-1', nombre: 'Juan' }, error: null });
+      const mockEqClient = vi.fn().mockReturnValue({ maybeSingle: mockSingleClient });
+
+      // Mock existing privacy request
+      const mockIn = vi.fn().mockResolvedValue({ data: [{ id: 'req-1', status: 'pending' }], error: null });
+      const mockEq = vi.fn().mockReturnValue({ in: mockIn });
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+      vi.spyOn(supabase, 'getAdminClient').mockReturnValue({
+        from: (table) => {
+          if (table === 'telegram_privacy_requests') return { select: mockSelect };
+          if (table === 'clientes') return { select: () => ({ eq: mockEqClient }) };
+        }
+      });
+
+      const res = await handlePrivacyCommand('/eliminarmisdatos', { chatId: '789' }, { id_cliente: 'cli-1' });
+      expect(res).toBe(true);
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('Solicitud en curso'), null, 'HTML');
+    });
+
+    it('handlePrivacyCommand /eliminarmisdatos debe registrar nueva solicitud exitosamente', async () => {
+      const telegramApi = require('../services/telegramApi.js');
+      const supabase = require('../config/supabase.js');
+      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
+
+      // Mock client fetch
+      const mockSingleClient = vi.fn().mockResolvedValue({ data: { id_cliente: 'cli-1', nombre: 'Juan' }, error: null });
+      const mockEqClient = vi.fn().mockReturnValue({ maybeSingle: mockSingleClient });
+      
+      // Mock existing privacy request check
+      const mockInRequest = vi.fn().mockResolvedValue({ data: [], error: null });
+      const mockEqRequest = vi.fn().mockReturnValue({ in: mockInRequest });
+      
+      // Mock privacy audit log insert
+      const mockInsertAudit = vi.fn().mockResolvedValue({});
+
+      // Mock privacy request insert
+      const mockSingleRequest = vi.fn().mockResolvedValue({ data: { id: 'req-2', status: 'pending' }, error: null });
+      const mockSelectRequest = vi.fn().mockReturnValue({ single: mockSingleRequest });
+      const mockInsertRequest = vi.fn().mockReturnValue({ select: mockSelectRequest });
+
+      vi.spyOn(supabase, 'getAdminClient').mockImplementation(() => ({
+        from: (table) => {
+          if (table === 'clientes') return { select: () => ({ eq: mockEqClient }) };
+          if (table === 'telegram_privacy_requests') {
+            return {
+              select: () => ({ eq: mockEqRequest }),
+              insert: mockInsertRequest
+            };
+          }
+          if (table === 'telegram_privacy_audits') return { insert: mockInsertAudit };
+        }
+      }));
+
+      const res = await handlePrivacyCommand('/eliminarmisdatos', { chatId: '789' }, { id: 'sub-1', id_cliente: 'cli-1' });
+      expect(res).toBe(true);
+      expect(telegramApi.sendMessage).toHaveBeenLastCalledWith('789', expect.stringContaining('Solicitud Recibida'), null, 'HTML');
+    });
+  });
 });
