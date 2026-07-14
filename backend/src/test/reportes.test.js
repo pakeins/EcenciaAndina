@@ -31,7 +31,7 @@ describe('Rutas de Reportes', () => {
       const urlStr = url.toString();
       const method = options?.method || 'GET';
 
-      if (forceDbError) {
+      if (forceDbError && !urlStr.includes('/auth/v1/user') && !urlStr.includes('/rest/v1/empleados')) {
         return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       }
 
@@ -187,10 +187,63 @@ describe('Rutas de Reportes', () => {
     });
 
     it('GET /clientes retorna 400 si id_cliente falta o es all', async () => {
-      const res = await request(app)
+      let res = await request(app)
         .get('/api/reportes/clientes?fecha_inicio=2026-06-01&fecha_fin=2026-06-11')
         .set('Authorization', 'Bearer valid-token');
       expect(res.status).toBe(400);
+
+      res = await request(app)
+        .get('/api/reportes/clientes?fecha_inicio=2026-06-01&fecha_fin=2026-06-11&id_cliente=all')
+        .set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(400);
+    });
+
+    it('GET /dashboard retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .get('/api/reportes/dashboard')
+        .set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /telegram-kpis retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .get('/api/reportes/telegram-kpis')
+        .set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /ventas retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .get('/api/reportes/ventas?fecha_inicio=2026-06-01&fecha_fin=2026-06-11')
+        .set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /estados retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .get('/api/reportes/estados?fecha_inicio=2026-06-01&fecha_fin=2026-06-11')
+        .set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /productos retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .get('/api/reportes/productos?fecha_inicio=2026-06-01&fecha_fin=2026-06-11')
+        .set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /clientes retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .get('/api/reportes/clientes?fecha_inicio=2026-06-01&fecha_fin=2026-06-11&id_cliente=cli-1')
+        .set('Authorization', 'Bearer valid-token');
+      expect(res.status).toBe(500);
     });
   });
 });

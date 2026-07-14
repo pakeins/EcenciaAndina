@@ -1,12 +1,35 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
+import { beforeEach, describe, expect, it, vi, beforeAll } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-
+import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
-let fakeClient;
-let app;
+const injectModule = (relPath, exportsObj) => {
+  const filename = require.resolve(relPath);
+  require.cache[filename] = {
+    id: filename,
+    filename,
+    loaded: true,
+    exports: exportsObj,
+    children: [],
+    paths: []
+  };
+};
+
+const mocks = {
+  fakeClient: null
+};
+
+injectModule('../config/supabase.js', {
+  getAdminClient: () => mocks.fakeClient
+});
+
+injectModule('../middlewares/authMiddleware.js', (req, _res, next) => {
+  req.user = { id: 'u1', email: 'admin@example.com', rol: 'administrador' };
+  next();
+});
+
+const ordenesRouter = require('../routes/ordenes.js');
 
 class FakeTraceQuery {
   constructor(rows) {
@@ -89,74 +112,46 @@ const makeClient = (rows = []) => ({
   },
 });
 
-const injectModule = (relPath, exportsObj) => {
-  const filename = require.resolve(relPath);
-  require.cache[filename] = {
-    id: filename,
-    filename,
-    loaded: true,
-    exports: exportsObj,
-    children: [],
-    paths: [],
-  };
-};
+vi.mock('../config/supabase.js', () => ({
+  getAdminClient: () => mocks.fakeClient,
+  supabase: {
+    auth: {
+      getUser: async () => ({ data: { user: { id: 'admin-1', email: 'admin@example.com' } }, error: null }),
+    },
+  },
+}));
+
+vi.mock('../services/authUser.js', () => ({
+  findEmpleadoForAuthUser: async () => ({ id_empleado: 'e1', esta_activo: true }),
+  publicUserFromEmpleado: () => ({ id: 'admin-1', nombre: 'Admin' }),
+  roleFromEmpleado: () => 'administrador',
+}));
+
+vi.mock('../middlewares/authMiddleware.js', () => ({
+  default: (req, _res, next) => {
+    req.user = { id: 'admin-1', email: 'admin@example.com', rol: 'administrador' };
+    next();
+  }
+}));
+
+vi.mock('../middlewares/roleMiddleware.js', () => ({
+  default: () => (_req, _res, next) => next()
+}));
+
+let app;
 
 beforeAll(() => {
   process.env.SUPABASE_URL = 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
-  injectModule('../config/supabase.js', {
-    getAdminClient: () => fakeClient,
-    supabase: {
-      auth: {
-        getUser: async () => ({ data: { user: { id: 'admin-1', email: 'admin@example.com' } }, error: null }),
-      },
-    },
-  });
-
-  injectModule('../services/authUser.js', {
-    findEmpleadoForAuthUser: async () => ({ id_empleado: 'e1', esta_activo: true }),
-    publicUserFromEmpleado: () => ({ id: 'admin-1', nombre: 'Admin' }),
-    roleFromEmpleado: () => 'administrador',
-  });
-
-  ['../middlewares/authMiddleware.js', '../middlewares/roleMiddleware.js', '../routes/ordenes.js'].forEach((relPath) => {
-    try {
-      delete require.cache[require.resolve(relPath)];
-    } catch {
-      /* noop */
-    }
-  });
-
-  injectModule('../middlewares/authMiddleware.js', (req, _res, next) => {
-    req.user = { id: 'admin-1', email: 'admin@example.com', rol: 'administrador' };
-    next();
-  });
-  injectModule('../middlewares/roleMiddleware.js', () => (_req, _res, next) => next());
-
-  const ordenesRouter = require('../routes/ordenes.js');
   app = express();
   app.use(express.json());
   app.use('/api/ordenes', ordenesRouter);
 });
 
-afterAll(() => {
-  [
-    '../config/supabase.js',
-    '../services/authUser.js',
-    '../middlewares/authMiddleware.js',
-    '../routes/ordenes.js',
-  ].forEach((relPath) => {
-    try {
-      delete require.cache[require.resolve(relPath)];
-    } catch {
-      /* noop */
-    }
-  });
-});
 
 beforeEach(() => {
-  fakeClient = makeClient([
+  mocks.fakeClient = makeClient([
     {
       id: 'trace-1',
       chat_id: '123',
@@ -199,8 +194,8 @@ describe('GET /api/ordenes/telegram/trazabilidad', () => {
         totalPages: 1,
       },
     });
-    expect(fakeClient.lastTraceQuery.selected).toContain('clientes(nombre,apellido,telefono)');
-    expect(fakeClient.lastTraceQuery.selected).toContain('ordenes(id_orden,created_at)');
-    expect(fakeClient.lastTraceQuery.rangeArgs).toEqual({ from: 0, to: 19 });
+    expect(mocks.fakeClient.lastTraceQuery.selected).toContain('clientes(nombre,apellido,telefono)');
+    expect(mocks.fakeClient.lastTraceQuery.selected).toContain('ordenes(id_orden,created_at)');
+    expect(mocks.fakeClient.lastTraceQuery.rangeArgs).toEqual({ from: 0, to: 19 });
   });
 });

@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import zlib from 'node:zlib';
 
+import nodemailer from 'nodemailer';
+vi.spyOn(nodemailer, 'createTransport').mockImplementation(() => ({
+  sendMail: vi.fn().mockResolvedValue({ messageId: 'mock' })
+}));
+
 import convenioEmployeeImport from '../services/convenioEmployeeImport.js';
 import convenioInvitations from '../services/convenioInvitations.js';
 import xlsxReader from '../services/xlsxReader.js';
@@ -692,6 +697,11 @@ describe('importacion Excel de colaboradores de convenio', () => {
   });
 
   it('envia correo de invitacion por Outlook cuando Graph responde correctamente', async () => {
+    const originalGmailUser = process.env.GMAIL_USER;
+    const originalGmailPass = process.env.GMAIL_APP_PASSWORD;
+    delete process.env.GMAIL_USER;
+    delete process.env.GMAIL_APP_PASSWORD;
+
     process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     const db = makeDb();
     const fetchImpl = vi
@@ -745,9 +755,17 @@ describe('importacion Excel de colaboradores de convenio', () => {
       email_status: 'sent',
       email_provider_request_id: 'request-123',
     });
+
+    process.env.GMAIL_USER = originalGmailUser;
+    process.env.GMAIL_APP_PASSWORD = originalGmailPass;
   });
 
   it('audita correo no configurado sin bloquear la invitacion', async () => {
+    const originalGmailUser = process.env.GMAIL_USER;
+    const originalGmailPass = process.env.GMAIL_APP_PASSWORD;
+    delete process.env.GMAIL_USER;
+    delete process.env.GMAIL_APP_PASSWORD;
+
     process.env.TELEGRAM_BOT_USERNAME = 'EcenciaBot';
     const db = makeDb();
 
@@ -779,6 +797,9 @@ describe('importacion Excel de colaboradores de convenio', () => {
       email_status: 'not_configured',
     });
     expect(db.invitations[0].email_error_message).toContain('Falta configuracion Outlook');
+
+    process.env.GMAIL_USER = originalGmailUser;
+    process.env.GMAIL_APP_PASSWORD = originalGmailPass;
   });
 
   it('marca reinvitacion manual cuando el telefono habia rechazado terminos', async () => {

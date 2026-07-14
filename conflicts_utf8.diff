@@ -1,0 +1,3787 @@
+﻿diff --cc .github/workflows/main.yml
+index 57887b9,39abc46..0000000
+--- a/.github/workflows/main.yml
++++ b/.github/workflows/main.yml
+@@@ -22,6 -22,270 +22,273 @@@ env
+    NODE_VERSION: "22"
+  
+  jobs:
+++<<<<<<< HEAD
+++=======
++   security-secrets:
++     name: Security Scan - Gitleaks
++     runs-on: ubuntu-latest
++     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
++     steps:
++       - uses: actions/checkout@v4
++         with:
++           fetch-depth: 0
++       - name: Gitleaks Scan
++         uses: gitleaks/gitleaks-action@v2
++         env:
++           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++ 
++   lint-backend:
++     name: Code Quality (Backend) - ESLint
++     runs-on: ubuntu-latest
++     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
++     steps:
++       - uses: actions/checkout@v4
++       - uses: actions/setup-node@v4
++         with:
++           node-version: ${{ env.NODE_VERSION }}
++           cache: npm
++           cache-dependency-path: backend/package-lock.json
++       - name: Install & Lint Backend
++         working-directory: backend
++         run: |
++           npm ci
++           npm run lint
++ 
++   lint-frontend:
++     name: Code Quality (Frontend) - ESLint
++     runs-on: ubuntu-latest
++     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
++     steps:
++       - uses: actions/checkout@v4
++       - uses: actions/setup-node@v4
++         with:
++           node-version: ${{ env.NODE_VERSION }}
++           cache: npm
++           cache-dependency-path: frontend/package-lock.json
++       - name: Install & Lint Frontend
++         working-directory: frontend
++         run: |
++           npm ci
++           npm run lint
++ 
++   security-npm:
++     name: Security Audit - NPM
++     runs-on: ubuntu-latest
++     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
++     steps:
++       - uses: actions/checkout@v4
++       - uses: actions/setup-node@v4
++         with:
++           node-version: ${{ env.NODE_VERSION }}
++           cache: npm
++           cache-dependency-path: |
++             backend/package-lock.json
++             frontend/package-lock.json
++       - name: NPM Audit Backend
++         working-directory: backend
++         run: npm audit --audit-level=critical
++       - name: NPM Audit Frontend
++         working-directory: frontend
++         run: npm audit --audit-level=critical
++ 
++   security-trivy:
++     name: Security Scan - Trivy
++     runs-on: ubuntu-latest
++     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
++     steps:
++       - uses: actions/checkout@v4
++       - name: Run Trivy vulnerability scanner
++         uses: aquasecurity/trivy-action@master
++         with:
++           scan-type: 'fs'
++           ignore-unfixed: true
++           format: 'table'
++           severity: 'CRITICAL,HIGH'
++           exit-code: '1'
++ 
++   test-backend:
++     name: Unit Tests (Backend) - Vitest
++     runs-on: ubuntu-latest
++     env:
++       SUPABASE_URL: "https://example.supabase.co"
++       SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
++       SUPABASE_ANON_KEY: "dummy-key"
++       JWT_SECRET: "dummy-secret"
++       PORT: 3001
++     steps:
++       - uses: actions/checkout@v4
++       - name: Install & Test Backend
++         working-directory: backend
++         run: |
++           npm ci
++           set +e
++           CI=true NO_COLOR=1 npm run test:coverage -- --maxWorkers=2 2>&1 | tee test_output_raw.txt
++           TEST_EXIT_CODE=${PIPESTATUS[0]}
++           set -e
++           sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt || true
++           exit $TEST_EXIT_CODE
++       - name: Backend coverage summary
++         if: always()
++         working-directory: backend
++         run: |
++           echo "### 🧪 Backend Coverage" >> $GITHUB_STEP_SUMMARY
++           echo '```text' >> $GITHUB_STEP_SUMMARY
++           cat test_output.txt >> $GITHUB_STEP_SUMMARY
++           echo '```' >> $GITHUB_STEP_SUMMARY
++       - name: Upload coverage artifacts
++         if: always()
++         uses: actions/upload-artifact@v4
++         with:
++           name: coverage-backend
++           path: backend/coverage
++           if-no-files-found: warn
++ 
++   test-frontend:
++     name: Unit Tests (Frontend) - Vitest
++     runs-on: ubuntu-latest
++     steps:
++       - uses: actions/checkout@v4
++       - name: Install & Test Frontend
++         working-directory: frontend
++         run: |
++           npm ci
++           set +e
++           CI=true NO_COLOR=1 npm run test:coverage -- --maxWorkers=2 2>&1 | tee test_output_raw.txt
++           TEST_EXIT_CODE=${PIPESTATUS[0]}
++           set -e
++           sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt || true
++           exit $TEST_EXIT_CODE
++       - name: Frontend coverage summary
++         if: always()
++         working-directory: frontend
++         run: |
++           echo "### 🧪 Frontend Coverage" >> $GITHUB_STEP_SUMMARY
++           echo '```text' >> $GITHUB_STEP_SUMMARY
++           cat test_output.txt >> $GITHUB_STEP_SUMMARY
++           echo '```' >> $GITHUB_STEP_SUMMARY
++       - name: Upload coverage artifacts
++         if: always()
++         uses: actions/upload-artifact@v4
++         with:
++           name: coverage-frontend
++           path: frontend/coverage
++           if-no-files-found: warn
++ 
++   test-telegram:
++     name: Unit Tests (Telegram Bot) - Vitest
++     runs-on: ubuntu-latest
++     steps:
++       - uses: actions/checkout@v4
++       - name: Install & Test Telegram Bot
++         working-directory: telegram-bot-function
++         run: |
++           npm ci
++           set +e
++           CI=true NO_COLOR=1 npm run test:coverage -- 2>&1 | tee test_output_raw.txt
++           TEST_EXIT_CODE=${PIPESTATUS[0]}
++           set -e
++           sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" test_output_raw.txt > test_output.txt || true
++           exit $TEST_EXIT_CODE
++       - name: Telegram coverage summary
++         if: always()
++         working-directory: telegram-bot-function
++         run: |
++           echo "### 🤖 Telegram Bot Coverage" >> $GITHUB_STEP_SUMMARY
++           echo '```text' >> $GITHUB_STEP_SUMMARY
++           cat test_output.txt >> $GITHUB_STEP_SUMMARY
++           echo '```' >> $GITHUB_STEP_SUMMARY
++       - name: Upload coverage artifacts
++         if: always()
++         uses: actions/upload-artifact@v4
++         with:
++           name: coverage-telegram
++           path: telegram-bot-function/coverage
++           if-no-files-found: warn
++ 
++   sonarcloud:
++     name: Code Analysis - SonarCloud
++     runs-on: ubuntu-latest
++     needs: [test-backend, test-frontend, test-telegram]
++     env:
++       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
++     steps:
++       - uses: actions/checkout@v4
++         with:
++           fetch-depth: 0
++       - name: Download Backend Coverage
++         uses: actions/download-artifact@v4
++         continue-on-error: true
++         with:
++           name: coverage-backend
++           path: backend/coverage
++       - name: Download Frontend Coverage
++         uses: actions/download-artifact@v4
++         continue-on-error: true
++         with:
++           name: coverage-frontend
++           path: frontend/coverage
++       - name: Download Telegram Coverage
++         uses: actions/download-artifact@v4
++         continue-on-error: true
++         with:
++           name: coverage-telegram
++           path: telegram-bot-function/coverage
++       - name: Fix coverage paths for SonarScanner
++         run: |
++           sed -i 's/^SF:.*backend\/src\//SF:backend\/src\//' backend/coverage/lcov.info || true
++           sed -i 's/^SF:.*frontend\/src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
++           sed -i 's/^SF:.*telegram-bot-function\/src\//SF:telegram-bot-function\/src\//' telegram-bot-function/coverage/lcov.info || true
++           sed -i 's/^SF:src\//SF:backend\/src\//' backend/coverage/lcov.info || true
++           sed -i 's/^SF:src\//SF:frontend\/src\//' frontend/coverage/lcov.info || true
++           sed -i 's/^SF:src\//SF:telegram-bot-function\/src\//' telegram-bot-function/coverage/lcov.info || true
++       - name: Set SonarQube Project Keys
++         run: |
++           if [ "${{ github.repository_owner }}" = "pakeins" ]; then
++             echo "SONAR_ORG=pakeins" >> $GITHUB_ENV
++             echo "SONAR_PROJECT_KEY=pakeins_EcenciaAndina" >> $GITHUB_ENV
++           else
++             echo "SONAR_ORG=packeins" >> $GITHUB_ENV
++             echo "SONAR_PROJECT_KEY=packeins_EcenciaAndinaAPP" >> $GITHUB_ENV
++           fi
++       - name: SonarQube Cloud scan
++         if: ${{ env.SONAR_TOKEN != '' }}
++         uses: SonarSource/sonarqube-scan-action@master
++         continue-on-error: true
++         with:
++           args: >
++             -Dsonar.verbose=true
++             -Dsonar.organization=${{ env.SONAR_ORG }}
++             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
++         env:
++           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
++ 
++   integration-tests:
++     name: Integration Tests - Supertest
++     runs-on: ubuntu-latest
++     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
++     needs: [test-backend]
++     env:
++       SUPABASE_URL: "https://example.supabase.co"
++       SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
++       SUPABASE_ANON_KEY: "dummy-key"
++       JWT_SECRET: "dummy-secret"
++       PORT: 3001
++     steps:
++       - uses: actions/checkout@v4
++       - uses: actions/setup-node@v4
++         with:
++           node-version: ${{ env.NODE_VERSION }}
++           cache: npm
++           cache-dependency-path: backend/package-lock.json
++       - name: Install dependencies
++         working-directory: backend
++         run: npm ci
++       - name: Run Integration Tests
++         working-directory: backend
++         run: npm run test:integration
++ 
+++>>>>>>> develop
+    build:
+      name: Build Frontend
+      runs-on: ubuntu-latest
+@@@ -157,9 -537,7 +424,13 @@@
+              set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD || 'dummy-password' }}"
+              set_env "INTERNAL_API_SECRET" "${{ secrets.INTERNAL_API_SECRET || 'dev-internal-secret-123' }}"
+              set_env "TELEGRAM_MICROSERVICE_URL" "https://${{ secrets.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api"
+++<<<<<<< HEAD
+ +            set_env "N8N_MENU_WEBHOOK_URL" "${{ secrets.N8N_MENU_WEBHOOK_URL || 'http://n8n:5678/webhook/ECENCIA-enviar-menu-manual' }}"
+ +            set_env "N8N_MENU_WEBHOOK_SECRET" "${{ secrets.N8N_MENU_WEBHOOK_SECRET || 'change-this-local-menu-webhook-secret' }}"
+ +            set_env "PUBLIC_BACKEND_URL" "https://ecenciaapp.eastus2.cloudapp.azure.com/api"
+++=======
++             set_env "AZURE_DOMAIN" "${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}"
+++>>>>>>> develop
+              
+              # Exportar variables necesarias para docker-compose
+              export GITHUB_REPOSITORY=${{ github.repository }}
+diff --cc backend/n8n/workflows/ecencia_telegram_menu_reservas.workflow.json
+index ce73c13,c42156f..0000000
+--- a/backend/n8n/workflows/ecencia_telegram_menu_reservas.workflow.json
++++ b/backend/n8n/workflows/ecencia_telegram_menu_reservas.workflow.json
+@@@ -94,7 -94,7 +94,11 @@@
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+++<<<<<<< HEAD
+ +        "jsCode": "function cfg(name, fallback = '') {\n  const vars = typeof $vars === 'undefined' ? {} : $vars;\n  const env = typeof $env === 'undefined' ? (typeof process === 'undefined' ? {} : process.env) : $env;\n  return env[name] || vars[name] || fallback;\n}\n\nconst TELEGRAM_BOT_TOKEN = cfg('TELEGRAM_BOT_TOKEN');\nif (!TELEGRAM_BOT_TOKEN) {\n  throw new Error('Falta TELEGRAM_BOT_TOKEN en n8n.');\n}\n\nconst SUPABASE_URL = cfg('SUPABASE_URL').replace(/\\/$/, '');\nconst SUPABASE_KEY = cfg('SUPABASE_SERVICE_ROLE_KEY') || cfg('SUPABASE_KEY');\n\nfunction cleanInlineReplyMarkup(markup) {\n  const keyboard = markup?.inline_keyboard || [];\n  const rows = keyboard\n    .map((row) => (Array.isArray(row) ? row : []))\n    .map((row) => row.filter((button) => button?.text && button?.callback_data))\n    .filter((row) => row.length);\n  return rows.length ? { inline_keyboard: rows } : null;\n}\n\nasync function markMenuSent(subscriptionId) {\n  if (!subscriptionId || !SUPABASE_URL || !SUPABASE_KEY) return;\n  try {\n    await helpers.httpRequest({\n      method: 'PATCH',\n      url: SUPABASE_URL + '/rest/v1/telegram_subscriptions?id=eq.' + encodeURIComponent(subscriptionId),\n      headers: {\n        apikey: SUPABASE_KEY,\n        Authorization: 'Bearer ' + SUPABASE_KEY,\n        'Content-Type': 'application/json',\n        Prefer: 'return=minimal',\n      },\n      body: { last_menu_sent_at: new Date().toISOString() },\n      json: true,\n    });\n  } catch (err) {\n    console.error('Error updating supabase:', err.message);\n  }\n}\n\nconst output = [];\nfor (const item of items) {\n  const data = item.json || {};\n  const hasPhoto = data.photoUrl && data.photoUrl !== 'null' && String(data.photoUrl).startsWith('http');\n\n  let response = null;\n  let errorMsg = null;\n  \n  try {\n    if (hasPhoto) {\n      const body = {\n        chat_id: data.chatId,\n        photo: data.photoUrl,\n        caption: data.caption || '',\n        parse_mode: 'HTML',\n      };\n      const replyMarkup = cleanInlineReplyMarkup(data.inlineKeyboard);\n      if (replyMarkup) body.reply_markup = replyMarkup;\n\n      response = await helpers.httpRequest({\n        method: 'POST',\n        url: 'https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/sendPhoto',\n        body,\n        json: true,\n      });\n    } else {\n      const body = {\n        chat_id: data.chatId,\n        text: data.caption || 'Menú del día disponible.',\n        parse_mode: 'HTML',\n      };\n      const replyMarkup = cleanInlineReplyMarkup(data.inlineKeyboard);\n      if (replyMarkup) body.reply_markup = replyMarkup;\n\n      response = await helpers.httpRequest({\n        method: 'POST',\n        url: 'https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/sendMessage',\n        body,\n        json: true,\n      });\n    }\n    \n    if (response && response.ok === true) {\n      await markMenuSent(data.subscriptionId);\n    }\n  } catch (err) {\n    errorMsg = err.message;\n    console.error('Telegram error for chat', data.chatId, ':', errorMsg);\n    if (err.response && err.response.data) {\n      errorMsg = JSON.stringify(err.response.data);\n    }\n  }\n\n  output.push({\n    json: {\n      ...data,\n      telegramOk: response ? response.ok === true : false,\n      telegramMessageId: response?.result?.message_id || null,\n      sentAs: hasPhoto ? 'photo' : 'text',\n      error: errorMsg\n    },\n  });\n}\n\nreturn output;"
+++=======
++         "jsCode": "function cfg(name, fallback = '') {\n  const vars = typeof $vars === 'undefined' ? {} : $vars;\n  const env = typeof $env === 'undefined' ? {} : $env;\n  return env[name] || vars[name] || fallback;\n}\n\nconst TELEGRAM_BOT_TOKEN = cfg('TELEGRAM_BOT_TOKEN');\nif (!TELEGRAM_BOT_TOKEN) {\n  throw new Error('Falta TELEGRAM_BOT_TOKEN en n8n.');\n}\n\nconst SUPABASE_URL = cfg('SUPABASE_URL').replace(/\\/$/, '');\nconst SUPABASE_KEY = cfg('SUPABASE_SERVICE_ROLE_KEY') || cfg('SUPABASE_KEY');\n\nfunction cleanInlineReplyMarkup(markup) {\n  const keyboard = markup?.inline_keyboard || [];\n  const rows = keyboard\n    .map((row) => (Array.isArray(row) ? row : []))\n    .map((row) => row.filter((button) => button?.text && button?.callback_data))\n    .filter((row) => row.length);\n  return rows.length ? { inline_keyboard: rows } : null;\n}\n\nasync function markMenuSent(subscriptionId) {\n  if (!subscriptionId || !SUPABASE_URL || !SUPABASE_KEY) return;\n\n  await helpers.httpRequest({\n    method: 'PATCH',\n    url: SUPABASE_URL + '/rest/v1/telegram_subscriptions?id=eq.' + encodeURIComponent(subscriptionId),\n    headers: {\n      apikey: SUPABASE_KEY,\n      Authorization: 'Bearer ' + SUPABASE_KEY,\n      'Content-Type': 'application/json',\n      Prefer: 'return=minimal',\n    },\n    body: { last_menu_sent_at: new Date().toISOString() },\n    json: true,\n  });\n}\n\nconst output = [];\nfor (const item of items) {\n  const data = item.json || {};\n  const body = {\n    chat_id: data.chatId,\n    photo: data.photoUrl,\n    caption: data.caption || '',\n    parse_mode: 'HTML',\n  };\n  const replyMarkup = cleanInlineReplyMarkup(data.inlineKeyboard);\n  if (replyMarkup) body.reply_markup = replyMarkup;\n\n  const response = await helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/sendPhoto',\n    body,\n    json: true,\n  });\n\n  if (response.ok === true) await markMenuSent(data.subscriptionId);\n\n  output.push({\n    json: {\n      ...data,\n      telegramOk: response.ok === true,\n      telegramMessageId: response.result?.message_id || null,\n    },\n  });\n}\n\nreturn output;"
+++>>>>>>> develop
+        },
+        "id": "8e2f527a-fb64-45d6-a7b2-6a6a0292588a",
+        "name": "Telegram - enviar foto menu",
+diff --cc backend/src/routes/clientes.js
+index d469065,08f18df..0000000
+--- a/backend/src/routes/clientes.js
++++ b/backend/src/routes/clientes.js
+@@@ -54,948 -8,21 +8,948 @@@ const clientesService = require('../ser
+  router.use(authMiddleware);
+  router.use(roleMiddleware(['administrador', 'caja']));
+  const adminOnly = roleMiddleware(['administrador']);
+- const CLIENT_SELECT = `
+-   *,
+-   tipos_cliente(nombre_tipo),
+-   clientes_convenios(
+-     convenios(id_convenio, nombre_empresa)
+-   ),
+-   telegram_subscriptions(
+-     id,
+-     consent_status,
+-     is_active,
+-     consent_notice_version,
+-     telegram_username,
+-     chat_id,
+-     last_menu_sent_at,
+-     revoked_at,
+-     deletion_requested_at
+-   )
+- `;
+  
+++<<<<<<< HEAD
+ +const handleRouteError = (res, error) => {
+ +  console.error('[ROUTE ERROR]', error);
+ +  if (sendValidationError(res, error)) return;
+ +  const status = Number(error?.status || 500);
+ +  res.status(status >= 400 && status < 600 ? status : 500).json({
+ +    error: error.message || 'No se pudo completar la operacion del cliente.',
+ +  });
+ +};
+ +
+ +// Función auxiliar para formatear cliente con su convenio
+ +const getRelationFirst = (value) => Array.isArray(value) ? value[0] : value;
+ +
+ +const telegramSummary = (client, currentConsentVersion) => {
+ +  const subscription = getRelationFirst(client.telegram_subscriptions);
+ +  const now = Date.now();
+ +  const sortedInvitations = [...(client.telegram_invitations || [])]
+ +    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+ +  const latestInvitation = sortedInvitations[0];
+ +  const activeInvitation = sortedInvitations
+ +    .filter((invitation) =>
+ +      !invitation.consumed_at &&
+ +      !invitation.revoked_at &&
+ +      new Date(invitation.expires_at).getTime() > now)[0];
+ +  const deletionPending = (client.telegram_privacy_requests || []).some(
+ +    (request) =>
+ +      request.request_type === 'deletion' &&
+ +      ['pending', 'in_review'].includes(request.status),
+ +  );
+ +
+ +  let status = 'no_invitation';
+ +  if (deletionPending) status = 'deletion_pending';
+ +  else if (subscription?.consent_status) status = subscription.consent_status;
+ +  else if (activeInvitation) status = 'pending';
+ +
+ +  return {
+ +    status,
+ +    policy_current:
+ +      subscription?.consent_status === 'accepted' &&
+ +      subscription.consent_notice_version === currentConsentVersion,
+ +    consent_version: subscription?.consent_notice_version || null,
+ +    has_chat: Boolean(subscription?.chat_id),
+ +    telegram_username: subscription?.telegram_username || null,
+ +    invitation_expires_at: activeInvitation?.expires_at || null,
+ +    last_menu_sent_at: subscription?.last_menu_sent_at || null,
+ +    email_delivery: latestInvitation
+ +      ? {
+ +        status: latestInvitation.email_delivery_status || 'not_attempted',
+ +        recipient: latestInvitation.email_recipient || client.correo || null,
+ +        provider_id: latestInvitation.email_provider_id || null,
+ +        attempted_at: latestInvitation.email_attempted_at || null,
+ +        sent_at: latestInvitation.email_sent_at || null,
+ +      }
+ +      : null,
+ +  };
+ +};
+ +
+ +const formatCliente = (cli, currentConsentVersion) => {
+ +  const convenioRel = cli.clientes_convenios?.[0]?.convenios;
+ +  return {
+ +    id: cli.id_cliente,
+ +    cedula: cli.cedula,
+ +    nombre: cli.nombre,
+ +    apellido: cli.apellido,
+ +    telefono: cli.telefono || '',
+ +    correo: cli.correo || '',
+ +    activo: cli.esta_activo,
+ +    id_tipo_cliente: cli.id_tipo_cliente,
+ +    tipo_nombre: cli.tipos_cliente?.nombre_tipo || 'Sin tipo',
+ +    convenio: convenioRel ? {
+ +      id: convenioRel.id_convenio,
+ +      nombre: convenioRel.nombre_empresa
+ +    } : null,
+ +    telegram: telegramSummary(cli, currentConsentVersion),
+ +  };
+ +};
+ +
+ +const setConsentState = async (adminClient, chatId, value) => {
+ +  const { error } = await adminClient
+ +    .from('telegram_bot_state')
+ +    .upsert(
+ +      {
+ +        key: `consent:${chatId}`,
+ +        value: { ...value, updatedAt: new Date().toISOString() },
+ +      },
+ +      { onConflict: 'key' },
+ +    );
+ +  if (error) throw error;
+ +};
+ +
+ +const directConsentKeyboard = () => ({
+ +  inline_keyboard: [
+ +    [{ text: 'Acepto', callback_data: 'consent:accept' }],
+ +    [{ text: 'No acepto', callback_data: 'consent:reject' }],
+ +  ],
+ +});
+ +
+ +const publicOnboarding = (onboarding) => ({
+ +  status: onboarding.status,
+ +  onboarding_url: onboarding.onboarding_url,
+ +  expires_at: onboarding.expires_at,
+ +  email_delivery: onboarding.email_delivery || null,
+ +});
+ +
+ +const validateConvenioLink = async (adminClient, idConvenio, idCliente = null) => {
+ +  const [convenioResult, currentLinkResult] = await Promise.all([
+ +    adminClient
+ +      .from('convenios')
+ +      .select('cupo_maximo, esta_activo, fecha_caducidad, clientes_convenios(count)')
+ +      .eq('id_convenio', idConvenio)
+ +      .maybeSingle(),
+ +    idCliente
+ +      ? adminClient
+ +        .from('clientes_convenios')
+ +        .select('id_convenio')
+ +        .eq('id_cliente', idCliente)
+ +        .maybeSingle()
+ +      : Promise.resolve({ data: null, error: null }),
+ +  ]);
+ +
+ +  if (convenioResult.error) throw convenioResult.error;
+ +  if (currentLinkResult.error) throw currentLinkResult.error;
+ +  if (!convenioResult.data) throw createHttpError(404, 'Convenio no encontrado.');
+ +
+ +  const convenio = convenioResult.data;
+ +  const isSameLink = currentLinkResult.data?.id_convenio === idConvenio;
+ +  const expiryDate = String(convenio.fecha_caducidad || '').slice(0, 10);
+ +  if (convenio.esta_activo === false || (expiryDate && expiryDate < getDateInTimeZone(new Date()))) {
+ +    throw createHttpError(400, 'No se puede vincular un cliente a un convenio inactivo o vencido.');
+ +  }
+ +
+ +  const memberCount = Number(convenio.clientes_convenios?.[0]?.count || 0);
+ +  const capacity = Number(convenio.cupo_maximo || 0);
+ +  if (!isSameLink && memberCount >= capacity) {
+ +    throw createHttpError(400, `El convenio alcanzo su cupo maximo de ${capacity} colaboradores.`);
+ +  }
+ +
+ +  return { isSameLink };
+ +};
+ +
+ +// OBTENER TODOS LOS CLIENTES
+ +router.get('/', async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const { data, error } = await adminClient
+ +      .from('clientes')
+ +      .select(CLIENT_SELECT)
+ +      .order('created_at', { ascending: false });
+ +
+ +    if (error) throw error;
+ +    const consentVersion = await getConsentVersion();
+ +    res.json(data.map(c => formatCliente(c, consentVersion)));
+ +  } catch (error) {
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +// OBTENER TIPOS DE CLIENTE
+ +router.get('/tipos', async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const { data, error } = await adminClient
+ +      .from('tipos_cliente')
+ +      .select('*')
+ +      .order('nombre_tipo', { ascending: true });
+ +    if (error) throw error;
+ +    res.json(data);
+ +  } catch (error) {
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +router.get('/telegram/privacidad-solicitudes', adminOnly, async (req, res) => {
+ +  try {
+ +    const { data, error } = await getAdminClient()
+ +      .from('telegram_privacy_requests')
+ +      .select(`
+ +        id,
+ +        request_type,
+ +        status,
+ +        retained_order_count,
+ +        details,
+ +        requested_at,
+ +        resolved_at,
+ +        resolution_notes,
+ +        clientes(id_cliente,nombre,apellido,cedula,ordenes(count))
+ +      `)
+ +      .order('requested_at', { ascending: false });
+ +    if (error) throw error;
+ +    res.json(data || []);
+ +  } catch (error) {
+ +    handleRouteError(res, error);
+ +  }
+ +});
+ +
+ +router.patch('/telegram/privacidad-solicitudes/:requestId', adminOnly, async (req, res) => {
+ +  try {
+ +    const { status, resolution_notes } = parseBody(schemas.telegramPrivacyResolution, req.body);
+ +    const terminal = ['resolved', 'rejected'].includes(status);
+ +    const adminClient = getAdminClient();
+ +    const { data, error } = await adminClient
+ +      .from('telegram_privacy_requests')
+ +      .update({
+ +        status,
+ +        resolution_notes: resolution_notes || null,
+ +        resolved_at: terminal ? new Date().toISOString() : null,
+ +        resolved_by: terminal ? (req.user.empleado_id || req.user.id) : null,
+ +      })
+ +      .eq('id', req.params.requestId)
+ +      .select('id,subscription_id,status,resolved_at,resolution_notes')
+ +      .maybeSingle();
+ +    if (error) throw error;
+ +    if (!data) throw createHttpError(404, 'Solicitud de privacidad no encontrada.');
+ +
+ +    if (terminal && data.subscription_id) {
+ +      const updatePayload = status === 'resolved'
+ +        ? { deletion_requested_at: null, consent_status: 'rejected', is_active: false, revoked_at: new Date().toISOString() }
+ +        : { deletion_requested_at: null };
+ +      const clearResult = await adminClient
+ +        .from('telegram_subscriptions')
+ +        .update(updatePayload)
+ +        .eq('id', data.subscription_id)
+ +        .select('chat_id')
+ +        .maybeSingle();
+ +      if (clearResult.error) throw clearResult.error;
+ +      
+ +      if (status === 'resolved' && clearResult.data?.chat_id) {
+ +        await sendMessage(
+ +          clearResult.data.chat_id,
+ +          '✅ <b>Solicitud Atendida</b>\n\nTu solicitud de eliminacion de datos ha sido procesada exitosamente. Como resultado, <b>tu suscripcion al bot ha sido revocada</b> y ya no recibiras el menu diario.\n\nPara cualquier duda adicional, acercate a Ecencia Andina.',
+ +          { remove_keyboard: true },
+ +          'HTML'
+ +        ).catch((err) => console.error('No se pudo enviar notificacion de privacidad por Telegram:', err)); // NOSONAR
+ +      } else if (status === 'rejected' && clearResult.data?.chat_id) {
+ +        const motivo = resolution_notes ? `\n\n<b>Motivo:</b> ${resolution_notes}` : '';
+ +        await sendMessage(
+ +          clearResult.data.chat_id,
+ +          `❌ <b>Solicitud Rechazada</b>\n\nTu solicitud de eliminacion de datos ha sido rechazada por la administracion.${motivo}\n\nPara cualquier duda adicional, acercate a Ecencia Andina.`,
+ +          null,
+ +          'HTML'
+ +        ).catch((err) => console.error('No se pudo enviar notificacion de privacidad (rechazo) por Telegram:', err)); // NOSONAR
+ +      }
+ +    }
+ +    res.json(data);
+ +  } catch (error) {
+ +    handleRouteError(res, error);
+ +  }
+ +});
+ +
+ +// QUITAR CLIENTE DE CUALQUIER CONVENIO
+ +router.delete('/:id/convenio', adminOnly, async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const { error } = await adminClient
+ +      .from('clientes_convenios')
+ +      .delete()
+ +      .eq('id_cliente', req.params.id);
+ +
+ +    if (error) throw error;
+ +    const updateResult = await adminClient
+ +      .from('clientes')
+ +      .update({ id_tipo_cliente: CLIENT_TYPE.DIRECT, updated_by: req.user.id })
+ +      .eq('id_cliente', req.params.id);
+ +    if (updateResult.error) throw updateResult.error;
+ +    res.json({ mensaje: 'Vínculo con convenio eliminado' });
+ +  } catch (error) {
+ +    handleRouteError(res, error);
+ +  }
+ +});
+ +
+ +// CREAR NUEVO CLIENTE
+ +router.post('/', async (req, res) => {
+ +  try {
+ +    const { cedula, nombre, apellido, telefono, correo, id_tipo_cliente, id_convenio } = parseBody(schemas.clienteCreate, req.body);
+ +    const adminClient = getAdminClient();
+ +
+ +    if (id_tipo_cliente === CLIENT_TYPE.AGREEMENT && req.user.rol !== 'administrador') {
+ +      throw createHttpError(403, 'Solo un administrador puede vincular clientes a convenios.');
+ +    }
+ +    if (id_tipo_cliente === CLIENT_TYPE.AGREEMENT && !id_convenio) {
+ +      throw createHttpError(400, 'Debe seleccionar un convenio para este tipo de cliente.');
+ +    }
+ +    if (id_tipo_cliente === CLIENT_TYPE.DIRECT && id_convenio) {
+ +      throw createHttpError(400, 'Un cliente frecuente no puede tener convenio.');
+ +    }
+ +    if (id_tipo_cliente === CLIENT_TYPE.AGREEMENT) {
+ +      await validateConvenioLink(adminClient, id_convenio);
+ +    }
+ +
+ +    const [phoneCheck, emailCheck] = await Promise.all([
+ +      telefono
+ +        ? adminClient
+ +          .from('clientes')
+ +          .select('id_cliente')
+ +          .eq('telefono', telefono)
+ +          .eq('esta_activo', true)
+ +          .limit(1)
+ +        : Promise.resolve({ data: [], error: null }),
+ +      adminClient
+ +        .from('clientes')
+ +        .select('id_cliente')
+ +        .ilike('correo', correo)
+ +        .limit(1),
+ +    ]);
+ +    if (phoneCheck.error) throw phoneCheck.error;
+ +    if (emailCheck.error) throw emailCheck.error;
+ +    if (phoneCheck.data?.length) {
+ +      return res.status(400).json({ error: 'Este telefono ya pertenece a un cliente activo.' });
+ +    }
+ +    if (emailCheck.data?.length) {
+ +      return res.status(400).json({ error: 'Este correo ya pertenece a otro cliente.' });
+ +    }
+ +
+ +    const { data: created, error } = await adminClient
+ +      .from('clientes')
+ +      .insert([{
+ +        cedula,
+ +        nombre,
+ +        apellido,
+ +        telefono,
+ +        correo,
+ +        id_tipo_cliente: id_tipo_cliente || CLIENT_TYPE.DIRECT,
+ +        created_by: req.user.id,
+ +      }])
+ +      .select('id_cliente')
+ +      .single();
+ +    if (error) throw error;
+ +
+ +    if (id_tipo_cliente === CLIENT_TYPE.AGREEMENT && id_convenio) {
+ +      const linkResult = await adminClient
+ +        .from('clientes_convenios')
+ +        .insert([{ id_cliente: created.id_cliente, id_convenio, created_by: req.user.id }]);
+ +      if (linkResult.error) {
+ +        await adminClient.from('clientes').delete().eq('id_cliente', created.id_cliente);
+ +        throw linkResult.error;
+ +      }
+ +    }
+ +
+ +    let onboarding;
+ +    try {
+ +      onboarding = await createInvitation(
+ +        created.id_cliente,
+ +        req.user.empleado_id || req.user.id,
+ +      );
+ +    } catch (invitationError) {
+ +      await adminClient.from('clientes').delete().eq('id_cliente', created.id_cliente);
+ +      throw invitationError;
+ +    }
+ +    onboarding.email_delivery = await sendTelegramInvitationEmail({
+ +      client: { nombre, apellido, correo },
+ +      onboarding,
+ +    });
+ +
+ +    const finalResult = await adminClient
+ +      .from('clientes')
+ +      .select(CLIENT_SELECT)
+ +      .eq('id_cliente', created.id_cliente)
+ +      .single();
+ +    if (finalResult.error) throw finalResult.error;
+ +    const consentVersion = await getConsentVersion();
+ +    res.status(201).json({
+ +      ...formatCliente(finalResult.data, consentVersion),
+ +      telegram_onboarding: publicOnboarding(onboarding),
+ +    });
+ +  } catch (error) {
+ +    handleRouteError(res, error);
+ +  }
+ +});
+ +
+ +router.post('/:id/telegram/invitacion', adminOnly, async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const [clientResult, subscriptionResult] = await Promise.all([
+ +      adminClient
+ +        .from('clientes')
+ +        .select('id_cliente,nombre,apellido,telefono,correo,esta_activo')
+ +        .eq('id_cliente', req.params.id)
+ +        .maybeSingle(),
+ +      adminClient
+ +        .from('telegram_subscriptions')
+ +        .select('*')
+ +        .eq('id_cliente', req.params.id)
+ +        .maybeSingle(),
+ +    ]);
+ +    if (clientResult.error) throw clientResult.error;
+ +    if (subscriptionResult.error) throw subscriptionResult.error;
+ +    const client = clientResult.data;
+ +    const subscription = subscriptionResult.data;
+ +    if (!client) throw createHttpError(404, 'Cliente no encontrado.');
+ +    if (!client.esta_activo) throw createHttpError(400, 'El cliente debe estar activo para reinvitarlo.');
+ +
+ +    if (subscription?.chat_id) {
+ +      const [consentVersion, text] = await Promise.all([
+ +        getConsentVersion(),
+ +        privacyText(),
+ +      ]);
+ +
+ +      const { data: pending, error: updateError } = await adminClient
+ +        .from('telegram_subscriptions')
+ +        .update({
+ +          consent_status: 'pending',
+ +          is_active: false,
+ +          consent_notice_version: consentVersion,
+ +          consent_notice_text: text,
+ +          consent_method: null,
+ +          accepted_at: null,
+ +          rejected_at: null,
+ +          revoked_at: null,
+ +          deletion_requested_at: null,
+ +        })
+ +        .eq('id', subscription.id)
+ +        .select()
+ +        .single();
+ +      if (updateError) throw updateError;
+ +
+ +      const sent = await sendMessage(
+ +        pending.chat_id,
+ +        text,
+ +        directConsentKeyboard(),
+ +      );
+ +      await setConsentState(adminClient, pending.chat_id, {
+ +        status: 'awaiting_decision',
+ +        idCliente: client.id_cliente,
+ +        subscriptionId: pending.id,
+ +        invitationId: null,
+ +        policyVersion: getConsentVersion(),
+ +        promptMessageIds: [sent?.message_id].filter(Boolean),
+ +        cleanupMessageIds: [],
+ +      });
+ +      await recordConsentEvent({
+ +        idCliente: client.id_cliente,
+ +        subscriptionId: pending.id,
+ +        eventType: 'admin_reinvited',
+ +        method: 'admin_direct',
+ +        chatId: pending.chat_id,
+ +        phone: pending.phone_normalized,
+ +        includeNotice: false,
+ +      });
+ +      const emailDelivery = await sendTelegramReactivationEmail({ client });
+ +      return res.json({
+ +        telegram_onboarding: {
+ +          status: 'sent',
+ +          onboarding_url: null,
+ +          expires_at: null,
+ +          email_delivery: emailDelivery,
+ +        },
+ +      });
+ +    }
+ +
+ +    if (subscription) {
+ +      const resetResult = await adminClient
+ +        .from('telegram_subscriptions')
+ +        .update({
+ +          consent_status: 'pending',
+ +          is_active: false,
+ +          accepted_at: null,
+ +          rejected_at: null,
+ +          revoked_at: null,
+ +          deletion_requested_at: null,
+ +        })
+ +        .eq('id', subscription.id);
+ +      if (resetResult.error) throw resetResult.error;
+ +    }
+ +
+ +    const onboarding = await createInvitation(
+ +      client.id_cliente,
+ +      req.user.empleado_id || req.user.id,
+ +    );
+ +    onboarding.email_delivery = await sendTelegramInvitationEmail({
+ +      client,
+ +      onboarding,
+ +    });
+ +    await recordConsentEvent({
+ +      idCliente: client.id_cliente,
+ +      subscriptionId: subscription?.id,
+ +      invitationId: onboarding.invitationId,
+ +      eventType: 'admin_reinvited',
+ +      method: 'admin_link',
+ +      includeNotice: false,
+ +    });
+ +    res.json({ telegram_onboarding: publicOnboarding(onboarding) });
+ +  } catch (error) {
+ +    handleRouteError(res, error);
+ +  }
+ +});
+ +
+ +// REVOCAR TELEGRAM MANUALMENTE
+ +router.post('/:id/telegram/revocar', adminOnly, async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const { data: subscription, error } = await adminClient
+ +      .from('telegram_subscriptions')
+ +      .select('id, chat_id, consent_status')
+ +      .eq('id_cliente', req.params.id)
+ +      .maybeSingle();
+ +
+ +    if (error) throw error;
+ +    if (!subscription) throw createHttpError(404, 'No existe una suscripcion para este cliente.');
+ +    if (['revoked', 'rejected'].includes(subscription.consent_status)) {
+ +      throw createHttpError(400, 'La suscripcion ya se encuentra revocada.');
+ +    }
+ +
+ +    const { error: updateError } = await adminClient
+ +      .from('telegram_subscriptions')
+ +      .update({
+ +        consent_status: 'revoked',
+ +        is_active: false,
+ +        revoked_at: new Date().toISOString()
+ +      })
+ +      .eq('id', subscription.id);
+ +
+ +    if (updateError) throw updateError;
+ +
+ +    if (subscription.chat_id) {
+ +      await sendMessage(
+ +        subscription.chat_id,
+ +        '🚫 <b>Suscripcion Revocada</b>\n\nTu acceso al bot de Telegram ha sido revocado por la administracion. Ya no recibiras notificaciones ni menus diarios.',
+ +        { remove_keyboard: true },
+ +        'HTML'
+ +      ).catch(err => console.error('Error enviando revocacion:', err));
+ +    }
+ +
+ +    await recordConsentEvent({
+ +      idCliente: req.params.id,
+ +      subscriptionId: subscription.id,
+ +      eventType: 'revoked',
+ +      method: 'admin_action'
+ +    });
+ +
+ +    res.json({ success: true, message: 'Suscripcion revocada correctamente.' });
+ +  } catch (error) {
+ +    handleRouteError(res, error);
+ +  }
+ +});
+ +
+ +// ACTUALIZAR CLIENTE
+ +router.put('/:id', async (req, res) => {
+ +  const { id } = req.params;
+ +
+ +  try {
+ +    const { activo, cedula, nombre, apellido, telefono, correo, id_tipo_cliente, id_convenio } = parseBody(schemas.clienteUpdate, req.body);
+ +    const actualizacion = { updated_by: req.user.id };
+ +    if (activo !== undefined) actualizacion.esta_activo = activo;
+ +    if (cedula !== undefined) actualizacion.cedula = cedula;
+ +    if (nombre !== undefined) actualizacion.nombre = nombre;
+ +    if (apellido !== undefined) actualizacion.apellido = apellido;
+ +    if (telefono !== undefined) actualizacion.telefono = telefono;
+ +    if (correo !== undefined) actualizacion.correo = correo;
+ +    if (id_tipo_cliente !== undefined) actualizacion.id_tipo_cliente = id_tipo_cliente;
+ +
+ +    const adminClient = getAdminClient();
+ +    const currentResult = await adminClient
+ +      .from('clientes')
+ +      .select('id_tipo_cliente, telefono, correo, esta_activo')
+ +      .eq('id_cliente', id)
+ +      .maybeSingle();
+ +    if (currentResult.error) throw currentResult.error;
+ +    if (!currentResult.data) return res.status(404).json({ error: 'Cliente no encontrado' });
+ +
+ +    const currentLinkResult = await adminClient
+ +      .from('clientes_convenios')
+ +      .select('id_convenio')
+ +      .eq('id_cliente', id)
+ +      .maybeSingle();
+ +    if (currentLinkResult.error) throw currentLinkResult.error;
+ +
+ +    const currentAgreementId = currentLinkResult.data?.id_convenio || null;
+ +    const finalClientType = id_tipo_cliente ?? currentResult.data.id_tipo_cliente;
+ +    const finalAgreementId = id_convenio === undefined ? currentAgreementId : id_convenio;
+ +    if (
+ +      req.user.rol !== 'administrador' &&
+ +      (
+ +        finalClientType !== currentResult.data.id_tipo_cliente ||
+ +        finalAgreementId !== currentAgreementId
+ +      )
+ +    ) {
+ +      throw createHttpError(403, 'Solo un administrador puede cambiar el tipo o convenio del cliente.');
+ +    }
+ +    if (finalClientType === CLIENT_TYPE.AGREEMENT && !finalAgreementId) {
+ +      throw createHttpError(400, 'Debe seleccionar un convenio para este tipo de cliente.');
+ +    }
+ +    if (finalClientType === CLIENT_TYPE.DIRECT && finalAgreementId) {
+ +      throw createHttpError(400, 'Un cliente frecuente no puede tener convenio.');
+ +    }
+ +
+ +    const targetPhone = telefono ?? currentResult.data.telefono;
+ +    const targetEmail = correo ?? currentResult.data.correo;
+ +    const targetActive = activo ?? currentResult.data.esta_activo;
+ +    const linkValidation = finalClientType === CLIENT_TYPE.AGREEMENT && finalAgreementId
+ +      ? await validateConvenioLink(adminClient, finalAgreementId, id)
+ +      : { isSameLink: false };
+ +
+ +    const [phoneCheck, emailCheck] = await Promise.all([
+ +      targetActive && targetPhone
+ +        ? adminClient
+ +          .from('clientes')
+ +          .select('id_cliente')
+ +          .eq('telefono', targetPhone)
+ +          .eq('esta_activo', true)
+ +          .neq('id_cliente', id)
+ +          .limit(1)
+ +        : Promise.resolve({ data: [], error: null }),
+ +      targetEmail
+ +        ? adminClient
+ +          .from('clientes')
+ +          .select('id_cliente')
+ +          .ilike('correo', targetEmail)
+ +          .neq('id_cliente', id)
+ +          .limit(1)
+ +        : Promise.resolve({ data: [], error: null }),
+ +    ]);
+ +    if (phoneCheck.error) throw phoneCheck.error;
+ +    if (emailCheck.error) throw emailCheck.error;
+ +    if (phoneCheck.data?.length) {
+ +      return res.status(400).json({ error: 'Este telefono ya pertenece a un cliente activo.' });
+ +    }
+ +    if (emailCheck.data?.length) {
+ +      return res.status(400).json({ error: 'Este correo ya pertenece a otro cliente.' });
+ +    }
+ +
+ +    const { data, error } = await adminClient
+ +      .from('clientes')
+ +      .update(actualizacion)
+ +      .eq('id_cliente', id)
+ +      .select('id_cliente, id_tipo_cliente')
+ +      .single();
+ +
+ +    if (error) throw error;
+ +    if (!data) return res.status(404).json({ error: 'Cliente no encontrado' });
+ +
+ +    if (finalClientType === CLIENT_TYPE.DIRECT) {
+ +      const unlinkResult = await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+ +      if (unlinkResult.error) throw unlinkResult.error;
+ +    } else if (finalAgreementId && !linkValidation.isSameLink) {
+ +      const unlinkResult = await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+ +      if (unlinkResult.error) throw unlinkResult.error;
+ +      const linkResult = await adminClient
+ +        .from('clientes_convenios')
+ +        .insert([{ id_cliente: id, id_convenio: finalAgreementId, created_by: req.user.id }]);
+ +      if (linkResult.error) throw linkResult.error;
+ +    }
+ +
+ +    const finalResult = await adminClient
+ +      .from('clientes')
+ +      .select(CLIENT_SELECT)
+ +      .eq('id_cliente', id)
+ +      .single();
+ +    if (finalResult.error) throw finalResult.error;
+ +    const consentVersion = await getConsentVersion();
+ +    res.json(formatCliente(finalResult.data, consentVersion));
+ +  } catch (error) {
+ +    handleRouteError(res, error);
+ +  }
+ +});
+ +
+ +// OBTENER SALDO DEL MONEDERO VIRTUAL
+ +router.get('/:id/saldo', async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const { data, error } = await adminClient
+ +      .from('saldos_servicio')
+ +      .select('*, productos(nombre_producto, precio_unitario)')
+ +      .eq('id_cliente', req.params.id);
+ +
+ +    if (error) throw error;
+ +    res.json(data);
+ +  } catch (error) {
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +// RECARGAR SALDO AL MONEDERO VIRTUAL
+ +router.post('/:id/recargar', async (req, res) => {
+ +  const id_cliente = req.params.id;
+ +
+ +  try {
+ +    const { id_producto, cantidad_comprada, monto_total, numero_factura } = parseBody(schemas.recarga, req.body);
+ +    const adminClient = getAdminClient();
+ +
+ +    // 1. Insertar el registro de recarga
+ +    const { error: errorRecarga } = await adminClient
+ +      .from('recargas_saldo')
+ +      .insert([{ 
+ +        id_cliente, 
+ +        id_producto, 
+ +        cantidad_comprada, 
+ +        monto_total,
+ +        numero_factura,
+ +        created_by: req.user.id 
+ +      }]);
+ +
+ +    if (errorRecarga) throw errorRecarga;
+ +
+ +    // 2. Verificar si ya tiene saldo previo de este producto
+ +    const { data: saldoPrevio, error: errorSaldoPrevio } = await adminClient
+ +      .from('saldos_servicio')
+ +      .select('cantidad_disponible')
+ +      .eq('id_cliente', id_cliente)
+ +      .eq('id_producto', id_producto)
+ +      .single();
+ +
+ +    if (errorSaldoPrevio && errorSaldoPrevio.code !== 'PGRST116') {
+ +      // PGRST116 is "Results contain 0 rows"
+ +      throw errorSaldoPrevio;
+ +    }
+ +
+ +    if (saldoPrevio) {
+ +      // Actualizar sumando la nueva cantidad
+ +      const nuevaCantidad = saldoPrevio.cantidad_disponible + cantidad_comprada;
+ +      const { error: errorUpdate } = await adminClient
+ +        .from('saldos_servicio')
+ +        .update({ cantidad_disponible: nuevaCantidad, updated_by: req.user.id })
+ +        .eq('id_cliente', id_cliente)
+ +        .eq('id_producto', id_producto);
+ +
+ +      if (errorUpdate) throw errorUpdate;
+ +    } else {
+ +      // Insertar nuevo registro de saldo
+ +      const { error: errorInsert } = await adminClient
+ +        .from('saldos_servicio')
+ +        .insert([{ 
+ +          id_cliente, 
+ +          id_producto, 
+ +          cantidad_disponible: cantidad_comprada,
+ +          updated_by: req.user.id 
+ +        }]);
+ +
+ +      if (errorInsert) throw errorInsert;
+ +    }
+ +
+ +    res.status(201).json({ mensaje: 'Recarga registrada exitosamente y saldo actualizado' });
+ +  } catch (error) {
+ +    if (sendValidationError(res, error)) return;
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +// OBTENER HISTORIAL DE RECARGAS Y CONSUMOS DE UN CLIENTE
+ +router.get('/:id/historial', async (req, res) => {
+ +  const id_cliente = req.params.id;
+ +  try {
+ +    const adminClient = getAdminClient();
+ +
+ +    // 1. Obtener todas las recargas del cliente
+ +    const { data: recargas, error: errRecargas } = await adminClient
+ +      .from('recargas_saldo')
+ +      .select('id_recarga, cantidad_comprada, monto_total, numero_factura, created_at, created_by, productos(nombre_producto)')
+ +      .eq('id_cliente', id_cliente)
+ +      .order('created_at', { ascending: false });
+ +
+ +    if (errRecargas) throw errRecargas;
+ +
+ +    // 2. Obtener todas las órdenes consumidas (estado 2) con Saldo Prepago del cliente
+ +    const { data: ordenes, error: errOrdenes } = await adminClient
+ +      .from('ordenes')
+ +      .select(`
+ +        id_orden,
+ +        created_at,
+ +        consumed_at,
+ +        created_by,
+ +        detalle_orden(
+ +          cantidad,
+ +          precio_aplicado,
+ +          productos(nombre_producto)
+ +        )
+ +      `)
+ +      .eq('id_cliente', id_cliente)
+ +      .eq('id_estado', 2)
+ +      .eq('metodo_pago', 'Saldo Prepago')
+ +      .order('consumed_at', { ascending: false });
+ +
+ +    if (errOrdenes) throw errOrdenes;
+ +
+ +    // 3. Obtener nombres de empleados para ambas fuentes
+ +    const { data: empleados } = await adminClient
+ +      .from('empleados')
+ +      .select('id, nombre, apellido');
+ +
+ +    const empMap = {};
+ +    (empleados || []).forEach(e => { empMap[e.id] = `${e.nombre} ${e.apellido}`; });
+ +
+ +    // 4. Formatear recargas
+ +    const eventosRecarga = (recargas || []).map(r => ({
+ +      tipo: 'recarga',
+ +      fecha: r.created_at,
+ +      producto: r.productos?.nombre_producto || 'Sin producto',
+ +      cantidad: r.cantidad_comprada,
+ +      monto_total: r.monto_total,
+ +      numero_factura: r.numero_factura || null,
+ +      registrado_por: empMap[r.created_by] || 'Sistema',
+ +      referencia: r.id_recarga
+ +    }));
+ +
+ +    // 5. Formatear consumos (una entrada por detalle de la orden)
+ +    const eventosConsumo = [];
+ +    for (const orden of (ordenes || [])) {
+ +      for (const det of (orden.detalle_orden || [])) {
+ +        eventosConsumo.push({
+ +          tipo: 'consumo',
+ +          fecha: orden.consumed_at || orden.created_at,
+ +          producto: det.productos?.nombre_producto || 'Sin producto',
+ +          cantidad: det.cantidad,
+ +          precio_aplicado: det.precio_aplicado,
+ +          registrado_por: empMap[orden.created_by] || 'Sistema',
+ +          referencia: orden.id_orden
+ +        });
+ +      }
+ +    }
+ +
+ +    // 6. Combinar y ordenar por fecha descendente
+ +    const historial = [...eventosRecarga, ...eventosConsumo]
+ +      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+ +
+ +    res.json(historial);
+ +  } catch (error) {
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +// ELIMINAR CLIENTE
+ +router.delete('/:id', async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const { id } = req.params;
+ +
+ +    const { data: sub } = await adminClient
+ +      .from('telegram_subscriptions')
+ +      .select('chat_id')
+ +      .eq('id_cliente', id)
+ +      .maybeSingle();
+ +
+ +    const { error } = await adminClient.from('clientes').delete().eq('id_cliente', id);
+ +
+ +    if (error) {
+ +      if (error.code === '23503') {
+ +        return res.status(400).json({ error: 'No se puede eliminar el cliente porque tiene órdenes, recargas o registros asociados.' });
+ +      }
+ +      throw error;
+ +    }
+ +
+ +    if (sub?.chat_id) {
+ +      await sendMessage(
+ +        sub.chat_id,
+ +        '🚫 <b>Cuenta Eliminada</b>\n\nTu cuenta ha sido eliminada del sistema de Ecencia Andina. Como resultado, tu suscripcion al bot de Telegram ha sido revocada permanentemente y todos tus datos asociados han sido borrados.\n\nGracias por utilizar nuestro servicio.',
+ +        { remove_keyboard: true },
+ +        'HTML'
+ +      ).catch((err) => console.error('No se pudo notificar eliminacion de cuenta por Telegram:', err)); // NOSONAR
+ +    }
+ +
+ +    res.json({ success: true, message: 'Cliente eliminado correctamente' });
+ +  } catch (error) {
+ +    console.error('Error al eliminar cliente:', error);
+ +    res.status(500).json({ error: 'Error interno del servidor al eliminar cliente' });
+ +  }
+ +});
+ +
+ +// BORRADO FORZADO (HARD DELETE) - SOLO ADMINISTRADORES
+ +router.delete('/:id/hard-delete', adminOnly, async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const { id } = req.params;
+ +
+ +    // 1. Obtener la suscripción para saber el chat_id y enviar el mensaje final
+ +    const { data: sub } = await adminClient
+ +      .from('telegram_subscriptions')
+ +      .select('chat_id')
+ +      .eq('id_cliente', id)
+ +      .maybeSingle();
+ +
+ +    // 2. Obtener todas las órdenes para borrar sus detalles
+ +    const { data: ordenes } = await adminClient
+ +      .from('ordenes')
+ +      .select('id_orden')
+ +      .eq('id_cliente', id);
+ +
+ +    const ordenesIds = ordenes?.map((o) => o.id_orden) || [];
+ +
+ +    if (ordenesIds.length > 0) {
+ +      // 3. Borrar detalles de las órdenes
+ +      await adminClient.from('detalle_orden').delete().in('id_orden', ordenesIds);
+ +    }
+ +
+ +    // 4. Borrar Órdenes
+ +    await adminClient.from('ordenes').delete().eq('id_cliente', id);
+ +
+ +    // 5. Borrar Recargas y Saldos
+ +    await adminClient.from('recargas_saldo').delete().eq('id_cliente', id);
+ +    await adminClient.from('saldos_servicio').delete().eq('id_cliente', id);
+ +
+ +    // 6. Borrar Trazabilidad e Invitaciones
+ +    await adminClient.from('telegram_order_traces').delete().eq('id_cliente', id);
+ +    await adminClient.from('telegram_privacy_requests').delete().eq('id_cliente', id);
+ +    await adminClient.from('telegram_invitations').delete().eq('id_cliente', id);
+ +
+ +    // 7. Borrar Estado del Bot si hay chat_id
+ +    if (sub?.chat_id) {
+ +      await adminClient.from('telegram_bot_state').delete().in('key', [`consent:${sub.chat_id}`, `session:${sub.chat_id}`]);
+ +    }
+ +
+ +    // 8. Borrar Suscripciones
+ +    await adminClient.from('telegram_subscriptions').delete().eq('id_cliente', id);
+ +
+ +    // 9. Borrar Convenios
+ +    await adminClient.from('clientes_convenios').delete().eq('id_cliente', id);
+ +
+ +    // 10. Finalmente, Borrar Cliente
+ +    const { error: finalError } = await adminClient.from('clientes').delete().eq('id_cliente', id);
+ +    if (finalError) throw finalError;
+ +
+ +    // 11. Enviar mensaje de despedida si estaba suscrito
+ +    if (sub?.chat_id) {
+ +      await sendMessage(
+ +        sub.chat_id,
+ +        '🚫 <b>Cuenta Eliminada (Borrado Forzado)</b>\n\nTu cuenta ha sido eliminada completamente del sistema de Ecencia Andina junto con todos tus datos y registros financieros. Ya no tienes acceso al bot.\n\nGracias por utilizar nuestro servicio.',
+ +        { remove_keyboard: true },
+ +        'HTML'
+ +      ).catch((err) => console.error('No se pudo notificar eliminacion forzada por Telegram:', err)); // NOSONAR
+ +    }
+ +
+ +    res.json({ success: true, message: 'Cliente y todo su historial han sido eliminados de forma forzada.' });
+ +  } catch (error) {
+ +    console.error('Error en Borrado Forzado:', error);
+ +    res.status(500).json({ error: error.message || 'Error interno del servidor al realizar el borrado forzado.' });
+ +  }
+ +});
+++=======
++ router.get('/', clientesController.getAll);
++ router.get('/tipos', clientesController.getTipos);
++ router.get('/telegram/privacidad-solicitudes', adminOnly, clientesController.getPrivacyRequests);
++ router.patch('/telegram/privacidad-solicitudes/:requestId', adminOnly, clientesController.resolvePrivacyRequest);
++ router.delete('/:id/convenio', adminOnly, clientesController.removeConvenio);
++ router.post('/', clientesController.create);
++ router.post('/:id/telegram/invitacion', adminOnly, clientesController.reinviteTelegram);
++ router.post('/:id/telegram/revocar', adminOnly, clientesController.revokeTelegram);
++ router.put('/:id', clientesController.update);
++ router.get('/:id/saldo', clientesController.getSaldo);
++ router.post('/:id/recargar', clientesController.recargar);
++ router.get('/:id/historial', clientesController.getHistorial);
++ router.delete('/:id', clientesController.remove);
++ router.delete('/:id/hard-delete', adminOnly, clientesController.hardDelete);
+++>>>>>>> develop
+  
+  module.exports = router;
++ module.exports._private = { ...clientesService };
+diff --cc backend/src/routes/menu.js
+index 488cae0,06f03d0..0000000
+--- a/backend/src/routes/menu.js
++++ b/backend/src/routes/menu.js
+@@@ -17,415 -17,38 +17,450 @@@ const DEFAULT_IMAGE_RETENTION_DAYS = 14
+  const MAX_MENU_IMAGE_BYTES = 5 * 1024 * 1024;
+  const LOCAL_WEBHOOK_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+  
+++<<<<<<< HEAD
+ +const cleanOptions = (options) => {
+ +  if (!Array.isArray(options)) return [];
+ +  return options.map((option) => String(option || '').trim()).filter(Boolean);
+ +};
+ +
+ +const normalizeText = (value) =>
+ +  String(value || '')
+ +    .toLowerCase()
+ +    .normalize('NFD')
+ +    .replace(/[\u0300-\u036f]/g, '')
+ +    .trim();
+ +
+ +const todayInTimezone = () =>
+ +  new Intl.DateTimeFormat('en-CA', {
+ +    timeZone: TIMEZONE,
+ +    year: 'numeric',
+ +    month: '2-digit',
+ +    day: '2-digit',
+ +  }).format(new Date());
+ +
+ +const buildMenuOpciones = (body) => {
+ +  const opciones = {};
+ +  if (body.opciones && typeof body.opciones === 'object') {
+ +    for (const [catId, options] of Object.entries(body.opciones)) {
+ +      const cleaned = cleanOptions(options);
+ +      if (cleaned.length) opciones[catId] = cleaned;
+ +    }
+ +  }
+ +  return opciones;
+ +};
+ +
+ +const deriveLegacyMenu = (opciones, categories) => {
+ +  const legacy = { entradas: [], sopas: [], segundos: [], postres: [], bebidas: [], guarniciones: [] };
+ +  const nameMap = {};
+ +  for (const cat of categories) {
+ +    nameMap[cat.id_categoria_menu] = normalizeText(cat.nombre_categoria);
+ +  }
+ +  for (const [catId, options] of Object.entries(opciones)) {
+ +    const name = nameMap[catId] || '';
+ +    if (name.includes('entrada')) legacy.entradas = options;
+ +    else if (name.includes('sopa')) legacy.sopas = options;
+ +    else if (name.includes('segundo') || name.includes('plato')) legacy.segundos = options;
+ +    else if (name.includes('postre')) legacy.postres = options;
+ +    else if (name.includes('bebida')) legacy.bebidas = options;
+ +    else if (name.includes('guarnicion') || name.includes('arroz') || name.includes('ensalada')) legacy.guarniciones = options;
+ +  }
+ +  return legacy;
+ +};
+ +
+ +const cleanClientIds = (clientIds) => {
+ +  if (!Array.isArray(clientIds)) return [];
+ +  return clientIds.map((id) => String(id || '').trim()).filter(Boolean);
+ +};
+ +
+ +const getN8nMenuWebhookUrl = () => {
+ +  const configuredUrl = process.env.N8N_MENU_WEBHOOK_URL || '';
+ +  const webhookUrl = configuredUrl || (process.env.NODE_ENV === 'production' ? '' : DEFAULT_N8N_MENU_WEBHOOK_URL);
+ +
+ +  if (!webhookUrl) {
+ +    const error = new Error('Falta N8N_MENU_WEBHOOK_URL en produccion.');
+ +    error.status = 500;
+ +    throw error;
+ +  }
+ +
+ +  let parsedUrl;
+ +  try {
+ +    parsedUrl = new URL(webhookUrl);
+ +  } catch {
+ +    const error = new Error('N8N_MENU_WEBHOOK_URL no es una URL valida.');
+ +    error.status = 500;
+ +    throw error;
+ +  }
+ +
+ +  if (process.env.NODE_ENV === 'production') {
+ +    // Internal Docker network hostnames (no dots, e.g. 'n8n', 'backend')
+ +    // or IPv4 addresses (e.g. '20.65.123.185') communicate within the same
+ +    // Docker Compose network or directly via IP and don't need HTTPS.
+ +    const isInternalDockerHost = !parsedUrl.hostname.includes('.') || /^(\d{1,3}\.){3}\d{1,3}$/.test(parsedUrl.hostname);
+ +
+ +    if (parsedUrl.protocol !== 'https:' && !isInternalDockerHost) {
+ +      const error = new Error('N8N_MENU_WEBHOOK_URL debe usar HTTPS en produccion.');
+ +      error.status = 500;
+ +      throw error;
+ +    }
+ +
+ +    if (LOCAL_WEBHOOK_HOSTS.has(parsedUrl.hostname.toLowerCase())) {
+ +      const error = new Error('N8N_MENU_WEBHOOK_URL no puede apuntar a localhost en produccion.');
+ +      error.status = 500;
+ +      throw error;
+ +    }
+ +  }
+ +
+ +  return parsedUrl.toString();
+ +};
+ +
+ +const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+ +
+ +const mimeToExtension = (mimeType) => {
+ +  if (mimeType === 'image/png') return 'png';
+ +  if (mimeType === 'image/webp') return 'webp';
+ +  return 'jpg';
+ +};
+ +
+ +const hasAllowedImageSignature = (buffer, mimeType) => {
+ +  const isJpeg = mimeType === 'image/jpeg' && buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+ +  const isPng =
+ +    mimeType === 'image/png' &&
+ +    buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+ +  const isWebp =
+ +    mimeType === 'image/webp' &&
+ +    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+ +    buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+ +
+ +  return isJpeg || isPng || isWebp;
+ +};
+ +
+ +const makeSquareWithBlurredBackground = async (buffer) => {
+ +  try {
+ +    const image = sharp(buffer);
+ +    const metadata = await image.metadata();
+ +    const width = metadata.width;
+ +    const height = metadata.height;
+ +
+ +    if (!width || !height) return buffer;
+ +    if (width === height) return buffer;
+ +
+ +    const size = Math.max(width, height);
+ +
+ +    // 1. Create a blurred background of size x size
+ +    const background = await sharp(buffer)
+ +      .resize(size, size, { fit: 'cover' })
+ +      .blur(40)
+ +      .toBuffer();
+ +
+ +    // 2. Resize foreground to fit within size x size, preserving aspect ratio, with transparent background
+ +    const foreground = await sharp(buffer)
+ +      .resize(size, size, {
+ +        fit: 'contain',
+ +        background: { r: 0, g: 0, b: 0, alpha: 0 },
+ +      })
+ +      .png()
+ +      .toBuffer();
+ +
+ +    // 3. Composite foreground over blurred background
+ +    return await sharp(background)
+ +      .composite([{ input: foreground, blend: 'over' }])
+ +      .toBuffer();
+ +  } catch (err) {
+ +    console.error('Error al procesar la imagen con sharp:', err);
+ +    return buffer; // fall back to original buffer if sharp fails
+ +  }
+ +};
+ +
+ +const uploadMenuImage = async (image) => {
+ +  if (!image) return { publicUrl: null, path: null };
+ +  if (/^https:\/\//i.test(image)) return { publicUrl: image, path: null };
+ +  if (/^http:\/\//i.test(image)) {
+ +    const error = new Error('La URL publica de imagen del menu debe usar HTTPS.');
+ +    error.status = 400;
+ +    throw error;
+ +  }
+ +
+ +  const match = String(image).match(/^data:(image\/(?:png|jpe?g|webp));base64,(.+)$/i);
+ +  if (!match) {
+ +    const error = new Error('La imagen del menu debe ser JPG, PNG, WebP o una URL publica HTTPS.');
+ +    error.status = 400;
+ +    throw error;
+ +  }
+ +
+ +  const [, rawMimeType, base64Data] = match;
+ +  const mimeType = rawMimeType.toLowerCase() === 'image/jpg' ? 'image/jpeg' : rawMimeType.toLowerCase();
+ +  const buffer = Buffer.from(base64Data, 'base64');
+ +  if (buffer.length > MAX_MENU_IMAGE_BYTES || !hasAllowedImageSignature(buffer, mimeType)) {
+ +    const error = new Error('La imagen del menu debe ser JPG, PNG o WebP valida y pesar maximo 5 MB.');
+ +    error.status = 400;
+ +    throw error;
+ +  }
+ +  const fileName = `telegram/menu-dashboard-${Date.now()}.${mimeToExtension(mimeType.toLowerCase())}`;
+ +  const adminClient = getAdminClient();
+ +
+ +  const processedBuffer = await makeSquareWithBlurredBackground(buffer);
+ +
+ +  const { error } = await adminClient.storage.from(MENU_ASSETS_BUCKET).upload(fileName, processedBuffer, {
+ +    contentType: mimeType,
+ +    upsert: false,
+ +  });
+ +
+ +  if (error) {
+ +    throw new Error(`No se pudo subir la imagen del menu: ${error.message}`);
+ +  }
+ +
+ +  const { data } = adminClient.storage.from(MENU_ASSETS_BUCKET).getPublicUrl(fileName);
+ +  return { publicUrl: data.publicUrl, path: fileName };
+ +};
+ +
+ +const removeUploadedMenuImage = async (adminClient, imageUpload) => {
+ +  if (!imageUpload?.path) return;
+ +  const { error } = await adminClient.storage.from(MENU_ASSETS_BUCKET).remove([imageUpload.path]);
+ +  if (error) console.error('No se pudo retirar la imagen huerfana del menu:', error);
+ +};
+ +
+ +const getMenuSettings = async (adminClient) => {
+ +  const { data, error } = await adminClient
+ +    .from('menu_settings')
+ +    .select('active_date,image_retention_days')
+ +    .eq('id', 1)
+ +    .maybeSingle();
+ +
+ +  if (error) throw error;
+ +  return data || { active_date: null, image_retention_days: DEFAULT_IMAGE_RETENTION_DAYS };
+ +};
+ +
+ +const buildActiveMenuPayload = (opciones, categories) => {
+ +  const legacy = deriveLegacyMenu(opciones, categories);
+ +  return {
+ +    opciones,
+ +    entradas: legacy.entradas,
+ +    sopas: legacy.sopas,
+ +    segundos: legacy.segundos,
+ +    guarniciones: legacy.guarniciones,
+ +    bebidas: legacy.bebidas,
+ +    postres: legacy.postres,
+ +  };
+ +};
+ +
+ +const saveActiveMenuState = async (adminClient, fecha, opciones, categories, photoUrl, userId) => {
+ +  const menu = buildActiveMenuPayload(opciones, categories);
+ +  const { error: settingsError } = await adminClient
+ +    .from('menu_settings')
+ +    .upsert(
+ +      {
+ +        id: 1,
+ +        active_date: fecha,
+ +        updated_by: userId,
+ +      },
+ +      { onConflict: 'id' },
+ +    );
+ +
+ +  if (settingsError) throw settingsError;
+ +
+ +  const { error: stateError } = await adminClient
+ +    .from('telegram_bot_state')
+ +    .upsert(
+ +      {
+ +        key: 'latest-menu:active',
+ +        value: {
+ +          date: fecha,
+ +          menu,
+ +          photoUrl,
+ +          updatedAt: new Date().toISOString(),
+ +        },
+ +      },
+ +      { onConflict: 'key' },
+ +    );
+ +
+ +  if (stateError) throw stateError;
+ +};
+ +
+ +const menuRowSelect = `
+ +  fecha,
+ +  imagen_url,
+ +  alimentos(
+ +    nombre_alimento,
+ +    id_categoria_menu,
+ +    categorias_menu(nombre_categoria, id_categoria_menu)
+ +  )
+ +`;
+ +
+ +const groupMenuRows = (rows, activeDate, envioMap = new Map()) => {
+ +  const grouped = new Map();
+ +
+ +  for (const row of rows || []) {
+ +    if (!grouped.has(row.fecha)) {
+ +      const envio = envioMap.get(row.fecha);
+ +      grouped.set(row.fecha, {
+ +        fecha: row.fecha,
+ +        estado: row.fecha === activeDate ? 'activo' : 'inactivo',
+ +        imagen_url: row.imagen_url || null,
+ +        opciones: {},
+ +        opciones_count: 0,
+ +        enviado: !!envio,
+ +        send_count: envio?.sendCount || 0,
+ +      });
+ +    }
+ +
+ +    const menu = grouped.get(row.fecha);
+ +    if (!menu.imagen_url && row.imagen_url) menu.imagen_url = row.imagen_url;
+ +
+ +    const foods = Array.isArray(row.alimentos) ? row.alimentos : [row.alimentos];
+ +    for (const food of foods) {
+ +      const name = String(food?.nombre_alimento || '').trim();
+ +      if (!name) continue;
+ +      const catId = food?.id_categoria_menu;
+ +      if (!catId) continue;
+ +      if (!menu.opciones[catId]) menu.opciones[catId] = [];
+ +      menu.opciones[catId].push(name);
+ +      menu.opciones_count += 1;
+ +    }
+ +  }
+ +
+ +  return [...grouped.values()].sort((a, b) => b.fecha.localeCompare(a.fecha));
+ +};
+ +
+ +const getCategoryIds = async (adminClient) => {
+ +  const { data, error } = await adminClient
+ +    .from('categorias_menu')
+ +    .select('id_categoria_menu,nombre_categoria');
+ +
+ +  if (error) throw error;
+ +  return data || [];
+ +};
+ +
+ +const hasRequiredCategories = (opciones, categories) => {
+ +  const nameMap = {};
+ +  for (const cat of categories) {
+ +    nameMap[cat.id_categoria_menu] = normalizeText(cat.nombre_categoria);
+ +  }
+ +  let hasSopa = false;
+ +  let hasSegundo = false;
+ +  for (const [catId, options] of Object.entries(opciones)) {
+ +    const name = nameMap[catId] || '';
+ +    if (name.includes('sopa') && cleanOptions(options).length) hasSopa = true;
+ +    if ((name.includes('segundo') || name.includes('plato')) && cleanOptions(options).length) hasSegundo = true;
+ +  }
+ +  return hasSopa && hasSegundo;
+ +};
+ +
+ +const ensureAlimento = async (adminClient, idCategoria, nombre, userId) => {
+ +  const food = await findOrCreateFood(adminClient, {
+ +    categoryId: idCategoria,
+ +    name: nombre,
+ +    userId,
+ +  });
+ +  return food.id;
+ +};
+ +
+ +const addLegacyFields = (menuList, categories) => {
+ +  return menuList.map((menu) => {
+ +    const legacy = deriveLegacyMenu(menu.opciones, categories);
+ +    return {
+ +      ...menu,
+ +      entradas: legacy.entradas,
+ +      sopas: legacy.sopas,
+ +      segundos: legacy.segundos,
+ +      postres: legacy.postres,
+ +      bebidas: legacy.bebidas,
+ +      guarniciones: legacy.guarniciones,
+ +      opciones: menu.opciones || {},
+ +      opciones_count: menu.opciones_count || 0,
+ +    };
+ +  });
+ +};
+ +
+ +const fetchMenus = async (adminClient, fecha = null, categories = null) => {
+ +  let query = adminClient
+ +    .from('menu_diario')
+ +    .select(menuRowSelect)
+ +    .order('fecha', { ascending: false })
+ +    .order('created_at', { ascending: true });
+ +
+ +  if (fecha) query = query.eq('fecha', fecha);
+ +
+ +  const { data, error } = await query;
+ +  if (error) throw error;
+ +
+ +  const settings = await getMenuSettings(adminClient);
+ +
+ +  const { data: envios } = await adminClient
+ +    .from('menu_envios')
+ +    .select('fecha,last_sent_at,send_count,menu_payload');
+ +  const envioMap = new Map();
+ +  for (const e of envios || []) {
+ +    envioMap.set(e.fecha, { sentAt: e.last_sent_at, sendCount: e.send_count, menuPayload: e.menu_payload });
+ +  }
+ +
+ +  if (!categories) categories = await getCategoryIds(adminClient);
+ +  return addLegacyFields(groupMenuRows(data || [], settings.active_date, envioMap), categories);
+ +};
+ +
+ +const getMenuByDate = async (adminClient, fecha) => {
+ +  const menus = await fetchMenus(adminClient, fecha);
+ +  return menus[0] || null;
+ +};
+ +
+ +const saveDailyMenu = async (adminClient, opciones, imageUrl, userId, fecha = todayInTimezone()) => {
+ +  const alimentosIds = [];
+ +
+ +  for (const [catId, options] of Object.entries(opciones)) {
+ +    for (const option of cleanOptions(options)) {
+ +      alimentosIds.push(await ensureAlimento(adminClient, Number.parseInt(catId), option, userId));
+ +    }
+ +  }
+ +
+ +  const { data, error } = await adminClient.rpc('replace_daily_menu', {
+ +    p_fecha: fecha,
+ +    p_alimentos_ids: alimentosIds,
+ +    p_imagen_url: imageUrl,
+ +    p_user_id: userId,
+ +  });
+ +  if (error) throw error;
+ +
+ +  return { fecha, count: Number(data ?? alimentosIds.length) };
+ +};
+ +
+ +const secureEquals = (left, right) => {
+ +  const leftBuffer = Buffer.from(String(left || ''));
+ +  const rightBuffer = Buffer.from(String(right || ''));
+ +  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+ +};
+++=======
++ const menuService = require('../services/menuService');
++ const {
++   cleanOptions,
++   normalizeText,
++   todayInTimezone,
++   buildMenuOpciones,
++   deriveLegacyMenu,
++   cleanClientIds,
++   getN8nMenuWebhookUrl,
++   isIsoDate,
++   mimeToExtension,
++   hasAllowedImageSignature,
++   makeSquareWithBlurredBackground,
++   uploadMenuImage,
++   removeUploadedMenuImage,
++   getMenuSettings,
++   buildActiveMenuPayload,
++   saveActiveMenuState,
++   menuRowSelect,
++   groupMenuRows,
++   getCategoryIds,
++   hasRequiredCategories,
++   ensureAlimento,
++   addLegacyFields,
++   fetchMenus,
++   getMenuByDate,
++   saveDailyMenu,
++   secureEquals,
++   hasCompleteMenu,
++   menuPayloadEquals,
++   validateMenuImageInput
++ } = menuService;
+++>>>>>>> develop
+  
+  const requireN8nCleanupSecret = (req, res, next) => {
+    const expectedSecret = process.env.N8N_MENU_WEBHOOK_SECRET;
+diff --cc backend/src/routes/ordenes.js
+index 6d53678,e8d852a..0000000
+--- a/backend/src/routes/ordenes.js
++++ b/backend/src/routes/ordenes.js
+@@@ -11,532 -8,11 +8,541 @@@ const ordenesService = require('../serv
+  router.use(authMiddleware);
+  router.use(roleMiddleware(['administrador', 'caja']));
+  
+++<<<<<<< HEAD
+ +// CREAR UNA NUEVA ORDEN
+ +router.post('/', async (req, res) => {
+ +  try {
+ +    const { id_cliente, id_estado, id_origen, canal_origen, observaciones, detalles, metodo_pago } = parseBody(
+ +      schemas.ordenCreate,
+ +      req.body,
+ +    );
+ +    const adminClient = getAdminClient();
+ +
+ +    // Validar si el método de pago es Convenio Empresa
+ +    if (metodo_pago === 'Convenio Empresa') {
+ +      const { data: cliente, error: errCliente } = await adminClient
+ +        .from('clientes')
+ +        .select(`
+ +          clientes_convenios(
+ +            convenios(id_convenio, esta_activo, fecha_caducidad)
+ +          )
+ +        `)
+ +        .eq('id_cliente', id_cliente)
+ +        .single();
+ +      
+ +      if (errCliente) throw errCliente;
+ +      
+ +      const convenioRel = cliente.clientes_convenios?.[0]?.convenios;
+ +      
+ +      if (!convenioRel) {
+ +        return res.status(400).json({ error: 'El cliente no cuenta con convenio asociado. Por favor asigne el convenio antes de confirmar el pedido.' });
+ +      }
+ +
+ +      const today = new Date();
+ +      today.setHours(0, 0, 0, 0);
+ +      const isExpired = convenioRel.fecha_caducidad ? new Date(convenioRel.fecha_caducidad + 'T00:00:00') < today : false;
+ +      
+ +      if (!convenioRel.esta_activo || isExpired) {
+ +        return res.status(400).json({ error: 'El convenio no se encuentra habilitado y es necesario que se gestione.' });
+ +      }
+ +    }
+ +
+ +    // 1. Crear la cabecera de la Orden
+ +    const { data: orden, error: errorOrden } = await adminClient
+ +      .from('ordenes')
+ +      .insert([{ id_cliente, id_estado, id_origen, canal_origen, observaciones, metodo_pago, created_by: req.user.id }])
+ +      .select()
+ +      .single();
+ +
+ +    if (errorOrden) throw errorOrden;
+ +
+ +    // 2. Insertar los detalles de la Orden
+ +    const detallesAInsertar = detalles.map((det) => ({
+ +      id_orden: orden.id_orden,
+ +      id_producto: det.id_producto,
+ +      cantidad: det.cantidad,
+ +      precio_aplicado: det.precio_aplicado,
+ +      opciones: det.opciones || {},
+ +      created_by: req.user.id,
+ +      updated_by: req.user.id,
+ +    }));
+ +
+ +    const { error: errorDetalles } = await adminClient.from('detalle_orden').insert(detallesAInsertar);
+ +
+ +    if (errorDetalles) throw errorDetalles;
+ +
+ +    res.status(201).json({ mensaje: 'Orden registrada exitosamente', orden });
+ +  } catch (error) {
+ +    if (sendValidationError(res, error)) return;
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +// OBTENER TODAS LAS ORDENES
+ +router.get('/telegram/trazabilidad', async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const {
+ +      chat_id: chatId,
+ +      outcome,
+ +      id_cliente: idCliente,
+ +      id_orden: idOrden,
+ +      fecha_inicio,
+ +      fecha_fin
+ +    } = req.query;
+ +    const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+ +    const limit = Math.min(Math.max(1, Number.parseInt(String(req.query.limit || '20'), 10) || 20), 250);
+ +    const from = (page - 1) * limit;
+ +    const to = from + limit - 1;
+ +
+ +    let query = adminClient
+ +      .from('telegram_order_traces')
+ +      .select(`
+ +        *,
+ +        clientes(nombre,apellido,telefono),
+ +        ordenes(id_orden,created_at)
+ +      `, { count: 'exact' })
+ +      .order('created_at', { ascending: false })
+ +      .range(from, to);
+ +
+ +    if (outcome) query = query.eq('outcome', outcome);
+ +    if (chatId) query = query.eq('chat_id', chatId);
+ +    if (idCliente) query = query.eq('id_cliente', idCliente);
+ +    if (idOrden) query = query.eq('id_orden', idOrden);
+ +    if (fecha_inicio) query = query.gte('created_at', fecha_inicio);
+ +    if (fecha_fin) query = query.lte('created_at', fecha_fin + 'T23:59:59.999Z');
+ +
+ +    const { data, error, count } = await query;
+ +    if (error) throw error;
+ +    const total = Number(count || 0);
+ +    res.json({
+ +      traces: data || [],
+ +      pagination: {
+ +        page,
+ +        limit,
+ +        total,
+ +        totalPages: Math.max(1, Math.ceil(total / limit)),
+ +      },
+ +    });
+ +  } catch (error) {
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +router.get('/', async (req, res) => {
+ +  try {
+ +    const adminClient = getAdminClient();
+ +    const { fecha_inicio, fecha_fin } = req.query;
+ +
+ +    // 1. Cancelar automáticamente pedidos reservados (estado 1) de días anteriores
+ +    const todayStart = zonedStartOfDay(getDateInTimeZone(new Date()));
+ +    
+ +    await adminClient
+ +      .from('ordenes')
+ +      .update({ id_estado: ORDER_STATE.CANCELLED })
+ +      .eq('id_estado', ORDER_STATE.RESERVED)
+ +      .lt('created_at', todayStart.toISOString());
+ +    
+ +    // 2. Construir la consulta principal
+ +    let query = adminClient
+ +      .from('ordenes')
+ +      .select(`
+ +        id_orden,
+ +        numero_orden,
+ +        id_estado,
+ +        created_at,
+ +        consumed_at,
+ +        updated_at,
+ +        canal_origen,
+ +        observaciones,
+ +        created_by,
+ +        clientes ( nombre, apellido, telefono, tipos_cliente ( nombre_tipo ) ),
+ +        estados_orden ( nombre_estado ),
+ +        origenes_pedido ( nombre_origen ),
+ +        detalle_orden (
+ +          id_detalle,
+ +          id_producto,
+ +          cantidad,
+ +          precio_aplicado,
+ +          opciones,
+ +          productos ( nombre_producto )
+ +        )
+ +      `);
+ +
+ +    if (fecha_inicio) {
+ +      query = query.gte('created_at', fecha_inicio);
+ +    }
+ +    if (fecha_fin) {
+ +      query = query.lte('created_at', fecha_fin);
+ +    }
+ +
+ +    // Aplicar ordenamiento al final (Supabase requiere filtros antes de modificadores)
+ +    query = query.order('created_at', { ascending: false });
+ +
+ +    // Fetch orders with related data
+ +    const { data: ordenes, error: errorOrdenes } = await query;
+ +
+ +    if (errorOrdenes) throw errorOrdenes;
+ +
+ +    // Fetch employees to map creator names
+ +    const { data: empleados, error: errorEmpleados } = await adminClient
+ +      .from('empleados')
+ +      .select('id, nombre, apellido');
+ +
+ +    if (errorEmpleados) throw errorEmpleados;
+ +
+ +    // Map creator names
+ +    const ordenesConCreador = ordenes.map(orden => {
+ +      const empleado = empleados.find(emp => emp.id === orden.created_by);
+ +      return {
+ +        ...orden,
+ +        creador_nombre: empleado ? `${empleado.nombre} ${empleado.apellido}` : 'Sistema/Desconocido'
+ +      };
+ +    });
+ +
+ +    res.json(ordenesConCreador);
+ +  } catch (error) {
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +// ACTUALIZAR ORDEN COMPLETA
+ +router.put('/:id', async (req, res) => {
+ +  const id_orden = req.params.id;
+ +
+ +  try {
+ +    const { observaciones, detalles } = parseBody(schemas.ordenUpdate, req.body);
+ +    const adminClient = getAdminClient();
+ +    
+ +    // 1. Actualizar la cabecera
+ +    const { error: errorOrden } = await adminClient
+ +      .from('ordenes')
+ +      .update({ observaciones, updated_by: req.user.id })
+ +      .eq('id_orden', id_orden);
+ +
+ +    if (errorOrden) throw errorOrden;
+ +
+ +    // 2. Eliminar detalles anteriores
+ +    const { error: errorDelete } = await adminClient
+ +      .from('detalle_orden')
+ +      .delete()
+ +      .eq('id_orden', id_orden);
+ +
+ +    if (errorDelete) throw errorDelete;
+ +
+ +    // 3. Insertar nuevos detalles
+ +    const detallesAInsertar = detalles.map((det) => ({
+ +      id_orden: id_orden,
+ +      id_producto: det.id_producto,
+ +      cantidad: det.cantidad,
+ +      precio_aplicado: det.precio_aplicado,
+ +      opciones: det.opciones || {},
+ +      created_by: req.user.id,
+ +      updated_by: req.user.id,
+ +    }));
+ +
+ +    const { error: errorDetalles } = await adminClient.from('detalle_orden').insert(detallesAInsertar);
+ +
+ +    if (errorDetalles) throw errorDetalles;
+ +
+ +    res.json({ mensaje: 'Orden actualizada exitosamente' });
+ +  } catch (error) {
+ +    if (sendValidationError(res, error)) return;
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+ +
+ +// ACTUALIZAR ESTADO DE LA ORDEN
+ +router.put('/:id/estado', async (req, res) => {
+ +  const id_orden = req.params.id;
+ +  try {
+ +    const { id_estado, forceFallback } = parseBody(schemas.estadoOrden, req.body);
+ +    const adminClient = getAdminClient();
+ +
+ +    let orden;
+ +    // 1. OBTENER ORDEN ACTUAL PARA COMPARAR ESTADOS
+ +    const { data: ordenActual, error: errOrden } = await adminClient
+ +      .from('ordenes')
+ +      .select('id_estado, id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_producto, cantidad)')
+ +      .eq('id_orden', id_orden)
+ +      .single();
+ +    
+ +    orden = ordenActual;
+ +    
+ +    if (errOrden) throw errOrden;
+ +
+ +    // 2. REVERSIÓN DE SALDO (Si estaba CONSUMED y pasa a otro estado)
+ +    if (orden.id_estado === ORDER_STATE.CONSUMED && id_estado !== ORDER_STATE.CONSUMED) {
+ +      const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
+ +      if (orden.metodo_pago === 'Saldo Prepago' || (isDirectClient && orden.metodo_pago === 'Pendiente')) {
+ +        // Devolver cantidades exactas a saldos_servicio según detalle_orden
+ +        for (const det of orden.detalle_orden) {
+ +          const { data: saldoActual } = await adminClient
+ +            .from('saldos_servicio')
+ +            .select('cantidad_disponible')
+ +            .eq('id_cliente', orden.id_cliente)
+ +            .eq('id_producto', det.id_producto)
+ +            .maybeSingle();
+ +
+ +          if (saldoActual) {
+ +            await adminClient
+ +              .from('saldos_servicio')
+ +              .update({ 
+ +                cantidad_disponible: saldoActual.cantidad_disponible + det.cantidad, 
+ +                updated_by: req.user.id 
+ +              })
+ +              .eq('id_cliente', orden.id_cliente)
+ +              .eq('id_producto', det.id_producto);
+ +          } else {
+ +            await adminClient
+ +              .from('saldos_servicio')
+ +              .insert({
+ +                id_cliente: orden.id_cliente,
+ +                id_producto: det.id_producto,
+ +                cantidad_disponible: det.cantidad,
+ +                updated_by: req.user.id
+ +              });
+ +          }
+ +        }
+ +      }
+ +    }
+ +
+ +    // 3. DESCUENTO DE SALDO (Si pasa a Consumido y no lo estaba antes)
+ +    if (id_estado === ORDER_STATE.CONSUMED && orden.id_estado !== ORDER_STATE.CONSUMED) {
+ +
+ +      // Validar si el cliente tiene convenio habilitado
+ +      if (orden.metodo_pago === 'Convenio Empresa') {
+ +        const { data: cliente, error: errCliente } = await adminClient
+ +          .from('clientes')
+ +          .select(`
+ +            clientes_convenios(
+ +              convenios(id_convenio, esta_activo, fecha_caducidad)
+ +            )
+ +          `)
+ +          .eq('id_cliente', orden.id_cliente)
+ +          .single();
+ +        
+ +        if (errCliente) throw errCliente;
+ +        
+ +        const convenioRel = cliente.clientes_convenios?.[0]?.convenios;
+ +        
+ +        if (!convenioRel) {
+ +          return res.status(400).json({ error: 'El cliente no cuenta con convenio asociado. Por favor asigne el convenio antes de confirmar el pedido.' });
+ +        }
+ +
+ +        const today = new Date();
+ +        today.setHours(0, 0, 0, 0);
+ +        const isExpired = convenioRel.fecha_caducidad ? new Date(convenioRel.fecha_caducidad + 'T00:00:00') < today : false;
+ +        
+ +        if (!convenioRel.esta_activo || isExpired) {
+ +          return res.status(400).json({ error: 'El convenio no se encuentra habilitado y es necesario que se gestione.' });
+ +        }
+ +      }
+ +
+ +      // Verificar y descontar si es Saldo Prepago o Cliente Directo con metodo Pendiente
+ +      const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
+ +      if (orden.metodo_pago === 'Saldo Prepago' || (isDirectClient && orden.metodo_pago === 'Pendiente')) {
+ +        // Obtenemos todos los saldos del cliente junto con los precios de los productos
+ +        const { data: saldosCliente, error: errSaldos } = await adminClient
+ +          .from('saldos_servicio')
+ +          .select('id_producto, cantidad_disponible, productos(precio_unitario, nombre_producto)')
+ +          .eq('id_cliente', orden.id_cliente)
+ +          .gt('cantidad_disponible', 0);
+ +
+ +        if (errSaldos) throw errSaldos;
+ +
+ +        // Obtenemos los precios de los productos que se están pidiendo
+ +        const idsPedidos = orden.detalle_orden.map(d => d.id_producto);
+ +        const { data: productosPedidos, error: errProd } = await adminClient
+ +          .from('productos')
+ +          .select('id_producto, precio_unitario')
+ +          .in('id_producto', idsPedidos);
+ +
+ +        if (errProd) throw errProd;
+ +
+ +        // Copia local de los saldos para ir descontando en memoria
+ +        // supabase devuelve s.productos como objeto (o array de 1 en algunos casos, probaremos objeto primero)
+ +        let saldosDisponibles = saldosCliente.map(s => ({
+ +          id_producto: s.id_producto,
+ +          cantidad: s.cantidad_disponible,
+ +          precio: Array.isArray(s.productos) ? s.productos[0]?.precio_unitario : s.productos?.precio_unitario
+ +        }));
+ +
+ +        const deducciones = [];
+ +
+ +        let fallbackUsed = false;
+ +
+ +        for (const det of orden.detalle_orden) {
+ +          const prodPedido = productosPedidos.find(p => p.id_producto === det.id_producto);
+ +          const precioPedido = prodPedido ? prodPedido.precio_unitario : 0;
+ +          let cantidadRestante = det.cantidad;
+ +
+ +          // 1. Intentar descontar del saldo exacto primero
+ +          const saldoExacto = saldosDisponibles.find(s => s.id_producto === det.id_producto);
+ +          if (saldoExacto && saldoExacto.cantidad > 0) {
+ +            const descontar = Math.min(saldoExacto.cantidad, cantidadRestante);
+ +            saldoExacto.cantidad -= descontar;
+ +            cantidadRestante -= descontar;
+ +            deducciones.push({ id_producto_saldo: saldoExacto.id_producto, cantidad: descontar });
+ +          }
+ +
+ +          // 2. Si aún falta, buscar saldos iguales o más caros
+ +          if (cantidadRestante > 0) {
+ +            const saldosMasCaros = saldosDisponibles
+ +              .filter(s => s.precio >= precioPedido && s.cantidad > 0)
+ +              .sort((a, b) => a.precio - b.precio);
+ +
+ +            for (const saldoCaro of saldosMasCaros) {
+ +              if (cantidadRestante === 0) break;
+ +              const descontar = Math.min(saldoCaro.cantidad, cantidadRestante);
+ +              saldoCaro.cantidad -= descontar;
+ +              cantidadRestante -= descontar;
+ +              deducciones.push({ id_producto_saldo: saldoCaro.id_producto, cantidad: descontar });
+ +              
+ +              if (saldoCaro.id_producto !== det.id_producto && saldoCaro.precio > precioPedido) {
+ +                fallbackUsed = true;
+ +              }
+ +            }
+ +          }
+ +
+ +          if (cantidadRestante > 0) {
+ +            return res.status(400).json({ error: 'El cliente no tiene saldo suficiente en su monedero. Por favor recargue el saldo.' });
+ +          }
+ +        }
+ +
+ +        if (fallbackUsed && !forceFallback) {
+ +          return res.status(409).json({ 
+ +            requireConfirmation: true, 
+ +            error: 'El cliente no tiene saldo exacto para este producto. Se utilizará el saldo de un almuerzo equivalente. ¿Desea continuar?' 
+ +          });
+ +        }
+ +
+ +        // Agrupar deducciones por producto para realizar los updates
+ +        const deduccionesAgrupadas = {};
+ +        for (const ded of deducciones) {
+ +          deduccionesAgrupadas[ded.id_producto_saldo] = (deduccionesAgrupadas[ded.id_producto_saldo] || 0) + ded.cantidad;
+ +        }
+ +
+ +        // Aplicar los descuentos reales a la BD
+ +        for (const [id_producto_saldo, cant_a_descontar] of Object.entries(deduccionesAgrupadas)) {
+ +          const { data: saldoActual } = await adminClient
+ +            .from('saldos_servicio')
+ +            .select('cantidad_disponible')
+ +            .eq('id_cliente', orden.id_cliente)
+ +            .eq('id_producto', id_producto_saldo)
+ +            .single();
+ +
+ +          await adminClient
+ +            .from('saldos_servicio')
+ +            .update({ 
+ +              cantidad_disponible: saldoActual.cantidad_disponible - cant_a_descontar, 
+ +              updated_by: req.user.id 
+ +            })
+ +            .eq('id_cliente', orden.id_cliente)
+ +            .eq('id_producto', id_producto_saldo);
+ +        }
+ +      }
+ +    }
+ +
+ +    const updatePayload = {
+ +      id_estado,
+ +      updated_by: req.user.id,
+ +    };
+ +
+ +    // Si se consumio existosamente desde "Pendiente" y es cliente frecuente, forzamos "Saldo Prepago"
+ +    if (id_estado === ORDER_STATE.CONSUMED && orden) {
+ +      const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
+ +      if (isDirectClient && orden.metodo_pago === 'Pendiente') {
+ +        updatePayload.metodo_pago = 'Saldo Prepago';
+ +      }
+ +    }
+ +
+ +    const { data, error } = await adminClient
+ +      .from('ordenes')
+ +      .update(updatePayload)
+ +      .eq('id_orden', id_orden)
+ +      .select()
+ +      .single();
+ +
+ +    if (error) throw error;
+ +    res.json({ mensaje: 'Estado actualizado', orden: data });
+ +
+ +    // Notificar al usuario por Telegram asincrónicamente
+ +    (async () => {
+ +      try {
+ +        const { data: sub } = await adminClient
+ +          .from('telegram_subscriptions')
+ +          .select('chat_id, consent_status, is_active')
+ +          .eq('id_cliente', data.id_cliente)
+ +          .maybeSingle();
+ +
+ +        if (sub && sub.chat_id && sub.is_active !== false && sub.consent_status === 'accepted') {
+ +          let msg = null;
+ +          const numOrden = data.numero_orden || data.id_orden.split('-')[0].substring(0, 5).toUpperCase();
+ +          
+ +          if (id_estado === ORDER_STATE.CONSUMED) {
+ +            msg = `✅ <b>Pedido Consumido</b>\n\nTu pedido #<b>${numOrden}</b> ha sido marcado como consumido.\n¡Gracias por preferirnos y buen provecho!`;
+ +            
+ +            const { data: clientInfo } = await adminClient
+ +              .from('clientes')
+ +              .select(`
+ +                id_tipo_cliente,
+ +                clientes_convenios(
+ +                  convenios(esta_activo, nombre_empresa)
+ +                ),
+ +                saldos_servicio(cantidad_disponible, productos(nombre_producto))
+ +              `)
+ +              .eq('id_cliente', data.id_cliente)
+ +              .single();
+ +
+ +            if (clientInfo) {
+ +              if (clientInfo.id_tipo_cliente === CLIENT_TYPE.AGREEMENT) {
+ +                const convenioRel = clientInfo.clientes_convenios?.[0]?.convenios;
+ +                if (convenioRel && convenioRel.esta_activo) {
+ +                  const empresa = convenioRel.nombre_empresa || 'tu empresa';
+ +                  msg += `\n\n🏢 Tu convenio con la empresa <b>${empresa}</b> se encuentra activo, puedes seguir disfrutando de tus almuerzos.`;
+ +                }
+ +              } else {
+ +                const saldos = clientInfo.saldos_servicio || [];
+ +                const saldosValidos = saldos.filter(s => s.cantidad_disponible > 0);
+ +                const totalSaldos = saldosValidos.reduce((sum, s) => sum + s.cantidad_disponible, 0);
+ +                
+ +                if (totalSaldos > 0) {
+ +                  let detalleSaldos = saldosValidos.map(s => {
+ +                    const nombreProd = Array.isArray(s.productos) ? s.productos[0]?.nombre_producto : s.productos?.nombre_producto;
+ +                    return `🔹 ${s.cantidad_disponible} ${nombreProd || 'Almuerzo(s)'}`;
+ +                  }).join('\n');
+ +                  
+ +                  msg += `\n\n💰 <b>Saldo Restante:</b> Te quedan <b>${totalSaldos}</b> almuerzo(s) en tu monedero prepago:\n${detalleSaldos}`;
+ +                } else {
+ +                  msg += `\n\n⚠️ <b>Sin Saldo:</b> Te has quedado sin almuerzos en tu monedero prepago. Te invitamos a realizar una recarga en caja.`;
+ +                }
+ +              }
+ +            }
+ +          } else if (id_estado === ORDER_STATE.CANCELLED) {
+ +            msg = `❌ <b>Pedido Cancelado</b>\n\nTu pedido #<b>${numOrden}</b> ha sido cancelado por el administrador.\nSi tienes dudas, por favor contáctanos.`;
+ +          }
+ +          
+ +          if (msg) {
+ +            await sendMessage(sub.chat_id, msg, null, 'HTML');
+ +          }
+ +        }
+ +      } catch (err) {
+ +        console.error('Error enviando notificación de estado a Telegram:', err.message); // NOSONAR
+ +      }
+ +    })();
+ +  } catch (error) {
+ +    if (sendValidationError(res, error)) return;
+ +    res.status(500).json({ error: error.message });
+ +  }
+ +});
+++=======
++ router.post('/', ordenesController.crearOrden);
++ router.get('/telegram/trazabilidad', ordenesController.getTelegramTrazabilidad);
++ router.get('/', ordenesController.getOrdenes);
++ router.put('/:id', ordenesController.actualizarOrdenCompleta);
++ router.put('/:id/estado', ordenesController.actualizarEstadoOrden);
+++>>>>>>> develop
+  
+  module.exports = router;
++ module.exports._private = { ...ordenesService };
+diff --cc backend/src/test/outlook-mail.test.js
+index 0c7af8f,6628720..0000000
+--- a/backend/src/test/outlook-mail.test.js
++++ b/backend/src/test/outlook-mail.test.js
+@@@ -18,10 -97,11 +97,16 @@@ describe('buildInvitationEmail', () => 
+      expect(email.subject).toBe('Tu invitacion al bot de ECencia Andina');
+      expect(email.html).toContain('api.qrserver.com/v1/create-qr-code');
+      expect(email.html).toContain(`href="${inviteLink}"`);
+++<<<<<<< HEAD
+ +    expect(email.html).toContain('CONECTAR TELEGRAM');
+ +    expect(email.html).toContain('Tu cuenta corporativa ha sido creada exitosamente.');
+++=======
++     expect(email.html).toContain('Ecencia Andina');
++     expect(email.html).toContain('ecenciaconvenios@outlook.com');
++     expect(email.html).toContain('Alex &lt;script&gt;');
++     expect(email.html).not.toContain('Alex <script>');
+++>>>>>>> develop
+      expect(email.text).toContain(inviteLink);
+-     expect(email.text).toContain('Equipo ECencia Andina');
+    });
+  
+    it('mantiene boton y link aunque no haya URL publica para la imagen', () => {
+diff --cc telegram-bot-function/src/functions/telegramRoutes.js
+index 8b24fb8,59a20d5..0000000
+--- a/telegram-bot-function/src/functions/telegramRoutes.js
++++ b/telegram-bot-function/src/functions/telegramRoutes.js
+@@@ -39,160 -17,6 +17,163 @@@ const normalizeText = (value) =
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  
+++<<<<<<< HEAD
+ +const todayInTimezone = () =>
+ +  new Intl.DateTimeFormat('en-CA', {
+ +    timeZone: TIMEZONE,
+ +    year: 'numeric',
+ +    month: '2-digit',
+ +    day: '2-digit',
+ +  }).format(new Date());
+ +
+ +const dayOfWeekInTimezone = () =>
+ +  new Intl.DateTimeFormat('en-US', { timeZone: TIMEZONE, weekday: 'long' }).format(new Date()).toLowerCase();
+ +
+ +const isBusinessDay = () => {
+ +  if (process.env.ECENCIA_BUSINESS_DAYS_ONLY === 'false') return true;
+ +  // Desactivar restricción de fin de semana para permitir pruebas:
+ +  return true; 
+ +};
+ +
+ +const tomorrowFromDate = (date) => {
+ +  const next = new Date(`${date}T00:00:00.000Z`);
+ +  next.setUTCDate(next.getUTCDate() + 1);
+ +  return next.toISOString().slice(0, 10);
+ +};
+ +
+ +const inlineKeyboard = (rows) => ({ inline_keyboard: rows });
+ +
+ +const labelForStep = (kind) => {
+ +  switch (kind) {
+ +  case 'entrada': return 'Entrada';
+ +  case 'sopa': return 'Sopa';
+ +  case 'segundo': return 'Plato Fuerte';
+ +  case 'bebida': return 'Bebida';
+ +  case 'postre': return 'Postre';
+ +  default: return 'Opción';
+ +  }
+ +};
+ +
+ +const optionsKeyboard = (kind, options, sid) => {
+ +  const rows = options.map((option, index) => [
+ +    { text: String(option), callback_data: sid ? `${kind}:${index}:${sid}` : `${kind}:${index}` },
+ +  ]);
+ +  rows.push([
+ +    { text: `Sin ${labelForStep(kind)}`, callback_data: sid ? `${kind}:sin:${sid}` : `${kind}:sin` },
+ +  ]);
+ +  rows.push([
+ +    { text: '❌ Cancelar pedido', callback_data: 'confirm:cancel' },
+ +  ]);
+ +  return inlineKeyboard(rows);
+ +};
+ +
+ +const tipoAlmuerzoKeyboard = (sid, permitidos) => {
+ +  const options = TIPOS_ALMUERZO.filter((t) => {
+ +    if (!permitidos || permitidos.length === 0) return true;
+ +    const genCode = t.nombreProducto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
+ +    return permitidos.includes(t.code) || permitidos.includes(genCode);
+ +  });
+ +  return inlineKeyboard(
+ +    options.map((tipo) => [{ text: tipo.shortLabel, callback_data: `tipo:${tipo.code}:${sid}` }]),
+ +  );
+ +};
+ +
+ +const consentKeyboard = () =>
+ +  inlineKeyboard([
+ +    [{ text: 'Acepto', callback_data: 'consent:accept' }],
+ +    [{ text: 'No acepto', callback_data: 'consent:reject' }],
+ +  ]);
+ +
+ +const revokeConfirmKeyboard = () =>
+ +  inlineKeyboard([
+ +    [{ text: 'Si, revocar mi consentimiento', callback_data: 'revocar:confirm' }],
+ +    [{ text: 'No, mantener mi acceso', callback_data: 'revocar:cancel' }],
+ +  ]);
+ +
+ +const contactKeyboard = () => ({
+ +  keyboard: [[{ text: 'Compartir mi telefono', request_contact: true }]],
+ +  resize_keyboard: true,
+ +  one_time_keyboard: true,
+ +  input_field_placeholder: 'Usa el boton para continuar',
+ +});
+ +
+ +const removeKeyboard = () => ({ remove_keyboard: true });
+ +
+ +const quantityKeyboard = () =>
+ +  inlineKeyboard(
+ +    QUANTITIES.reduce((rows, quantity, index) => {
+ +      if (index % 5 === 0) rows.push([]);
+ +      rows.at(-1).push({
+ +        text: String(quantity),
+ +        callback_data: `quantity:${quantity}`,
+ +      });
+ +      return rows;
+ +    }, []),
+ +  );
+ +
+ +const confirmacionKeyboard = (sid) =>
+ +  inlineKeyboard([
+ +    [{ text: 'Aceptar', callback_data: `confirmar:ok:${sid}` }],
+ +    [{ text: 'Modificar selección', callback_data: `confirmar:edit:${sid}` }],
+ +    [{ text: '❌ Cancelar pedido', callback_data: 'confirm:cancel' }],
+ +  ]);
+ +
+ +const modificarPasosKeyboard = (session, sid) => {
+ +  const tipo = session.tipoAlmuerzo;
+ +  const rows = [];
+ +  if (tipo.requiresEntrada && session.opciones?.entrada) {
+ +    rows.push([{ text: `🥗 Entrada (${session.opciones.entrada})`, callback_data: `modstep:entrada:${sid}` }]);
+ +  }
+ +  if (tipo.requiresSopa && session.opciones?.sopa) {
+ +    rows.push([{ text: `🍜 Sopa (${session.opciones.sopa})`, callback_data: `modstep:sopa:${sid}` }]);
+ +  }
+ +  if (tipo.requiresSegundo && session.opciones?.segundo) {
+ +    rows.push([{ text: `🍽️ Plato Fuerte (${session.opciones.segundo})`, callback_data: `modstep:segundo:${sid}` }]);
+ +  }
+ +  if (tipo.requiresBebida && session.opciones?.bebida) {
+ +    rows.push([{ text: `🥤 Bebida (${session.opciones.bebida})`, callback_data: `modstep:bebida:${sid}` }]);
+ +  }
+ +  if (tipo.requiresPostre && session.opciones?.postre) {
+ +    rows.push([{ text: `🍰 Postre (${session.opciones.postre})`, callback_data: `modstep:postre:${sid}` }]);
+ +  }
+ +  rows.push([{ text: '⬅️ Volver a confirmar', callback_data: `confirmar:back:${sid}` }]);
+ +  return inlineKeyboard(rows);
+ +};
+ +
+ +const confirmationKeyboard = () =>
+ +  inlineKeyboard([
+ +    [{ text: 'Confirmar reserva', callback_data: 'confirm:yes' }],
+ +    [{ text: 'Cambiar seleccion', callback_data: 'confirm:edit' }],
+ +    [{ text: 'Cancelar', callback_data: 'confirm:cancel' }],
+ +  ]);
+ +
+ +const pedidoKeyboard = (orderId) =>
+ +  inlineKeyboard([
+ +    [{ text: 'Modificar reserva', callback_data: `pedido:mod:${orderId}` }],
+ +    [{ text: 'Cancelar reserva', callback_data: `pedido:can:${orderId}` }],
+ +  ]);
+ +
+ +const cancelConfirmKeyboard = (orderId) =>
+ +  inlineKeyboard([
+ +    [{ text: 'Si, cancelar mi reserva', callback_data: `pedido:can2:${orderId}` }],
+ +    [{ text: 'No, mantener mi reserva', callback_data: `pedido:keep:${orderId}` }],
+ +  ]);
+ +
+ +const menuCaption = (today) =>
+ +  `<b>🍱 Menú del día ${today}</b>\n\n` +
+ +  'Realiza tu pedido seleccionando las opciones con los botones de abajo.\n\n' +
+ +  '👉 <b>Paso 1:</b> Elige el tipo de almuerzo que deseas hoy:';
+ +
+ +const TIPOS_ALMUERZO = [
+ +  { id: 6, code: 'ejecutivo_completo', label: 'Almuerzo Ejecutivo Completo', shortLabel: 'Ejecutivo Completo', nombreProducto: 'Almuerzo Ejecutivo Completo', requiresEntrada: true, requiresSopa: true, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+ +  { id: 7, code: 'ejecutivo_sin_sopa', label: 'Almuerzo Ejecutivo Sin Sopa', shortLabel: 'Ejecutivo Sin Sopa', nombreProducto: 'Almuerzo Ejecutivo Sin Sopa', requiresEntrada: true, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+ +  { id: 8, code: 'ejecutivo_simple', label: 'Almuerzo Ejecutivo Simple', shortLabel: 'Ejecutivo Simple', nombreProducto: 'Almuerzo Ejecutivo Simple', requiresEntrada: false, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: true },
+ +  { id: 9, code: 'almuerzo_dia', label: 'Almuerzo del Dia', shortLabel: 'Almuerzo del Dia', nombreProducto: 'Almuerzo del Dia', requiresEntrada: false, requiresSopa: true, requiresSegundo: true, requiresBebida: true, requiresPostre: false },
+ +  { id: 10, code: 'almuerzo_dia_simple', label: 'Almuerzo del Dia Simple', shortLabel: 'Almuerzo del Dia Simple', nombreProducto: 'Almuerzo del Dia Simple', requiresEntrada: false, requiresSopa: false, requiresSegundo: true, requiresBebida: true, requiresPostre: false },
+ +];
+ +
+++=======
+++>>>>>>> develop
+  const readUpdate = (update) => {
+    if (update.callback_query) {
+      const from = update.callback_query.from || {};
+@@@ -231,1309 -55,10 +212,1316 @@@
+  };
+  
+  const parseStartToken = (text) => {
+++<<<<<<< HEAD
+ +  const match = String(text || '').trim().match(/^\/start(?:@\w+)?(?:\s+([A-Za-z0-9_-]{1,128}))?$/i);
+ +  if (!match) return null;
+ +  return { isStart: true, token: match[1] || '' };
+ +};
+ +
+ +const stateKey = (chatId) => `session:${chatId}`;
+ +const consentKey = (chatId) => `consent:${chatId}`;
+ +
+ +const getState = async (key) => {
+ +  const { data, error } = await getAdminClient()
+ +    .from('telegram_bot_state')
+ +    .select('value')
+ +    .eq('key', key)
+ +    .maybeSingle();
+ +  if (error) throw error;
+ +  return data?.value || null;
+ +};
+ +
+ +const setState = async (key, value) => {
+ +  const { error } = await getAdminClient()
+ +    .from('telegram_bot_state')
+ +    .upsert(
+ +      { key, value: { ...(value || {}), updatedAt: new Date().toISOString() } },
+ +      { onConflict: 'key' },
+ +    );
+ +  if (error) throw error;
+ +};
+ +
+ +const deleteState = async (key) => {
+ +  const { error } = await getAdminClient().from('telegram_bot_state').delete().eq('key', key);
+ +  if (error) throw error;
+ +};
+ +
+ +const deleteChatStates = async (chatId) => {
+ +  await Promise.all([deleteState(stateKey(chatId)), deleteState(consentKey(chatId))]);
+ +};
+ +
+ +const getSubscriptionByChat = async (chatId) => {
+ +  const { data, error } = await getAdminClient()
+ +    .from('telegram_subscriptions')
+ +    .select('*')
+ +    .eq('chat_id', String(chatId))
+ +    .maybeSingle();
+ +  if (error) throw error;
+ +  return data || null;
+ +};
+ +
+ +const getSubscriptionByClient = async (idCliente) => {
+ +  if (!idCliente) return null;
+ +  const { data, error } = await getAdminClient()
+ +    .from('telegram_subscriptions')
+ +    .select('*')
+ +    .eq('id_cliente', idCliente)
+ +    .maybeSingle();
+ +  if (error) throw error;
+ +  return data || null;
+ +};
+ +
+ +const getSubscriptionByPhone = async (phone) => {
+ +  const normalized = normalizePhone(phone);
+ +  if (!normalized) return null;
+ +  const { data, error } = await getAdminClient()
+ +    .from('telegram_subscriptions')
+ +    .select('*')
+ +    .eq('phone_normalized', normalized)
+ +    .maybeSingle();
+ +  if (error) throw error;
+ +  return data || null;
+ +};
+ +
+ +const getClientById = async (id) => {
+ +  const { data, error } = await getAdminClient()
+ +    .from('clientes')
+ +    .select(
+ +      'id_cliente,cedula,nombre,apellido,telefono,esta_activo,clientes_convenios(id_convenio,convenios(id_convenio,nombre_empresa,esta_activo,fecha_caducidad,tipos_almuerzo_permitidos))',
+ +    )
+ +    .eq('id_cliente', id)
+ +    .maybeSingle();
+ +  if (error) throw error;
+ +  return data || null;
+ +};
+ +
+ +const ensurePendingSubscription = async (
+ +  { idCliente, chatId, telegramUserId, telegramUsername },
+ +) => {
+ +  const [byClient, byChat] = await Promise.all([
+ +    getSubscriptionByClient(idCliente),
+ +    getSubscriptionByChat(chatId),
+ +  ]);
+ +
+ +  if (byClient && byChat && byClient.id !== byChat.id) {
+ +    const error = new Error('El chat o cliente ya esta vinculado a otra suscripcion.');
+ +    error.status = 409;
+ +    throw error;
+ +  }
+ +  if (byChat?.id_cliente && byChat.id_cliente !== idCliente) {
+ +    const error = new Error('Este chat ya pertenece a otro cliente.');
+ +    error.status = 409;
+ +    throw error;
+ +  }
+ +  if (byClient?.chat_id && String(byClient.chat_id) !== String(chatId)) {
+ +    const error = new Error('El cliente ya esta vinculado a otro chat.');
+ +    error.status = 409;
+ +    throw error;
+ +  }
+ +
+ +  const payload = {
+ +    id_cliente: idCliente,
+ +    chat_id: String(chatId),
+ +    telegram_user_id: telegramUserId ? String(telegramUserId) : null,
+ +    telegram_username: telegramUsername || null,
+ +    consent_status: 'pending',
+ +    is_active: false,
+ +    consent_notice_version: getConsentVersion(),
+ +    consent_notice_text: privacyText(),
+ +    consent_method: null,
+ +    accepted_at: null,
+ +    rejected_at: null,
+ +    revoked_at: null,
+ +    deletion_requested_at: null,
+ +  };
+ +
+ +  const existing = byClient || byChat;
+ +  if (existing) {
+ +    const { data, error } = await getAdminClient()
+ +      .from('telegram_subscriptions')
+ +      .update(payload)
+ +      .eq('id', existing.id)
+ +      .select()
+ +      .single();
+ +    if (error) throw error;
+ +    return data;
+ +  }
+ +
+ +  const { data, error } = await getAdminClient()
+ +    .from('telegram_subscriptions')
+ +    .insert(payload)
+ +    .select()
+ +    .single();
+ +  if (error) throw error;
+ +  return data;
+ +};
+ +
+ +const beginConsent = async ({
+ +  idCliente,
+ +  chatId,
+ +  telegramUserId,
+ +  telegramUsername,
+ +  invitationId = null,
+ +  cleanupMessageIds = [],
+ +}) => {
+ +  const subscription = await ensurePendingSubscription({
+ +    idCliente,
+ +    chatId,
+ +    telegramUserId,
+ +    telegramUsername,
+ +  });
+ +  const sent = await sendMessage(chatId, privacyText(), consentKeyboard());
+ +  await setState(consentKey(chatId), {
+ +    status: 'awaiting_decision',
+ +    idCliente,
+ +    subscriptionId: subscription.id,
+ +    invitationId,
+ +    policyVersion: getConsentVersion(),
+ +    promptMessageIds: [],
+ +    cleanupMessageIds: cleanupMessageIds.filter(Boolean),
+ +  });
+ +  return subscription;
+ +};
+ +
+ +const cleanupConsentMessages = async (chatId, state, additionalMessageIds = []) => {
+ +  const ids = new Set([
+ +    ...(state?.promptMessageIds || []),
+ +    ...(state?.cleanupMessageIds || []),
+ +    ...additionalMessageIds,
+ +  ]);
+ +  await Promise.all([...ids].filter(Boolean).map((messageId) => deleteMessage(chatId, messageId)));
+ +};
+ +
+ +const DEFAULT_TIPO_ALMUERZO_ID = 9; // almuerzo_dia
+ +
+ +const activeConvenio = (client, today) => {
+ +  for (const link of client.clientes_convenios || []) {
+ +    const convenio = Array.isArray(link.convenios) ? link.convenios[0] : link.convenios;
+ +    if (convenio?.esta_activo !== false && (!convenio?.fecha_caducidad || convenio.fecha_caducidad >= today)) {
+ +      return {
+ +        id_convenio: convenio.id_convenio || link.id_convenio,
+ +        nombre_empresa: convenio.nombre_empresa || 'Convenio',
+ +        tipos_almuerzo_permitidos: convenio.tipos_almuerzo_permitidos || null,
+ +      };
+ +    }
+ +  }
+ +  return { id_convenio: null, nombre_empresa: 'Cliente frecuente', tipos_almuerzo_permitidos: null };
+ +};
+ +
+ +const getLookupId = async (table, idField, nameField, value) => {
+ +  const { data, error } = await getAdminClient()
+ +    .from(table)
+ +    .select(`${idField},${nameField}`)
+ +    .ilike(nameField, value)
+ +    .limit(1);
+ +  if (error) throw error;
+ +  if (data?.[0]?.[idField]) return data[0][idField];
+ +  throw new Error(`No encontre ${value} en ${table}.`);
+ +};
+ +
+ +const getProduct = async () => {
+ +  const { data, error } = await getAdminClient()
+ +    .from('productos')
+ +    .select('id_producto,nombre_producto,precio_unitario,esta_activo')
+ +    .eq('esta_activo', true)
+ +    .order('id_producto', { ascending: true });
+ +  if (error) throw error;
+ +  const exact = (data || []).find((row) => normalizeText(row.nombre_producto) === normalizeText(DEFAULT_PRODUCT_NAME));
+ +  const lunch = (data || []).find((row) => normalizeText(row.nombre_producto).includes('almuerzo'));
+ +  const product = exact || lunch || data?.[0];
+ +  if (!product) throw new Error('No hay producto activo para registrar la reserva.');
+ +  return product;
+ +};
+ +
+ +const getActiveMenu = async () => {
+ +  const state = await getState('latest-menu:active');
+ +  if (!state || !state.menu) return null;
+ +  return state;
+ +};
+ +
+ +
+ +
+ +const generateSid = () => crypto.randomBytes(8).toString('hex');
+ +
+ +const startSessionForClient = async (chatId, client, opts = {}) => {
+ +  const activeMenu = await getActiveMenu();
+ +  if (!activeMenu) return null;
+ +
+ +  const today = todayInTimezone();
+ +  const sid = opts.sid || generateSid();
+ +  const session = {
+ +    sid,
+ +    mode: opts.mode || 'new',
+ +    step: opts.step || 'tipo',
+ +    date: today,
+ +    menuDate: activeMenu.date || today,
+ +    menu: activeMenu.menu,
+ +    quantity: opts.quantity || 1,
+ +    opciones: opts.opciones || {},
+ +    tipoAlmuerzo: opts.tipoAlmuerzo || null,
+ +    cliente: {
+ +      id_cliente: client.id_cliente,
+ +      nombre: client.nombre,
+ +      apellido: client.apellido,
+ +    },
+ +    convenio: activeConvenio(client, today),
+ +    estadoReservadoId: await getLookupId('estados_orden', 'id_estado', 'nombre_estado', ESTADO_RESERVADO_NOMBRE),
+ +    origenTelegramId: await getLookupId('origenes_pedido', 'id_origen', 'nombre_origen', ORIGEN_NOMBRE),
+ +    createdAt: new Date().toISOString(),
+ +    ...(opts.orderId ? { orderId: opts.orderId } : {}),
+ +  };
+ +  await setState(stateKey(chatId), session);
+ +  return session;
+ +};
+ +
+ +const findActiveTodayOrder = async (clientId) => {
+ +  const today = todayInTimezone();
+ +  const { data, error } = await getAdminClient()
+ +    .from('ordenes')
+ +    .select('id_orden,numero_orden,id_estado,created_at,canal_origen')
+ +    .eq('id_cliente', clientId)
+ +    .eq('canal_origen', 'Telegram')
+ +    .eq('id_estado', 1) // Solo considerar pedidos en estado Reservado
+ +    .gte('created_at', `${today}T00:00:00Z`)
+ +    .lt('created_at', `${tomorrowFromDate(today)}T00:00:00Z`)
+ +    .limit(1)
+ +    .maybeSingle();
+ +  if (error) throw error;
+ +  return data || null;
+ +};
+ +
+ +const getOrderDetail = async (orderId) => {
+ +  const { data, error } = await getAdminClient()
+ +    .from('detalle_orden')
+ +    .select('id_orden,id_producto,cantidad,precio_aplicado,id_tipo_almuerzo,observaciones_tipo,opciones,productos(nombre_producto)')
+ +    .eq('id_orden', orderId)
+ +    .maybeSingle();
+ +  if (error) throw error;
+ +  return data || null;
+ +};
+ +
+ +const getEstadoName = async (idEstado) => {
+ +  const { data } = await getAdminClient()
+ +    .from('estados_orden')
+ +    .select('nombre_estado')
+ +    .eq('id_estado', idEstado)
+ +    .maybeSingle();
+ +  return data?.nombre_estado || String(idEstado);
+ +};
+ +
+ +const buildOrderSummaryMessage = (order, detail) => {
+ +  const opc = detail?.opciones || {};
+ +  const estadoStr = order._estadoNombre || String(order.id_estado);
+ +  return (
+ +    '✅ <b>Ya tienes una reserva activa para hoy:</b>\n\n' +
+ +    `🍱 <b>Tipo:</b> ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
+ +    (opc.entrada ? `🥗 <b>Entrada:</b> ${opc.entrada}\n` : '') +
+ +    (opc.sopa ? `🍜 <b>Sopa:</b> ${opc.sopa}\n` : '') +
+ +    (opc.segundo ? `🍽️ <b>Plato fuerte:</b> ${opc.segundo}\n` : '') +
+ +    (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
+ +    (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
+ +    `\nℹ️ <b>Estado:</b> ${estadoStr}\n` +
+ +    `🆔 <b>Orden:</b> #${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}\n\n` +
+ +    '<i>Usa los botones de abajo si deseas interactuar con tu pedido.</i>'
+ +  );
+ +};
+ +
+ +const buildPedidoMessage = (order, detail) => {
+ +  const opc = detail?.opciones || {};
+ +  return (
+ +    '📋 <b>Tu reserva de hoy:</b>\n\n' +
+ +    `🍱 <b>Producto:</b> ${detail?.productos?.nombre_producto || 'Almuerzo'}\n` +
+ +    (opc.entrada ? `🥗 <b>Entrada:</b> ${opc.entrada}\n` : '') +
+ +    (opc.sopa ? `🍜 <b>Sopa:</b> ${opc.sopa}\n` : '') +
+ +    (opc.segundo ? `🍽️ <b>Plato fuerte:</b> ${opc.segundo}\n` : '') +
+ +    (opc.bebida ? `🥤 <b>Bebida:</b> ${opc.bebida}\n` : '') +
+ +    (opc.postre ? `🍰 <b>Postre:</b> ${opc.postre}\n` : '') +
+ +    '\nℹ️ <b>Estado:</b> Reservado\n' +
+ +    `🆔 <b>Orden:</b> #${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}`
+ +  );
+ +};
+ +
+ +const findTodayOrder = async (clientId, today) => {
+ +  const { data, error } = await getAdminClient()
+ +    .from('ordenes')
+ +    .select('id_orden,numero_orden,created_at')
+ +    .eq('id_cliente', clientId)
+ +    .eq('canal_origen', 'Telegram')
+ +    .eq('id_estado', 1) // Solo considerar pedidos en estado Reservado
+ +    .gte('created_at', `${today}T00:00:00Z`)
+ +    .lt('created_at', `${tomorrowFromDate(today)}T00:00:00Z`)
+ +    .limit(1)
+ +    .maybeSingle();
+ +  if (error) throw error;
+ +  return data || null;
+ +};
+ +
+ +const insertOrder = async (session) => {
+ +  const today = todayInTimezone();
+ +
+ +  // Modo modificacion: actualizar detalle existente
+ +  if (session.mode === 'modify' && session.orderId) {
+ +    const tipoAlm = session.tipoAlmuerzo || {};
+ +    const adminClient = getAdminClient();
+ +    await adminClient
+ +      .from('detalle_orden')
+ +      .update({
+ +        id_tipo_almuerzo: tipoAlm.id || null,
+ +        opciones: {
+ +          ...(session.opciones || {}),
+ +          tipoAlmuerzo: tipoAlm.code || null,
+ +          tipoOrigen: 'cliente_elige',
+ +        },
+ +      })
+ +      .eq('id_orden', session.orderId);
+ +    return { id_orden: session.orderId, modified: true };
+ +  }
+ +
+ +  const existing = await findTodayOrder(session.cliente.id_cliente, today);
+ +  if (existing?.id_orden) return { id_orden: existing.id_orden, duplicate: true };
+ +
+ +  const adminClient = getAdminClient();
+ +  const tipoAlm = session.tipoAlmuerzo || {};
+ +  const product = await (async () => {
+ +    if (tipoAlm.nombreProducto) {
+ +      const { data } = await adminClient
+ +        .from('productos')
+ +        .select('id_producto,nombre_producto,precio_unitario')
+ +        .ilike('nombre_producto', tipoAlm.nombreProducto)
+ +        .limit(1)
+ +        .maybeSingle();
+ +      if (data) return data;
+ +    }
+ +    return getProduct();
+ +  })();
+ +
+ +  const { data: order, error: orderError } = await adminClient
+ +    .from('ordenes')
+ +    .insert({
+ +      id_cliente: session.cliente.id_cliente,
+ +      id_estado: session.estadoReservadoId,
+ +      id_origen: session.origenTelegramId,
+ +      canal_origen: 'Telegram',
+ +      metodo_pago: session.convenio?.id_convenio ? 'Convenio Empresa' : 'Pendiente',
+ +      observaciones: `Reserva via Telegram ${today}.`,
+ +    })
+ +    .select()
+ +    .single();
+ +  if (orderError) throw orderError;
+ +
+ +  const { error: detailError } = await adminClient.from('detalle_orden').insert({
+ +    id_orden: order.id_orden,
+ +    id_producto: product.id_producto,
+ +    cantidad: Number(session.quantity || 1),
+ +    precio_aplicado: Number(product.precio_unitario || 0),
+ +    id_tipo_almuerzo: tipoAlm.id || null,
+ +    opciones: {
+ +      ...(session.opciones || {}),
+ +      tipoAlmuerzo: tipoAlm.code || null,
+ +      tipoOrigen: 'cliente_elige',
+ +      menuDate: session.menuDate || session.date,
+ +      canal: 'Telegram',
+ +    },
+ +  });
+ +  if (detailError) {
+ +    await adminClient.from('ordenes').delete().eq('id_orden', order.id_orden);
+ +    throw detailError;
+ +  }
+ +  return order;
+ +};
+ +
+ +const optionFromCallback = (text, kind, options) => {
+ +  const parts = String(text || '').split(':');
+ +  const receivedKind = parts[0];
+ +  const rawIndex = parts[1];
+ +  if (receivedKind !== kind) return '';
+ +  if (rawIndex === 'sin') {
+ +    return `Sin ${labelForStep(kind)}`;
+ +  }
+ +  const index = Number(rawIndex);
+ +  if (!Number.isInteger(index) || index < 0 || index >= options.length) return '';
+ +  return options[index];
+ +};
+ +
+ +const orderSummary = (session) => {
+ +  const opc = session.opciones || {};
+ +  const entrada = opc.entrada || session.entrada;
+ +  const sopa = opc.sopa || session.sopa;
+ +  const segundo = opc.segundo || session.segundo;
+ +  const bebida = opc.bebida || session.bebida;
+ +  const postre = opc.postre || session.postre;
+ +  const guarnicion = opc.guarnicion || session.guarnicion;
+ +  const quantity = session.quantity;
+ +  const tipoLabel = session.tipoAlmuerzo?.shortLabel;
+ +  return (
+ +    (tipoLabel ? `📌 <b>Tipo:</b> ${tipoLabel}\n` : '') +
+ +    (quantity ? `🔢 <b>Cantidad:</b> ${Number(quantity)}\n` : '') +
+ +    (entrada ? `🥗 <b>Entrada:</b> ${entrada}\n` : '') +
+ +    (sopa ? `🍜 <b>Sopa:</b> ${sopa}\n` : '') +
+ +    (segundo ? `🍽️ <b>Plato fuerte:</b> ${segundo}\n` : '') +
+ +    (guarnicion ? `🧆 <b>Guarnición:</b> ${guarnicion}\n` : '') +
+ +    (bebida ? `🥤 <b>Bebida:</b> ${bebida}\n` : '') +
+ +    (postre ? `🍰 <b>Postre:</b> ${postre}\n` : '')
+ +  );
+ +};
+ +
+ +const getNextStep = (tipo, currentStep) => {
+ +  const flow = [];
+ +  if (tipo?.requiresEntrada) flow.push('entrada');
+ +  if (tipo?.requiresSopa) flow.push('sopa');
+ +  if (tipo?.requiresSegundo) flow.push('segundo');
+ +  if (tipo?.requiresBebida) flow.push('bebida');
+ +  if (tipo?.requiresPostre) flow.push('postre');
+ +  flow.push('confirmar');
+ +
+ +  if (!currentStep) return flow[0];
+ +  const idx = flow.indexOf(currentStep);
+ +  if (idx === -1 || idx === flow.length - 1) return 'confirmar';
+ +  return flow[idx + 1];
+ +};
+ +
+ +const getMenuOptionsForStep = (menu, step) => {
+ +  if (!menu) return [];
+ +  switch (step) {
+ +  case 'entrada': return menu.entradas || [];
+ +  case 'sopa': return menu.sopas || [];
+ +  case 'segundo': return menu.segundos || [];
+ +  case 'bebida': return menu.bebidas || [];
+ +  case 'postre': return menu.postres || [];
+ +  default: return [];
+ +  }
+ +};
+ +
+ +const getPromptTextForStep = (tipo, step) => {
+ +  const base = `🍱 <b>Tipo de Almuerzo:</b> ${tipo?.shortLabel || 'Almuerzo'}\n\n`;
+ +  switch (step) {
+ +  case 'entrada': return `${base}🥗 <b>Paso siguiente:</b> Elige tu entrada favorita:`;
+ +  case 'sopa': return `${base}🍜 <b>Paso siguiente:</b> Selecciona la sopa de hoy:`;
+ +  case 'segundo': return `${base}🍽️ <b>Paso siguiente:</b> Selecciona tu plato fuerte:`;
+ +  case 'bebida': return `${base}🥤 <b>Paso siguiente:</b> Elige tu bebida:`;
+ +  case 'postre': return `${base}🍰 <b>Paso siguiente:</b> Por último, elige tu postre:`;
+ +  default: return 'Selecciona una de las opciones:';
+ +  }
+ +};
+ +
+ +const promptForStep = async (chatId, session, step) => {
+ +  if (step === 'confirmar') {
+ +    const resumen = `📝 <b>Resumen de tu Selección:</b>\n\n${orderSummary(session)}\n❓ <b>¿Confirmas tu reserva para hoy?</b>`;
+ +    await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid), 'HTML');
+ +    return;
+ +  }
+ +  const options = getMenuOptionsForStep(session.menu, step);
+ +  if (!options.length) {
+ +    const nextStep = getNextStep(session.tipoAlmuerzo, step);
+ +    session.step = nextStep;
+ +    await setState(stateKey(chatId), session);
+ +    return promptForStep(chatId, session, nextStep);
+ +  }
+ +  const promptText = getPromptTextForStep(session.tipoAlmuerzo, step);
+ +  await sendMessage(chatId, promptText, optionsKeyboard(step, options, session.sid), 'HTML');
+ +};
+ +
+ +const orderConfirmation = (session, order) => {
+ +  if (order.modified) {
+ +    return (
+ +      '🔄 <b>¡Tu reserva ha sido modificada correctamente!</b>\n\n' +
+ +      `📝 <b>Detalle del Pedido:</b>\n${orderSummary(session)}` +
+ +      `🔢 <b>Número de Orden:</b> <code>#${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}</code>\n\n` +
+ +      '¡Que disfrutes tu comida! 🍽️✨'
+ +    );
+ +  }
+ +  if (order.duplicate) {
+ +    return 'Tu almuerzo quedó reservado.';
+ +  }
+ +  return (
+ +    '✅ <b>¡Tu reserva ha sido registrada con éxito!</b> 🎉\n\n' +
+ +    `📝 <b>Detalle del Pedido:</b>\n${orderSummary(session)}` +
+ +    `🔢 <b>Número de Orden:</b> <code>#${order.numero_orden || order.id_orden.split('-')[0].substring(0, 5).toUpperCase()}</code>\n\n` +
+ +    '¡Que disfrutes tu comida! 🍽️✨'
+ +  );
+ +};
+ +
+ +// Valida que el callback pertenece a la sesion actual (por sid embebido)
+ +const extractSidFromCallback = (text) => {
+ +  const parts = String(text || '').split(':');
+ +  // confirmar:ok:SID => parts[2]
+ +  // tipo:code:SID => parts[2]
+ +  // segundo:0:SID => parts[2]
+ +  return parts.length >= 3 ? parts[parts.length - 1] : null;
+ +};
+ +
+ +const sessionSidValid = (session, callbackSid) => {
+ +  if (!callbackSid) return true; // callbacks legacy sin sid siempre son validos
+ +  if (!session?.sid) return true; // sesion legacy sin sid es valida
+ +  return session.sid === callbackSid;
+ +};
+ +
+ +const handleAcceptedSession = async (parsed, traceId) => {
+ +  const { chatId, text, isCallback, messageId } = parsed;
+ +  const trace = (patch) => updateOrderTrace(traceId, patch);
+ +  let session = await getState(stateKey(chatId));
+ +
+ +  if (!session) {
+ +    await trace({
+ +      interpreted_payload: { source: isCallback ? 'buttons' : 'text', step: 'missing_session' },
+ +      outcome: 'failed',
+ +      error_message: 'No existe una sesion de menu activa',
+ +    });
+ +    if (!isCallback) await deleteMessage(chatId, messageId);
+ +    await sendMessage(chatId, 'No hay una seleccion activa. Usa /menu y luego los botones.');
+ +    return;
+ +  }
+ +
+ +  if (session.date !== todayInTimezone()) {
+ +    await deleteState(stateKey(chatId));
+ +    await sendMessage(chatId, 'El menu activo ya vencio. Usa /menu para cargar el menu de hoy.');
+ +    return;
+ +  }
+ +
+ +  if (!isCallback) {
+ +    await deleteMessage(chatId, messageId);
+ +    if (!session.invalidInputNoticeSent) {
+ +      await setState(stateKey(chatId), { ...session, invalidInputNoticeSent: true });
+ +      await sendMessage(chatId, 'Por seguridad, esta reserva solo acepta botones. Continua con la opcion visible.');
+ +    }
+ +    return;
+ +  }
+ +
+ +  await removeInlineKeyboard(chatId, messageId);
+ +
+ +  // Verificar SID para callbacks con sid embebido (confirmar:ok:sid, tipo:*:sid, segundo:*:sid)
+ +  const callbackSid = extractSidFromCallback(text);
+ +  if (!sessionSidValid(session, callbackSid)) {
+ +    await sendMessage(chatId, 'Este boton pertenece a un menu anterior y ya no es valido.');
+ +    return;
+ +  }
+ +
+ +  // ---- Modificación interactiva (modstep:category:sid) ----
+ +  if (String(text).startsWith('modstep:')) {
+ +    const parts = String(text).split(':');
+ +    const targetStep = parts[1];
+ +    session.step = targetStep;
+ +    session.modifying = true;
+ +    await setState(stateKey(chatId), session);
+ +    await promptForStep(chatId, session, targetStep);
+ +    return;
+ +  }
+ +
+ +  // ---- Paso: eleccion de tipo de almuerzo ----
+ +  if (session.step === 'tipo') {
+ +    const parts = String(text).split(':');
+ +    const kind = parts[0];
+ +    const code = parts[1];
+ +    if (kind !== 'tipo') {
+ +      await sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos));
+ +      return;
+ +    }
+ +    const tipo = TIPOS_ALMUERZO.find((t) => t.code === code);
+ +    if (!tipo) {
+ +      await sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos));
+ +      return;
+ +    }
+ +    
+ +    const nextStep = getNextStep(tipo, null);
+ +    session = { ...session, tipoAlmuerzo: tipo, step: nextStep };
+ +    await setState(stateKey(chatId), session);
+ +    await promptForStep(chatId, session, nextStep);
+ +    return;
+ +  }
+ +
+ +  // ---- Paso: confirmacion (nuevo protocolo confirmar:ok:sid) ----
+ +  if (session.step === 'confirmar') {
+ +    const parts = String(text).split(':');
+ +    const kind = parts[0];
+ +    const action = parts[1];
+ +
+ +    if (kind === 'confirmar' && action === 'edit') {
+ +      await sendMessage(chatId, '¿Qué parte de tu almuerzo deseas modificar?', modificarPasosKeyboard(session, session.sid), 'HTML');
+ +      return;
+ +    }
+ +
+ +    if (kind === 'confirmar' && action === 'back') {
+ +      await promptForStep(chatId, session, 'confirmar');
+ +      return;
+ +    }
+ +
+ +    if (kind !== 'confirmar' || action !== 'ok') {
+ +      const resumen = `📝 <b>Resumen de tu Selección:</b>\n\n${orderSummary(session)}\n❓ <b>¿Confirmas tu reserva para hoy?</b>`;
+ +      await sendMessage(chatId, resumen, confirmacionKeyboard(session.sid), 'HTML');
+ +      return;
+ +    }
+ +
+ +    // Verificar duplicado ANTES de insertar
+ +    const today = todayInTimezone();
+ +    const existing = await findActiveTodayOrder(session.cliente.id_cliente);
+ +    if (existing?.id_orden && session.mode !== 'modify') {
+ +      // Hay una reserva activa — preparamos la sesion actual para reemplazarla
+ +      session.mode = 'modify';
+ +      session.orderId = existing.id_orden;
+ +      await setState(stateKey(chatId), session);
+ +
+ +      const detail = await getOrderDetail(existing.id_orden);
+ +      const estadoNombre = await getEstadoName(existing.id_estado);
+ +      existing._estadoNombre = estadoNombre;
+ +      
+ +      const msg = buildOrderSummaryMessage(existing, detail) + 
+ +                  '\n\n⚠️ <b>Tienes una nueva selección pendiente.</b> ¿Qué deseas hacer?';
+ +                  
+ +      const replaceKeyboard = inlineKeyboard([
+ +        [{ text: '🔄 Reemplazar con nueva selección', callback_data: `confirmar:ok:${session.sid}` }],
+ +        [{ text: '❌ Mantener reserva anterior', callback_data: 'confirm:cancel' }]
+ +      ]);
+ +
+ +      await sendMessage(chatId, msg, replaceKeyboard, 'HTML');
+ +      return;
+ +    }
+ +
+ +    let order;
+ +    try {
+ +      order = await insertOrder(session);
+ +    } catch (error) {
+ +      await sendMessage(chatId, 'No pude registrar la reserva. Tus selecciones siguen disponibles.', confirmacionKeyboard(session.sid), 'HTML');
+ +      return;
+ +    }
+ +
+ +    await deleteState(stateKey(chatId));
+ +    await sendMessage(chatId, orderConfirmation(session, order), null, 'HTML');
+ +    return;
+ +  }
+ +
+ +  // ---- Pasos Dinamicos: entrada, sopa, segundo, bebida, postre ----
+ +  const validSteps = ['entrada', 'sopa', 'segundo', 'bebida', 'postre'];
+ +  if (validSteps.includes(session.step)) {
+ +    const parts = String(text).split(':');
+ +    const kind = parts[0];
+ +    const options = getMenuOptionsForStep(session.menu, session.step);
+ +    
+ +    if (kind !== session.step) {
+ +      await sendMessage(chatId, `Por favor, elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options, session.sid), 'HTML');
+ +      return;
+ +    }
+ +    
+ +    const chosen = optionFromCallback(text, session.step, options);
+ +    if (!chosen) {
+ +      await sendMessage(chatId, `Opcion invalida. Elige tu ${session.step} con los botones.`, optionsKeyboard(session.step, options, session.sid), 'HTML');
+ +      return;
+ +    }
+ +    
+ +    session.opciones = { ...(session.opciones || {}), [session.step]: chosen };
+ +    
+ +    await telegramRequest('editMessageText', {
+ +      chat_id: String(chatId),
+ +      message_id: Number(messageId),
+ +      text: `✅ <b>${labelForStep(session.step)}:</b> ${chosen}`,
+ +      parse_mode: 'HTML'
+ +    }).catch(() => {});
+ +    
+ +    if (session.modifying) {
+ +      delete session.modifying;
+ +      session.step = 'confirmar';
+ +      await setState(stateKey(chatId), session);
+ +      await promptForStep(chatId, session, 'confirmar');
+ +      return;
+ +    }
+ +    
+ +    const nextStep = getNextStep(session.tipoAlmuerzo, session.step);
+ +    session.step = nextStep;
+ +    await setState(stateKey(chatId), session);
+ +    await promptForStep(chatId, session, nextStep);
+ +    return;
+ +  }
+ +
+ +  await sendMessage(chatId, 'No hay una seleccion activa. Usa /menu y luego los botones.');
+ +};
+ +
+ +// ---- Handler de pedido: mostrar / cancelar / modificar reserva del dia ----
+ +
+ +const handlePedidoCallback = async (parsed, subscription) => {
+ +  const { chatId, text } = parsed;
+ +  const parts = String(text).split(':');
+ +  // pedido:can:orderId / pedido:can2:orderId / pedido:keep:orderId / pedido:mod:orderId
+ +  if (parts[0] !== 'pedido') return false;
+ +
+ +  if (parsed.isCallback && parsed.messageId) {
+ +    await removeInlineKeyboard(chatId, parsed.messageId);
+ +  }
+ +
+ +  const action = parts[1];
+ +  const orderId = parts.slice(2).join(':');
+ +
+ +  if (action === 'can') {
+ +    // Pedir confirmacion antes de cancelar
+ +    const { data: order } = await getAdminClient()
+ +      .from('ordenes').select('id_orden,id_estado').eq('id_orden', orderId).maybeSingle();
+ +    if (!order || order.id_estado !== 1) {
+ +      await sendMessage(chatId, 'Esta reserva ya no esta en estado Reservado y no puede cancelarse.');
+ +      return true;
+ +    }
+ +    await sendMessage(chatId, 'Confirma tu decision:\n\n\xbfDeseas cancelar tu reserva de hoy?', cancelConfirmKeyboard(orderId));
+ +    return true;
+ +  }
+ +
+ +  if (action === 'can2') {
+ +    // Confirmar cancelacion
+ +    const { data: order } = await getAdminClient()
+ +      .from('ordenes').select('id_orden,id_estado').eq('id_orden', orderId).maybeSingle();
+ +    if (!order || order.id_estado !== 1) {
+ +      await sendMessage(chatId, 'Esta reserva ya no esta en estado Reservado.');
+ +      return true;
+ +    }
+ +    const estadoAnterior = order.id_estado;
+ +    await getAdminClient()
+ +      .from('ordenes')
+ +      .update({ id_estado: 3 })
+ +      .eq('id_orden', orderId);
+ +    await getAdminClient()
+ +      .from('orden_estado_auditoria')
+ +      .insert([{ id_orden: orderId, estado_anterior: estadoAnterior, estado_nuevo: 3 }]);
+ +    await sendMessage(chatId, 'Tu reserva fue cancelada. Puedes hacer una nueva reserva con /menu.');
+ +    return true;
+ +  }
+ +
+ +  if (action === 'keep') {
+ +    await sendMessage(chatId, 'Tu reserva se mantiene sin cambios.');
+ +    return true;
+ +  }
+ +
+ +  if (action === 'mod') {
+ +    // Verificar que la orden sigue en estado Reservado
+ +    const { data: order } = await getAdminClient()
+ +      .from('ordenes').select('id_orden,id_estado,id_cliente').eq('id_orden', orderId).maybeSingle();
+ +    if (!order || order.id_estado !== 1) {
+ +      await sendMessage(chatId, 'Esta reserva ya no esta en estado Reservado y no puede modificarse.');
+ +      return true;
+ +    }
+ +    const client = await getClientById(subscription.id_cliente);
+ +    if (!client) return true;
+ +
+ +    // Cargar opciones existentes
+ +    const detail = await getOrderDetail(orderId);
+ +    if (!detail) {
+ +      await sendMessage(chatId, 'No se encontraron los detalles de la reserva.');
+ +      return true;
+ +    }
+ +    const opciones = detail.opciones || {};
+ +    const tipoCode = opciones.tipoAlmuerzo;
+ +    const tipoAlmuerzo = TIPOS_ALMUERZO.find((t) => t.code === tipoCode) || TIPOS_ALMUERZO.find((t) => t.id === detail.id_tipo_almuerzo) || null;
+ +
+ +    const session = await startSessionForClient(chatId, client, { 
+ +      mode: 'modify', 
+ +      orderId,
+ +      step: 'confirmar',
+ +      opciones,
+ +      tipoAlmuerzo
+ +    });
+ +    if (!session) {
+ +      await sendMessage(chatId, 'No hay menu activo para modificar la reserva.');
+ +      return true;
+ +    }
+ +    
+ +    await sendMessage(chatId, `Vamos a modificar tu reserva <code>${orderId}</code>.\n¿Qué parte de tu almuerzo deseas modificar?`, modificarPasosKeyboard(session, session.sid), 'HTML');
+ +    return true;
+ +  }
+ +
+ +  return false;
+ +};
+ +
+ +const promptMenu = async (chatId, client) => {
+ +  const session = await startSessionForClient(chatId, client);
+ +  if (!session) {
+ +    await sendMessage(chatId, 'Aun no hay un menu activo. Recibiras el siguiente envio disponible.');
+ +    return;
+ +  }
+ +  
+ +  const activeMenuState = await getActiveMenu();
+ +  const photoUrl = activeMenuState?.photoUrl || process.env.N8N_ECENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/ecencia-menu-demo.png';
+ +
+ +  const caption = menuCaption(session.date);
+ +  const inlineKeyboardData = await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos);
+ +
+ +  await sendPhoto(chatId, photoUrl, caption, inlineKeyboardData, 'HTML');
+ +};
+ +
+ +const tracePatch = (session, step, extra = {}) => ({
+ +  id_cliente: session?.cliente?.id_cliente,
+ +  interpreted_payload: {
+ +    source: 'buttons',
+ +    step,
+ +    quantity: session?.quantity || null,
+ +    sopa: session?.sopa || null,
+ +    segundo: session?.segundo || null,
+ +    guarnicion: session?.guarnicion || null,
+ +    ...extra,
+ +  },
+ +});
+ +
+ +
+ +const invitationFailureText = (reason) => {
+ +  if (reason === 'claimed') return 'Este enlace ya fue abierto desde otro chat. Solicita una nueva invitacion al administrador.';
+ +  if (reason === 'inactive_client') return 'El cliente de esta invitacion no esta activo.';
+ +  return 'La invitacion no es valida, ya fue usada o expiro. Solicita una nueva al administrador.';
+ +};
+ +
+ +const acceptConsent = async (parsed, subscription, consentState) => {
+ +  if (!consentState || consentState.status !== 'awaiting_decision') return;
+ +  await removeInlineKeyboard(parsed.chatId, parsed.messageId);
+ +  const sent = await sendMessage(
+ +    parsed.chatId,
+ +    '📱 <b>¡Paso Final!</b>\n\nPara validar tu suscripcion, necesitamos verificar tu usuario.\n\nPor favor, utiliza el boton <b>"Compartir mi telefono"</b> que acaba de aparecer en la parte inferior de tu pantalla.\n\n<i>(Si no ves el boton en la parte inferior, busca en la barra inferior el icono de un cuadrado para compartir tu numero).</i>',
+ +    contactKeyboard(),
+ +    'HTML'
+ +  );
+ +  await setState(consentKey(parsed.chatId), {
+ +    ...consentState,
+ +    status: 'accepted_pending_phone',
+ +    promptMessageIds: [],
+ +  });
+ +  await getAdminClient()
+ +    .from('telegram_subscriptions')
+ +    .update({
+ +      telegram_user_id: parsed.telegramUserId || subscription.telegram_user_id,
+ +      telegram_username: parsed.telegramUsername || subscription.telegram_username,
+ +    })
+ +    .eq('id', subscription.id);
+ +};
+ +
+ +const rejectConsent = async (parsed, subscription, consentState) => {
+ +  if (!consentState?.idCliente || !subscription) return;
+ +  await removeInlineKeyboard(parsed.chatId, parsed.messageId);
+ +  await getAdminClient()
+ +    .from('telegram_subscriptions')
+ +    .update({
+ +      consent_status: 'rejected',
+ +      is_active: false,
+ +      rejected_at: new Date().toISOString(),
+ +      accepted_at: null,
+ +      revoked_at: null,
+ +      consent_notice_version: getConsentVersion(),
+ +      consent_notice_text: privacyText(),
+ +      consent_method: 'telegram_inline_button',
+ +    })
+ +    .eq('id', subscription.id);
+ +  await recordConsentEvent({
+ +    idCliente: consentState.idCliente,
+ +    subscriptionId: subscription.id,
+ +    invitationId: consentState.invitationId,
+ +    eventType: 'rejected',
+ +    method: 'telegram_inline_button',
+ +    telegramUserId: parsed.telegramUserId,
+ +    chatId: parsed.chatId,
+ +  });
+ +  await consumeInvitation(consentState.invitationId);
+ +  await deleteChatStates(parsed.chatId);
+ +  await cleanupConsentMessages(parsed.chatId, consentState);
+ +  await sendMessage(
+ +    parsed.chatId,
+ +    '🚫 <b>Suscripcion Rechazada</b>\n\nRegistramos que no aceptas. Esta suscripcion queda bloqueada hasta que un administrador la reactive.',
+ +    removeKeyboard(),
+ +    'HTML'
+ +  );
+ +};
+ +
+ +const validateAndSaveContact = async (parsed, subscription, consentState) => {
+ +  if (!subscription || consentState?.status !== 'accepted_pending_phone') return false;
+ +  await deleteMessage(parsed.chatId, parsed.messageId);
+ +  if (!parsed.contactVerified) {
+ +    await sendMessage(
+ +      parsed.chatId, 
+ +      '⚠️ Por favor, utiliza el boton <b>"Compartir mi telefono"</b> para validar tu suscripcion.\n\n<i>(Si no ves el boton en la parte inferior, busca en la barra inferior el icono de un cuadrado para compartir tu numero).</i>', 
+ +      contactKeyboard(), 
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  const client = await getClientById(consentState.idCliente);
+ +  if (!client?.esta_activo) {
+ +    await sendMessage(
+ +      parsed.chatId, 
+ +      '⚠️ <b>Cliente Inactivo</b>\n\nEl cliente invitado no esta activo. Contacta al administrador.', 
+ +      removeKeyboard(),
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +  const contactPhone = normalizePhone(parsed.contactPhone);
+ +  const clientPhone = normalizePhone(client.telefono);
+ +  if (!contactPhone || !clientPhone || contactPhone !== clientPhone) {
+ +    await sendMessage(
+ +      parsed.chatId,
+ +      '❌ <b>Telefono no coincide</b>\n\nEl telefono compartido no coincide con el cliente invitado. Pide al administrador que revise el registro.',
+ +      contactKeyboard(),
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  const phoneOwner = await getSubscriptionByPhone(contactPhone);
+ +  // Solo es conflicto real si la suscripcion del telefono pertenece a otro cliente
+ +  if (phoneOwner && phoneOwner.id !== subscription.id && phoneOwner.id_cliente && phoneOwner.id_cliente !== consentState.idCliente) {
+ +    await sendMessage(
+ +      parsed.chatId, 
+ +      '⚠️ <b>Telefono en uso</b>\n\nEse telefono ya esta vinculado a otra suscripcion.', 
+ +      removeKeyboard(),
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  const acceptedAt = new Date().toISOString();
+ +  const { data: accepted, error } = await getAdminClient()
+ +    .from('telegram_subscriptions')
+ +    .update({
+ +      id_cliente: client.id_cliente,
+ +      phone_normalized: contactPhone,
+ +      chat_id: String(parsed.chatId),
+ +      telegram_user_id: parsed.telegramUserId || null,
+ +      telegram_username: parsed.telegramUsername || null,
+ +      consent_status: 'accepted',
+ +      is_active: true,
+ +      consent_notice_version: getConsentVersion(),
+ +      consent_notice_text: privacyText(),
+ +      consent_method: 'telegram_contact_button',
+ +      accepted_at: acceptedAt,
+ +      rejected_at: null,
+ +      revoked_at: null,
+ +      linked_at: acceptedAt,
+ +      deletion_requested_at: null,
+ +    })
+ +    .eq('id', subscription.id)
+ +    .select()
+ +    .single();
+ +  if (error) throw error;
+ +
+ +  try {
+ +    await recordConsentEvent({
+ +      idCliente: client.id_cliente,
+ +      subscriptionId: accepted.id,
+ +      invitationId: consentState.invitationId,
+ +      eventType: 'accepted',
+ +      method: 'telegram_contact_button',
+ +      telegramUserId: parsed.telegramUserId,
+ +      chatId: parsed.chatId,
+ +      phone: contactPhone,
+ +      evidence: { contact_owner_verified: true, client_phone_matched: true },
+ +    });
+ +  } catch (eventError) {
+ +    await getAdminClient()
+ +      .from('telegram_subscriptions')
+ +      .update({ consent_status: 'pending', is_active: false, accepted_at: null })
+ +      .eq('id', subscription.id);
+ +    throw eventError;
+ +  }
+ +
+ +  await consumeInvitation(consentState.invitationId);
+ +  await deleteChatStates(parsed.chatId);
+ +  await cleanupConsentMessages(parsed.chatId, consentState);
+ +  await sendMessage(
+ +    parsed.chatId,
+ +    `🎉 <b>¡Registro Exitoso!</b>\n\nHola <b>${client.nombre}</b>, tu Telegram quedo vinculado con tu registro de cliente.\n\nUsa /menu cuando quieras reservar.`,
+ +    removeKeyboard(),
+ +    'HTML'
+ +  );
+ +  return true;
+ +};
+ +
+ +const handlePrivacyCommand = async (command, parsed, subscription) => {
+ +  if (command === '/privacidad') {
+ +    const settings = getPrivacySettings();
+ +    await sendMessage(
+ +      parsed.chatId,
+ +      `🛡️ <b>Centro de Privacidad</b>\n\n${privacyText()}\n\n<b>Comandos disponibles:</b>\n/misdatos - Ver mis datos\n/eliminarmisdatos - Borrar mis datos\n/revocar - Retirar consentimiento\n/ayuda - Ver mas opciones\n\n<a href="${settings.policyUrl}">Ver Politica Completa</a>`,
+ +      null,
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  if (command === '/ayuda') {
+ +    await sendMessage(
+ +      parsed.chatId,
+ +      '🆘 <b>Ayuda y Comandos</b>\n\n🍲 <b>Reservas</b>\nUsa /menu para reservar mediante botones.\nConsulta tu reserva del día con /pedido.\nConsulta tu saldo prepago o convenio con /misaldo.\n\n🔒 <b>Privacidad</b>\n/privacidad - Centro de privacidad\n/misdatos - Ver qué guardamos\n/eliminarmisdatos - Solicitar borrado\n/revocar - Bloquear acceso\n\n📞 <b>Contacto:</b> ' + getPrivacySettings().contact,
+ +      null,
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  if (command === '/misaldo') {
+ +    if (!subscription) {
+ +      await sendMessage(parsed.chatId, '⚠️ <b>Sin suscripcion</b>\n\nEste chat no tiene una suscripcion de Telegram vinculada.', null, 'HTML');
+ +      return true;
+ +    }
+ +    
+ +    const { data: clientInfo, error } = await getAdminClient()
+ +      .from('clientes')
+ +      .select(`
+ +        id_tipo_cliente,
+ +        clientes_convenios(
+ +          convenios(esta_activo, nombre_empresa)
+ +        ),
+ +        saldos_servicio(cantidad_disponible, productos(nombre_producto))
+ +      `)
+ +      .eq('id_cliente', subscription.id_cliente)
+ +      .single();
+ +
+ +    if (error || !clientInfo) {
+ +      await sendMessage(parsed.chatId, '⚠️ No pudimos obtener tu informacion. Por favor, contacta al administrador.', null, 'HTML');
+ +      return true;
+ +    }
+ +
+ +    if (clientInfo.id_tipo_cliente === 1) { // AGREEMENT
+ +      const convenioRel = clientInfo.clientes_convenios?.[0]?.convenios;
+ +      if (convenioRel && convenioRel.esta_activo) {
+ +        const empresa = convenioRel.nombre_empresa || 'tu empresa';
+ +        await sendMessage(parsed.chatId, `✅ <b>Convenio Activo</b>\n\nTu convenio con la empresa <b>${empresa}</b> se encuentra activo. Puedes disfrutar de tus almuerzos con normalidad.`, null, 'HTML');
+ +      } else {
+ +        await sendMessage(parsed.chatId, `⚠️ <b>Convenio Inactivo</b>\n\nTu convenio actualmente no se encuentra activo. Por favor, comunícate con la administración.`, null, 'HTML');
+ +      }
+ +    } else { // DIRECT
+ +      const saldos = clientInfo.saldos_servicio || [];
+ +      const saldosValidos = saldos.filter(s => s.cantidad_disponible > 0);
+ +      const totalSaldos = saldosValidos.reduce((sum, s) => sum + s.cantidad_disponible, 0);
+ +      
+ +      if (totalSaldos > 0) {
+ +        let detalleSaldos = saldosValidos.map(s => {
+ +          const nombreProd = Array.isArray(s.productos) ? s.productos[0]?.nombre_producto : s.productos?.nombre_producto;
+ +          return `🔹 ${s.cantidad_disponible} ${nombreProd || 'Almuerzo(s)'}`;
+ +        }).join('\n');
+ +        
+ +        await sendMessage(parsed.chatId, `💰 <b>Saldo Disponible</b>\n\nActualmente tienes <b>${totalSaldos}</b> almuerzo(s) en tu monedero prepago:\n\n${detalleSaldos}`, null, 'HTML');
+ +      } else {
+ +        await sendMessage(parsed.chatId, `⚠️ <b>Sin Saldo</b>\n\nActualmente no tienes almuerzos disponibles en tu monedero prepago. Por favor, acércate a caja para realizar una recarga.`, null, 'HTML');
+ +      }
+ +    }
+ +    return true;
+ +  }
+ +
+ +  if (command === '/misdatos') {
+ +    if (!subscription) {
+ +      await sendMessage(parsed.chatId, '⚠️ <b>Sin suscripcion</b>\n\nEste chat no tiene una suscripcion de Telegram vinculada.', null, 'HTML');
+ +      return true;
+ +    }
+ +    await getAdminClient()
+ +      .from('telegram_privacy_audits')
+ +      .insert({ action: 'misdatos', outcome: 'informed', chat_id: String(parsed.chatId) });
+ +    await sendMessage(
+ +      parsed.chatId,
+ +      '📁 <b>Tus Datos Personales</b>\n\nCategorias de datos que almacenamos:\n' +
+ +      '• Identificador del chat de Telegram\n' +
+ +      '• Numero de telefono (enmascarado)\n' +
+ +      '• Nombre del cliente (segun tu registro)\n' +
+ +      '• Selecciones de menu y reservas\n' +
+ +      '• Historial de consentimiento\n\n' +
+ +      `<b>Estado del consentimiento:</b> <code>${subscription.consent_status}</code>\n\n` +
+ +      `Para acceder, rectificar o eliminar tus datos, contacta a: <b>${getPrivacySettings().contact}</b> o usa /eliminarmisdatos.`,
+ +      null,
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  if (command === '/revocar') {
+ +    if (!subscription) {
+ +      await sendMessage(parsed.chatId, '⚠️ <b>Sin suscripcion</b>\n\nNo existe una suscripcion vinculada para revocar.', null, 'HTML');
+ +      return true;
+ +    }
+ +    if (['rejected', 'revoked'].includes(subscription.consent_status)) {
+ +      await sendMessage(parsed.chatId, '🚫 <b>Ya estas revocado</b>\n\nTu suscripcion ya se encuentra bloqueada.', null, 'HTML');
+ +      return true;
+ +    }
+ +    await sendMessage(
+ +      parsed.chatId,
+ +      '🛑 <b>Revocar Consentimiento</b>\n\n<b>Confirma tu decision:</b>\n\nRevocar el consentimiento bloqueara tu acceso al bot de Ecencia Andina. No recibiras menus hasta que un administrador reactive tu suscripcion.',
+ +      revokeConfirmKeyboard(),
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  if (parsed.text === 'revocar:cancel') {
+ +    if (parsed.isCallback) await removeInlineKeyboard(parsed.chatId, parsed.messageId);
+ +    await sendMessage(parsed.chatId, '✅ <b>Accion Cancelada</b>\n\nTu consentimiento se mantiene activo y seguiras disfrutando del servicio.', null, 'HTML');
+ +    return true;
+ +  }
+ +
+ +  if (parsed.text === 'revocar:confirm') {
+ +    if (parsed.isCallback) await removeInlineKeyboard(parsed.chatId, parsed.messageId);
+ +    if (!subscription) {
+ +      await sendMessage(parsed.chatId, '⚠️ <b>Sin suscripcion</b>\n\nNo existe una suscripcion vinculada para revocar.', null, 'HTML');
+ +      return true;
+ +    }
+ +    await getAdminClient()
+ +      .from('telegram_subscriptions')
+ +      .update({
+ +        consent_status: 'rejected',
+ +        is_active: false,
+ +        revoked_at: new Date().toISOString(),
+ +      })
+ +      .eq('id', subscription.id);
+ +    await getAdminClient()
+ +      .from('telegram_privacy_audits')
+ +      .insert({ action: 'revocar', outcome: 'revoked', chat_id: String(parsed.chatId) });
+ +    await deleteChatStates(parsed.chatId);
+ +    await sendMessage(
+ +      parsed.chatId,
+ +      '🚫 <b>Consentimiento Revocado</b>\n\nTu acceso ha quedado bloqueado. Ya no recibiras el menu diario hasta que un administrador reactive tu suscripcion.',
+ +      removeKeyboard(),
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  if (command === '/eliminarmisdatos') {
+ +    if (!subscription) {
+ +      await sendMessage(parsed.chatId, '⚠️ <b>Sin datos</b>\n\nEste chat no tiene datos Telegram vinculados.', null, 'HTML');
+ +      return true;
+ +    }
+ +
+ +    // Obtener los datos del cliente
+ +    const client = await getClientById(subscription.id_cliente);
+ +
+ +    // Verificar si ya existe una peticion pendiente o en revision
+ +    const { data: existingRequests } = await getAdminClient()
+ +      .from('telegram_privacy_requests')
+ +      .select('id, status')
+ +      .eq('id_cliente', subscription.id_cliente)
+ +      .in('status', ['pending', 'in_review']);
+ +
+ +    if (existingRequests && existingRequests.length > 0) {
+ +      await sendMessage(
+ +        parsed.chatId,
+ +        '⏳ <b>Solicitud en curso</b>\n\nYa hemos recibido tu solicitud anteriormente. Actualmente se encuentra en proceso de gestion.',
+ +        null,
+ +        'HTML'
+ +      );
+ +      return true;
+ +    }
+ +
+ +    // Registrar auditoria
+ +    await getAdminClient()
+ +      .from('telegram_privacy_audits')
+ +      .insert({ action: 'eliminarmisdatos', outcome: 'requested', chat_id: String(parsed.chatId) });
+ +
+ +    // Insertar solicitud automatica en la tabla
+ +    const { data: privacyRequest, error } = await getAdminClient()
+ +      .from('telegram_privacy_requests')
+ +      .insert({
+ +        id_cliente: subscription.id_cliente,
+ +        subscription_id: subscription.id,
+ +        request_type: 'deletion',
+ +        status: 'pending',
+ +        source: 'telegram'
+ +      })
+ +      .select()
+ +      .single();
+ +
+ +    if (error && error.code !== '23505') {
+ +      console.error('Error al insertar solicitud de privacidad:', error);
+ +    }
+ +
+ +    // Notificar al administrador por correo (asincrono para no bloquear)
+ +    if (privacyRequest && client) {
+ +      try {
+ +        const { sendPrivacyRequestNotificationEmail } = require('../services/telegramInvitationEmail');
+ +        sendPrivacyRequestNotificationEmail(client, privacyRequest).catch(err => console.error('Error notificacion:', err));
+ +      } catch (e) {
+ +        console.warn('Módulo de correos no disponible en este entorno.');
+ +      }
+ +    }
+ +
+ +    await sendMessage(
+ +      parsed.chatId,
+ +      '🗑️ <b>Solicitud Recibida</b>\n\nHemos recibido tu solicitud de eliminacion de datos personales.\n\nEl requerimiento ha sido registrado automaticamente y nuestro equipo de privacidad lo evaluara y procesara en el plazo establecido por la ley. En caso de requerir detalles adicionales, te contactaremos.',
+ +      null,
+ +      'HTML'
+ +    );
+ +    return true;
+ +  }
+ +
+ +  return false;
+ +};
+ +
+ +const handleStartInvitation = async (parsed, token) => {
+ +  const invitation = await getInvitationByToken(token);
+ +  const claimed = await claimInvitation(invitation, parsed);
+ +  if (!claimed.valid) {
+ +    await sendMessage(parsed.chatId, invitationFailureText(claimed.reason));
+ +    return;
+ +  }
+ +  const relation = claimed.invitation.clientes;
+ +  const client = Array.isArray(relation) ? relation[0] : relation;
+ +
+ +  if (client && client.esta_activo === false) {
+ +    await sendMessage(
+ +      parsed.chatId, 
+ +      '🚫 <b>Cuenta Desactivada</b>\n\nTu cuenta en Ecencia Andina se encuentra desactivada. No puedes iniciar el registro ni realizar reservas. Si crees que es un error, por favor contacta a la administración.',
+ +      null,
+ +      'HTML'
+ +    );
+ +    return;
+ +  }
+ +
+ +  let subscription = await getSubscriptionByChat(parsed.chatId);
+ +  if (!subscription) {
+ +    const { data: inserted, error: insertError } = await getAdminClient()
+ +      .from('telegram_subscriptions')
+ +      .insert({
+ +        id_cliente: client ? client.id_cliente : null,
+ +        chat_id: String(parsed.chatId),
+ +        consent_status: 'pending',
+ +        is_active: false,
+ +      })
+ +      .select()
+ +      .single();
+ +    if (insertError) {
+ +      throw insertError;
+ +    }
+ +    subscription = inserted;
+ +  }
+ +
+ +  if (!client?.id_cliente) {
+ +    await sendMessage(parsed.chatId, invitationFailureText('invalid'));
+ +    return;
+ +  }
+ +
+ +  await beginConsent({
+ +    idCliente: client.id_cliente,
+ +    chatId: parsed.chatId,
+ +    telegramUserId: parsed.telegramUserId,
+ +    telegramUsername: parsed.telegramUsername,
+ +    invitationId: claimed.invitation.id,
+ +    cleanupMessageIds: [],
+ +  });
+ +};
+ +
+ +const requestPolicyReconsent = async (parsed, subscription) => {
+ +  await recordConsentEvent({
+ +    idCliente: subscription.id_cliente,
+ +    subscriptionId: subscription.id,
+ +    eventType: 'policy_reconsent_requested',
+ +    method: 'telegram_command',
+ +    telegramUserId: parsed.telegramUserId,
+ +    chatId: parsed.chatId,
+ +    phone: subscription.phone_normalized,
+ +    evidence: {
+ +      previous_version: subscription.consent_notice_version || null,
+ +      required_version: getConsentVersion(),
+ +    },
+ +    includeNotice: false,
+ +  });
+ +  await beginConsent({
+ +    idCliente: subscription.id_cliente,
+ +    chatId: parsed.chatId,
+ +    telegramUserId: parsed.telegramUserId,
+ +    telegramUsername: parsed.telegramUsername,
+ +  });
+++=======
++   const t = String(text || '').trim();
++   if (!t.startsWith('/start')) return null;
++   const parts = t.split(' ');
++   return { isStart: true, token: parts[1] || null };
+++>>>>>>> develop
+  };
+  
+  const handleTelegramUpdate = async (update) => {

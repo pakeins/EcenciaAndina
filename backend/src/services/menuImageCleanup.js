@@ -7,15 +7,15 @@ const DATABASE_PAGE_SIZE = 1000;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const MANAGED_IMAGE_PATTERN = /^menu-dashboard-(\d+)\.(?:jpe?g|png|webp)$/i;
 
-const normalizeRetentionDays = (value) => {
+function normalizeRetentionDays(value) {
   const retentionDays = Number(value);
   if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > MAX_IMAGE_RETENTION_DAYS) {
     return DEFAULT_IMAGE_RETENTION_DAYS;
   }
   return retentionDays;
-};
+}
 
-const storagePathFromPublicUrl = (url) => {
+function storagePathFromPublicUrl(url) {
   const marker = `/storage/v1/object/public/${MENU_ASSETS_BUCKET}/`;
   const index = String(url || '').indexOf(marker);
   if (index < 0) return '';
@@ -25,9 +25,9 @@ const storagePathFromPublicUrl = (url) => {
   } catch {
     return '';
   }
-};
+}
 
-const managedFileDate = (file) => {
+function managedFileDate(file) {
   const createdAt = new Date(file.created_at || '');
   if (!Number.isNaN(createdAt.getTime())) return createdAt;
 
@@ -38,15 +38,15 @@ const managedFileDate = (file) => {
   if (!Number.isFinite(timestamp)) return null;
   const timestampDate = new Date(timestamp);
   return Number.isNaN(timestampDate.getTime()) ? null : timestampDate;
-};
+}
 
-const buildCleanupPlan = ({
+function buildCleanupPlan({
   files,
   menuRows,
   activeDate,
   retentionDays,
   now = new Date(),
-}) => {
+}) {
   const safeRetentionDays = normalizeRetentionDays(retentionDays);
   const cutoff = new Date(now.getTime() - safeRetentionDays * MILLISECONDS_PER_DAY);
   const cutoffDate = cutoff.toISOString().slice(0, 10);
@@ -76,8 +76,8 @@ const buildCleanupPlan = ({
   const urlsToClear = [
     ...new Set(
       (menuRows || [])
-        .filter((row) => deletedPaths.has(storagePathFromPublicUrl(row?.imagen_url)))
-        .map((row) => row.imagen_url),
+        .filter(function(row) { return deletedPaths.has(storagePathFromPublicUrl(row?.imagen_url)); })
+        .map(function(row) { return row.imagen_url; }),
     ),
   ];
 
@@ -89,9 +89,9 @@ const buildCleanupPlan = ({
     pathsToDelete,
     urlsToClear,
   };
-};
+}
 
-const listStorageFiles = async (storageBucket) => {
+async function listStorageFiles(storageBucket) {
   const files = [];
   let offset = 0;
 
@@ -110,9 +110,9 @@ const listStorageFiles = async (storageBucket) => {
   }
 
   return files;
-};
+}
 
-const listMenuRows = async (adminClient) => {
+async function listMenuRows(adminClient) {
   const rows = [];
   let offset = 0;
 
@@ -131,9 +131,9 @@ const listMenuRows = async (adminClient) => {
   }
 
   return rows;
-};
+}
 
-const getCleanupSettings = async (adminClient) => {
+async function getCleanupSettings(adminClient) {
   const { data, error } = await adminClient
     .from('menu_settings')
     .select('active_date,image_retention_days')
@@ -142,9 +142,9 @@ const getCleanupSettings = async (adminClient) => {
 
   if (error) throw error;
   return data || {};
-};
+}
 
-const cleanupOldMenuImages = async (adminClient, options = {}) => {
+async function cleanupOldMenuImages(adminClient, options = {}) {
   const settings = await getCleanupSettings(adminClient);
   const menuRows = await listMenuRows(adminClient);
   const storageBucket = adminClient.storage.from(MENU_ASSETS_BUCKET);
@@ -192,7 +192,7 @@ const cleanupOldMenuImages = async (adminClient, options = {}) => {
     deleted: plan.pathsToDelete.length,
     referencesCleared: plan.urlsToClear.length,
   };
-};
+}
 
 module.exports = {
   cleanupOldMenuImages,

@@ -22,7 +22,9 @@ const callMicroservice = async (endpoint, payload = null, method = 'POST') => {
     }
     return await response.json();
   } catch (error) {
-    console.error(`[Telegram Microservice] Failed to call ${endpoint}:`, error.message);
+    const safeEndpoint = String(endpoint).replace(/[\r\n]/g, '_');
+    const safeMessage = String(error.message || error).replace(/[\r\n]/g, '_');
+    console.error(`[Telegram Microservice] Failed to call ${safeEndpoint}:`, safeMessage);
     throw error;
   }
 };

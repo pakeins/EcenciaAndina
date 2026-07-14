@@ -1,12 +1,10 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
+import menuRouter from '../routes/menu.js';
 
-const require = createRequire(import.meta.url);
 let saveDailyMenu;
 let removeUploadedMenuImage;
 
 beforeAll(() => {
-  const menuRouter = require('../routes/menu.js');
   saveDailyMenu = menuRouter._private.saveDailyMenu;
   removeUploadedMenuImage = menuRouter._private.removeUploadedMenuImage;
 });

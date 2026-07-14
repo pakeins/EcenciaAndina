@@ -4,12 +4,12 @@ const MAX_ERROR_LENGTH = 1000;
 const MAX_JSON_LENGTH = 16000;
 const ALLOWED_OUTCOMES = new Set(['received', 'pending', 'success', 'failed', 'rejected']);
 
-const truncate = (value, maxLength) => {
+function truncate(value, maxLength) {
   const text = String(value || '');
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
-};
+}
 
-const boundedJson = (value) => {
+function boundedJson(value) {
   const source = value && typeof value === 'object' ? value : {};
   const serialized = JSON.stringify(source);
   if (serialized.length <= MAX_JSON_LENGTH) return source;
@@ -18,19 +18,21 @@ const boundedJson = (value) => {
     truncated: true,
     summary: truncate(serialized, MAX_JSON_LENGTH),
   };
-};
+}
 
-const buildOriginalMessage = (update) => ({
-  type: update.isCallback ? 'callback' : update.contactPhone ? 'contact' : 'text',
-  callbackAction: update.isCallback ? truncate(String(update.text || '').split(':')[0], 32) : null,
-  messageId: update.messageId || null,
-  hasContact: Boolean(update.contactPhone),
-  contactVerified: Boolean(update.contactVerified),
-  receivedAt: new Date().toISOString(),
-});
+function buildOriginalMessage(update) {
+  return {
+    type: update.isCallback ? 'callback' : update.contactPhone ? 'contact' : 'text',
+    callbackAction: update.isCallback ? truncate(String(update.text || '').split(':')[0], 32) : null,
+    messageId: update.messageId || null,
+    hasContact: Boolean(update.contactPhone),
+    contactVerified: Boolean(update.contactVerified),
+    receivedAt: new Date().toISOString(),
+  };
+}
 const IMPORTANT_ACTIONS = new Set(['pedir', 'confirmar', 'cancelar', 'estado', 'menu']);
 
-const createOrderTrace = async (update, context = {}, createClient = getAdminClient) => {
+async function createOrderTrace(update, context = {}, createClient = getAdminClient) {
   try {
     // Evitar llenar la base de datos con clics intermedios
     if (update.isCallback) {
@@ -59,9 +61,9 @@ const createOrderTrace = async (update, context = {}, createClient = getAdminCli
     console.warn('No se pudo iniciar la trazabilidad Telegram:', error.message);
     return '';
   }
-};
+}
 
-const updateOrderTrace = async (traceId, patch, createClient = getAdminClient) => {
+async function updateOrderTrace(traceId, patch, createClient = getAdminClient) {
   if (!traceId) return false;
 
   const payload = {
@@ -87,7 +89,7 @@ const updateOrderTrace = async (traceId, patch, createClient = getAdminClient) =
     console.warn('No se pudo actualizar la trazabilidad Telegram:', error.message);
     return false;
   }
-};
+}
 
 module.exports = {
   createOrderTrace,

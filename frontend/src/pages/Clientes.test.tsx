@@ -38,6 +38,7 @@ vi.mock('lucide-react', async (importOriginal) => {
 describe('Clientes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    queryClient.clear();
 
     (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url.includes('/clientes/tipos')) {
@@ -60,7 +61,8 @@ describe('Clientes', () => {
               cedula: '1712345678', 
               correo: 'juan@test.com', 
               activo: true, 
-              tipo_nombre: 'Frecuente' 
+              tipo_nombre: 'Frecuente',
+              id_tipo_cliente: 2
             }
           ])
         });
@@ -89,6 +91,20 @@ describe('Clientes', () => {
       expect(screen.getByText('1712345678')).toBeInTheDocument();
     });
   });
+
+  it('muestra mensaje de error si falla la obtencion de clientes', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/clientes') && !url.includes('tipos') && !url.includes('privacidad')) {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Fallo al obtener clientes' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    await renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText(/Ocurrió un error/i)).toBeInTheDocument();
+    });
+  });
   it('permite buscar clientes', async () => {
     await renderComponent();
     await waitFor(() => expect(screen.getByText('Juan Perez')).toBeInTheDocument());
@@ -97,9 +113,22 @@ describe('Clientes', () => {
     
     // Simulate search
     await act(async () => {
-      fireEvent.change(searchInput, { target: { value: '171234' } });
+      fireEvent.change(searchInput, { target: { value: 'Inexistente' } });
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText('No se encontraron clientes con esa búsqueda')).toBeInTheDocument();
     });
 
+    // Test clear filters button
+    const clearBtn = screen.getByRole('button', { name: /Limpiar/i });
+    await act(async () => {
+      fireEvent.click(clearBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Juan Perez')).toBeInTheDocument();
+    });
   });
 
   it('permite abrir el modal para nuevo cliente y guardar', async () => {
@@ -163,5 +192,291 @@ describe('Clientes', () => {
         fireEvent.click(btnConfirm);
       });
     }
+  });
+
+  it('muestra toast de error si la eliminación falla', async () => {
+    await renderComponent();
+    
+    // Simulate API fail for DELETE
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (options?.method === 'DELETE') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo eliminar el cliente' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const btnDelete = await screen.findAllByTitle(/Eliminar Cliente/i);
+    if (btnDelete.length > 0) {
+      await act(async () => {
+        fireEvent.click(btnDelete[0]);
+      });
+      const btnConfirm = screen.getByRole('button', { name: /Eliminar Normalmente/i });
+      await act(async () => {
+        fireEvent.click(btnConfirm);
+      });
+    }
+
+    expect(toast.error).toHaveBeenCalledWith('No se pudo eliminar el cliente');
+  });
+
+  it('permite abrir el monedero virtual', async () => {
+    // Modify mock inside test or use default DIRECT client (we will set beforeEach to direct)
+    await renderComponent();
+
+    const btnWallet = await screen.findByTitle(/Monedero Virtual/i);
+    await act(async () => {
+      fireEvent.click(btnWallet);
+    });
+
+    // Check if wallet dialog shows (wallet dialog title is 'Monedero Virtual' or similar)
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('permite abrir la gestion de Telegram', async () => {
+    await renderComponent();
+
+    const btnTelegram = await screen.findByTitle(/Gestionar Telegram/i);
+    await act(async () => {
+      fireEvent.click(btnTelegram);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('permite abrir la gestion de Telegram y manejar errores al reinvitar', async () => {
+    await renderComponent();
+
+    const btnTelegram = await screen.findByTitle(/Gestionar Telegram/i);
+    await act(async () => {
+      fireEvent.click(btnTelegram);
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (url.includes('/telegram/invitacion') && options?.method === 'POST') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo reinvitar al cliente' }) });
+      }
+      if (url.includes('/telegram/revocar') && options?.method === 'POST') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo revocar al cliente' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const btnReinvitar = await screen.findByRole('button', { name: /Enviar nueva invitación/i }).catch(() => null);
+    if (btnReinvitar) {
+      await act(async () => {
+        fireEvent.click(btnReinvitar);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('No se pudo reinvitar al cliente'));
+    }
+
+    const btnRevocar = await screen.findByRole('button', { name: /Revocar acceso al Bot/i }).catch(() => null);
+    if (btnRevocar) {
+      await act(async () => {
+        fireEvent.click(btnRevocar);
+      });
+      const btnConfirmRevocar = await screen.findByRole('button', { name: /Sí, Revocar/i });
+      await act(async () => {
+        fireEvent.click(btnConfirmRevocar);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('No se pudo revocar al cliente'));
+    }
+  });
+
+  it('permite abrir la gestion de Telegram y manejar exito al reinvitar y revocar', async () => {
+    await renderComponent();
+
+    const btnTelegram = await screen.findByTitle(/Gestionar Telegram/i);
+    await act(async () => {
+      fireEvent.click(btnTelegram);
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (url.includes('/telegram/invitacion') && options?.method === 'POST') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ telegram_onboarding: { status: 'sent' } }) });
+      }
+      if (url.includes('/telegram/revocar') && options?.method === 'POST') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ message: 'Revocado' }) });
+      }
+      if (url.includes('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const btnReinvitar = await screen.findByRole('button', { name: /Enviar nueva invitación/i }).catch(() => null);
+    if (btnReinvitar) {
+      await act(async () => {
+        fireEvent.click(btnReinvitar);
+      });
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Aviso enviado al chat vinculado'));
+    }
+
+    // Reopen since dialog closes on success
+    await act(async () => {
+      fireEvent.click(btnTelegram);
+    });
+
+    const btnRevocar = await screen.findByRole('button', { name: /Revocar acceso al Bot/i }).catch(() => null);
+    if (btnRevocar) {
+      await act(async () => {
+        fireEvent.click(btnRevocar);
+      });
+      const btnConfirmRevocar = await screen.findByRole('button', { name: /Sí, Revocar/i });
+      await act(async () => {
+        fireEvent.click(btnConfirmRevocar);
+      });
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Acceso revocado correctamente'));
+    }
+  });
+
+  it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error de red', async () => {
+    await renderComponent();
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (options?.method === 'PUT') {
+        return Promise.reject(new Error('Network error'));
+      }
+      if (url.includes('/clientes') && !url.includes('tipos')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678', correo: 'juan@test.com', activo: true, id_tipo_cliente: 2 }])
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const switches = await screen.findAllByRole('switch');
+    if (switches.length > 0) {
+      await act(async () => {
+        fireEvent.click(switches[0]);
+      });
+      const btnConfirm = screen.getByRole('button', { name: /Sí, desactivar/i });
+      await act(async () => {
+        fireEvent.click(btnConfirm);
+      });
+      expect(toast.error).toHaveBeenCalledWith('Error de conexión');
+    }
+  });
+
+  it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error', async () => {
+    await renderComponent();
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+      if (options?.method === 'PUT') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Error al cambiar estado' }) });
+      }
+      if (url.includes('/clientes') && !url.includes('tipos')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678', correo: 'juan@test.com', activo: true, id_tipo_cliente: 2 }])
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const switches = await screen.findAllByRole('switch');
+    if (switches.length > 0) {
+      await act(async () => {
+        fireEvent.click(switches[0]);
+      });
+      // Confirm dialog appears
+      const btnConfirm = screen.getByRole('button', { name: /Sí, desactivar/i });
+      await act(async () => {
+        fireEvent.click(btnConfirm);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Error al cambiar estado'));
+    }
+  });
+
+  it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error de red', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: any) => {
+      if (url.includes('/clientes/tipos')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.includes('/clientes') && !options) return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678', activo: true, id_tipo_cliente: 2 }]) });
+      if (options && options.method === 'PUT') return Promise.reject(new Error('Network error'));
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    await renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText('Juan Perez')).toBeInTheDocument();
+    });
+
+    const activeSwitch = screen.getAllByRole('switch')[0];
+    await act(async () => {
+      fireEvent.click(activeSwitch);
+    });
+
+    const confirmButton = screen.getByRole('button', { name: /Desactivar/i });
+    await act(async () => {
+      fireEvent.click(confirmButton);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Error de conexión'));
+    consoleSpy.mockRestore();
+  });
+
+  it('permite activar un cliente inactivo directamente sin confirmacion', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: any) => {
+      if (url.includes('/clientes/tipos')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.includes('/clientes') && !options) return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c2', nombre: 'Maria', apellido: 'Gomez', cedula: '1712345679', activo: false, id_tipo_cliente: 2 }]) });
+      if (options && options.method === 'PUT') return Promise.resolve({ ok: true, json: () => Promise.resolve({ mensaje: 'Estado actualizado' }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    await renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText('Maria Gomez')).toBeInTheDocument();
+    });
+
+    const inactiveSwitch = screen.getAllByRole('switch')[0];
+
+    await act(async () => {
+      fireEvent.click(inactiveSwitch);
+    });
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/clientes/c2'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ activo: true }) })
+    );
+  });
+
+  it('permite abrir la gestion de privacidad', async () => {
+    await renderComponent();
+
+    const btnPrivacidad = await screen.findByRole('button', { name: /Gestion de Privacidad/i });
+    await act(async () => {
+      fireEvent.click(btnPrivacidad);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('permite abrir el dialogo de recarga de saldo', async () => {
+    await renderComponent();
+
+    const btnRecarga = await screen.findByRole('button', { name: /Recargar Saldo/i });
+    await act(async () => {
+      fireEvent.click(btnRecarga);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
   });
 });

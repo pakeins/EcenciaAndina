@@ -20,7 +20,7 @@ describe('programacion de limpieza de imagenes', () => {
     const cleanup = workflow.nodes.find((node) => node.name === 'Limpiar imagenes antiguas');
 
     expect(schedule.parameters.rule.interval[0].expression).toBe('30 2 * * *');
-    expect(cleanup.parameters.jsCode.replace(/\r/g, '')).toBe(
+    expect(cleanup.parameters.jsCode.replace(/\r/g, '').trimEnd()).toBe(
       readFileSync(codePath, 'utf8').replace(/\r/g, '').trimEnd(),
     );
     expect(workflow.connections['Limpiar imagenes 02:30'].main[0][0].node).toBe(

@@ -1,9 +1,6 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const app = require('../../index.js');
+import app from '../../index.js';
 
 describe('static email assets', () => {
   it('sirve la imagen CTA de invitacion por correo', async () => {

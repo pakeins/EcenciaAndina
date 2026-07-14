@@ -42,22 +42,24 @@ router.use(roleMiddleware(['administrador', 'caja']));
 const adminOnly = roleMiddleware(['administrador']);
 
 // Función auxiliar para formatear la respuesta del convenio
-const formatConvenio = (conv) => ({
-  id: conv.id_convenio,
-  ruc: conv.ruc,
-  nombre_empresa: conv.nombre_empresa,
-  representante: conv.representante || '',
-  telefono: conv.telefono || '',
-  email: conv.email || '',
-  fecha_inicio: conv.fecha_inicio,
-  fecha_caducidad: conv.fecha_caducidad,
-  activo: conv.esta_activo,
-  cupo_maximo: conv.cupo_maximo || 0,
-  tipos_almuerzo_permitidos: conv.tipos_almuerzo_permitidos || [],
-  totalColaboradores: conv.clientes_convenios?.[0]?.count || 0,
-  consumoMensual: 0,
-  archivo_firmado: conv.archivo_firmado ? `http://localhost:3001/uploads/convenios/${conv.archivo_firmado}` : null,
-});
+function formatConvenio(conv) {
+  return {
+    id: conv.id_convenio,
+    ruc: conv.ruc,
+    nombre_empresa: conv.nombre_empresa,
+    representante: conv.representante || '',
+    telefono: conv.telefono || '',
+    email: conv.email || '',
+    fecha_inicio: conv.fecha_inicio,
+    fecha_caducidad: conv.fecha_caducidad,
+    activo: conv.esta_activo,
+    cupo_maximo: conv.cupo_maximo || 0,
+    tipos_almuerzo_permitidos: conv.tipos_almuerzo_permitidos || [],
+    totalColaboradores: conv.clientes_convenios?.[0]?.count || 0,
+    consumoMensual: 0,
+    archivo_firmado: conv.archivo_firmado ? `http://localhost:3001/uploads/convenios/${conv.archivo_firmado}` : null,
+  };
+}
 
 // OBTENER TODOS LOS CONVENIOS
 router.get('/', async (req, res) => {
@@ -448,12 +450,12 @@ const MIME_TO_EXT = {
  * @param {Buffer} buffer
  * @returns {string|null} MIME type o null si no es un tipo permitido
  */
-const detectDocumentMimeType = (buffer) => {
+function detectDocumentMimeType(buffer) {
   for (const { mime, bytes } of DOCUMENT_SIGNATURES) {
-    if (bytes.every((byte, i) => buffer[i] === byte)) return mime;
+    if (bytes.every(function(byte, i) { return buffer[i] === byte; })) return mime;
   }
   return null;
-};
+}
 
 /**
  * Genera una ruta de objeto única para almacenar un documento de convenio.
@@ -462,11 +464,11 @@ const detectDocumentMimeType = (buffer) => {
  * @param {string} mimeType
  * @returns {string}
  */
-const createAgreementObjectPath = (agreementId, mimeType) => {
+function createAgreementObjectPath(agreementId, mimeType) {
   const ext = MIME_TO_EXT[mimeType] || 'bin';
   const uuid = crypto.randomUUID();
   return `${agreementId}/${uuid}.${ext}`;
-};
+}
 
 router._private = { detectDocumentMimeType, createAgreementObjectPath };
 

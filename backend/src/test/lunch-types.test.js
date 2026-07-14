@@ -1,14 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import lunchTypes from '../services/lunchTypes.js';
 
 const {
   LUNCH_TYPE_CODES,
   LUNCH_TYPE_IDS,
+  ACTIVE_LUNCH_TYPE_CODES,
   compactLunchSummary,
   formatDetailDescription,
+  getLunchPackage,
   getLunchTypeCode,
   getLunchTypeLabel,
+  isActiveLunchPackageCode,
   isLunchProduct,
+  lunchTypeIncludedComponents,
+  lunchTypeIncludesSoup,
   summarizeOrderDetails,
 } = lunchTypes;
 
@@ -31,41 +36,12 @@ const extraProduct = {
 describe('lunchTypes service', () => {
   it('separa paquetes oficiales de almuerzo y extras', () => {
     const summary = summarizeOrderDetails([
-      {
-        ...lunchProduct,
-        cantidad: 2,
-        precio_aplicado: 6.99,
-        id_tipo_almuerzo: LUNCH_TYPE_IDS.ejecutivoCompleto,
-      },
-      {
-        ...lunchProduct,
-        cantidad: 1,
-        precio_aplicado: 6,
-        id_tipo_almuerzo: LUNCH_TYPE_IDS.ejecutivoSinSopa,
-      },
-      {
-        ...lunchProduct,
-        cantidad: 1,
-        precio_aplicado: 4.5,
-        id_tipo_almuerzo: LUNCH_TYPE_IDS.ejecutivoSimple,
-      },
-      {
-        ...lunchProduct,
-        cantidad: 1,
-        precio_aplicado: 4.5,
-        id_tipo_almuerzo: LUNCH_TYPE_IDS.almuerzoDia,
-      },
-      {
-        ...lunchProduct,
-        cantidad: 1,
-        precio_aplicado: 3.99,
-        id_tipo_almuerzo: LUNCH_TYPE_IDS.almuerzoDiaSimple,
-      },
-      {
-        ...extraProduct,
-        cantidad: 3,
-        precio_aplicado: 1.25,
-      },
+      { ...lunchProduct, cantidad: 2, precio_aplicado: 6.99, id_tipo_almuerzo: LUNCH_TYPE_IDS.ejecutivoCompleto },
+      { ...lunchProduct, cantidad: 1, precio_aplicado: 6, id_tipo_almuerzo: LUNCH_TYPE_IDS.ejecutivoSinSopa },
+      { ...lunchProduct, cantidad: 1, precio_aplicado: 4.5, id_tipo_almuerzo: LUNCH_TYPE_IDS.ejecutivoSimple },
+      { ...lunchProduct, cantidad: 1, precio_aplicado: 4.5, id_tipo_almuerzo: LUNCH_TYPE_IDS.almuerzoDia },
+      { ...lunchProduct, cantidad: 1, precio_aplicado: 3.99, id_tipo_almuerzo: LUNCH_TYPE_IDS.almuerzoDiaSimple },
+      { ...extraProduct, cantidad: 3, precio_aplicado: 1.25 },
     ]);
 
     expect(summary.almuerzosPrincipales).toBe(6);
@@ -83,24 +59,28 @@ describe('lunchTypes service', () => {
 
   it('cuenta segundos historicos sin sumarlos a almuerzos principales', () => {
     const summary = summarizeOrderDetails([
-      {
-        ...lunchProduct,
-        cantidad: 2,
-        precio_aplicado: 3.99,
-        id_tipo_almuerzo: LUNCH_TYPE_IDS.segundoAlmuerzo,
-      },
-      {
-        ...lunchProduct,
-        cantidad: 1,
-        precio_aplicado: 4.5,
-        id_tipo_almuerzo: LUNCH_TYPE_IDS.almuerzoDia,
-      },
+      { ...lunchProduct, cantidad: 2, precio_aplicado: 3.99, id_tipo_almuerzo: LUNCH_TYPE_IDS.segundoAlmuerzo },
+      { ...lunchProduct, cantidad: 1, precio_aplicado: 4.5, id_tipo_almuerzo: LUNCH_TYPE_IDS.almuerzoDia },
     ]);
 
     expect(summary.segundosAlmuerzos).toBe(2);
     expect(summary.almuerzosPrincipales).toBe(1);
     expect(summary.almuerzoDia).toBe(1);
     expect(summary.totalConsumo).toBeCloseTo(12.48);
+  });
+
+  it('cuenta vegetarianos, especiales, y con extras dentro de otrosAlmuerzos', () => {
+    const summary = summarizeOrderDetails([
+      { ...lunchProduct, cantidad: 1, precio_aplicado: 4.5, id_tipo_almuerzo: LUNCH_TYPE_IDS.vegetariano },
+      { ...lunchProduct, cantidad: 1, precio_aplicado: 4.5, id_tipo_almuerzo: LUNCH_TYPE_IDS.especial },
+      { ...lunchProduct, cantidad: 1, precio_aplicado: 5.5, id_tipo_almuerzo: LUNCH_TYPE_IDS.conExtras },
+    ]);
+
+    expect(summary.otrosAlmuerzos).toBe(3);
+    expect(summary.vegetarianos).toBe(1);
+    expect(summary.especiales).toBe(1);
+    expect(summary.almuerzosConExtras).toBe(1);
+    expect(summary.almuerzosPrincipales).toBe(3);
   });
 
   it('resuelve codigo y etiqueta con fallback estable', () => {
@@ -133,6 +113,9 @@ describe('lunchTypes service', () => {
       },
     })).toBe(true);
     expect(isLunchProduct(extraProduct)).toBe(false);
+    // Detección por id_tipo_almuerzo_default
+    expect(isLunchProduct({ id_tipo_almuerzo_default: 1 })).toBe(true);
+    expect(isLunchProduct({ id_tipo_almuerzo_default: 0 })).toBe(false);
   });
 
   it('devuelve resumen en cero cuando no hay detalles', () => {
@@ -194,5 +177,32 @@ describe('lunchTypes service', () => {
     })).toBe('2x Jugo natural');
 
     expect(formatDetailDescription({ cantidad: 1 })).toBe('1x Producto');
+  });
+
+  it('getLunchPackage devuelve detalles del paquete o null', () => {
+    expect(getLunchPackage(LUNCH_TYPE_CODES.ejecutivoCompleto)).toMatchObject({ price: 6.99, includesSoup: true });
+    expect(getLunchPackage('codigo_desconocido')).toBeNull();
+    // Usando detalle como objeto
+    expect(getLunchPackage({ id_tipo_almuerzo: LUNCH_TYPE_IDS.almuerzoDia })).toMatchObject({ price: 4.5 });
+  });
+
+  it('isActiveLunchPackageCode valida codigos activos', () => {
+    expect(isActiveLunchPackageCode(LUNCH_TYPE_CODES.ejecutivoCompleto)).toBe(true);
+    expect(isActiveLunchPackageCode('codigo_invalido')).toBe(false);
+  });
+
+  it('lunchTypeIncludesSoup y lunchTypeIncludedComponents funcionan correctamente', () => {
+    expect(lunchTypeIncludesSoup(LUNCH_TYPE_CODES.ejecutivoCompleto)).toBe(true);
+    expect(lunchTypeIncludesSoup(LUNCH_TYPE_CODES.ejecutivoSinSopa)).toBe(false);
+    expect(lunchTypeIncludesSoup('invalido')).toBe(false);
+
+    expect(lunchTypeIncludedComponents(LUNCH_TYPE_CODES.ejecutivoCompleto)).toContain('sopa');
+    expect(lunchTypeIncludedComponents('invalido')).toEqual([]);
+  });
+
+  it('ACTIVE_LUNCH_TYPE_CODES contiene los codigos correctos', () => {
+    expect(ACTIVE_LUNCH_TYPE_CODES).toContain(LUNCH_TYPE_CODES.ejecutivoCompleto);
+    expect(ACTIVE_LUNCH_TYPE_CODES).toContain(LUNCH_TYPE_CODES.almuerzoDia);
+    expect(ACTIVE_LUNCH_TYPE_CODES.length).toBeGreaterThan(0);
   });
 });

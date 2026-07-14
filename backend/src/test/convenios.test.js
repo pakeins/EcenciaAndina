@@ -24,7 +24,7 @@ describe('Rutas de Convenios', () => {
       const isClientes = /\/rest\/v1\/clientes(\?|$)/.test(urlStr);
       const isOrdenes = /\/rest\/v1\/ordenes(\?|$)/.test(urlStr);
 
-      if (forceDbError && (isConvenios || isClientesConvenios) && method === 'GET') {
+      if (forceDbError && !urlStr.includes('/auth/v1/user') && !urlStr.includes('/rest/v1/empleados') && !urlStr.includes('/rest/v1/usuarios')) {
         return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       }
 
@@ -44,11 +44,21 @@ describe('Rutas de Convenios', () => {
       // ----------------- /rest/v1/convenios -----------------
       if (isConvenios) {
         if (method === 'GET' && !urlStr.includes('id_convenio=eq.')) {
-          // Listar todos
-          return new Response(JSON.stringify([{
-            id_convenio: 'conv-1', ruc: '1790000000001', nombre_empresa: 'Empresa A',
-            esta_activo: true, cupo_maximo: 10, clientes_convenios: [{ count: 2 }]
-          }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          // Listar todos - uno completo y uno vacío para cubrir todas las ramas de formatConvenio
+          return new Response(JSON.stringify([
+            {
+              id_convenio: 'conv-1', ruc: '1790000000001', nombre_empresa: 'Empresa A',
+              esta_activo: true, cupo_maximo: 10, clientes_convenios: [{ count: 2 }],
+              representante: 'Don Juan', telefono: '0999999999', email: 'juan@test.com',
+              tipos_almuerzo_permitidos: [1, 2], archivo_firmado: 'documento.pdf'
+            },
+            {
+              id_convenio: 'conv-2', ruc: '1790000000002', nombre_empresa: 'Empresa B',
+              esta_activo: false, cupo_maximo: 0, clientes_convenios: null,
+              representante: null, telefono: null, email: null,
+              tipos_almuerzo_permitidos: null, archivo_firmado: null
+            }
+          ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         if (method === 'GET' && urlStr.includes('id_convenio=eq.')) {
           // Get single
@@ -134,9 +144,17 @@ describe('Rutas de Convenios', () => {
     it('Lista los convenios correctamente formateados', async () => {
       const res = await request(app).get('/api/convenios').set('Authorization', 'Bearer token');
       expect(res.status).toBe(200);
-      expect(res.body).toHaveLength(1);
+      expect(res.body).toHaveLength(2);
+      
+      // Valida primer convenio (completamente poblado)
       expect(res.body[0].id).toBe('conv-1');
       expect(res.body[0].totalColaboradores).toBe(2);
+      expect(res.body[0].archivo_firmado).toBe('http://localhost:3001/uploads/convenios/documento.pdf');
+      
+      // Valida segundo convenio (vacío/por defecto)
+      expect(res.body[1].id).toBe('conv-2');
+      expect(res.body[1].totalColaboradores).toBe(0);
+      expect(res.body[1].archivo_firmado).toBeNull();
     });
 
     it('Retorna 500 si hay error en la base de datos', async () => {
@@ -306,6 +324,122 @@ describe('Rutas de Convenios', () => {
         .attach('archivo', Buffer.from('fake pdf data'), 'convenio.pdf');
         
       expect(res.status).toBe(200); // 200 porque multer lo procesa y el fetchSpy de POST conveniohistorial o convenios no se interpone (o mejor dicho responde vacío)
+    });
+  });
+
+  describe('Helpers Privados del Router', () => {
+    it('debe detectar firmas de archivos validos', () => {
+      const helpers = conveniosRouter._private;
+      expect(helpers.detectDocumentMimeType(Buffer.from('%PDF-1.7'))).toBe('application/pdf');
+      expect(helpers.detectDocumentMimeType(Buffer.from([0xff, 0xd8, 0xff, 0x00]))).toBe('image/jpeg');
+      expect(helpers.detectDocumentMimeType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe('image/png');
+      expect(helpers.detectDocumentMimeType(Buffer.from('not-a-valid-header'))).toBeNull();
+    });
+
+    it('debe generar rutas validas de objeto para almacenamiento de documentos', () => {
+      const helpers = conveniosRouter._private;
+      const path = helpers.createAgreementObjectPath('agreement-123', 'image/jpeg');
+      expect(path).toMatch(/^agreement-123\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.jpg$/);
+      const pathFallback = helpers.createAgreementObjectPath('agreement-123', 'application/unknown');
+      expect(pathFallback).toMatch(/^agreement-123\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.bin$/);
+    });
+  });
+
+  describe('Flujos de Error de Base de Datos para Convenios', () => {
+    it('GET /api/convenios retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/convenios').set('Authorization', 'Bearer token');
+      expect(res.status).toBe(500);
+    });
+
+    it('POST /api/convenios retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).post('/api/convenios').set('Authorization', 'Bearer token').send({
+        nombre_empresa: 'Error DB',
+        cupo_maximo: 10,
+        fecha_caducidad: '2030-01-01',
+      });
+      expect(res.status).toBe(500);
+    });
+
+    it('PUT /api/convenios/:id retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).put('/api/convenios/conv-1').set('Authorization', 'Bearer token').send({
+        nombre_empresa: 'Error DB',
+        cupo_maximo: 10,
+        fecha_caducidad: '2030-01-01',
+      });
+      expect(res.status).toBe(500);
+    });
+
+    it('POST /api/convenios/:id/clientes retorna 404 si la base de datos falla al buscar el convenio', async () => {
+      forceDbError = true;
+      const res = await request(app).post('/api/convenios/conv-1/clientes').set('Authorization', 'Bearer token').send({
+        id_cliente: 'cli-1',
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('POST /api/convenios/:id/upload retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app)
+        .post('/api/convenios/conv-1/upload')
+        .set('Authorization', 'Bearer token')
+        .attach('archivo', Buffer.from('fake pdf data'), 'convenio.pdf');
+      expect(res.status).toBe(500);
+    });
+
+    it('GET /api/convenios/:id/reporte retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/convenios/conv-1/reporte?fecha_inicio=2026-06-01&fecha_fin=2026-06-11').set('Authorization', 'Bearer token');
+      expect(res.status).toBe(500);
+    });
+
+    it('POST /api/convenios/:id/clientes retorna 400 si hay duplicate key', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockImplementation(async (url, options) => {
+        const urlStr = url.toString();
+        if (urlStr.includes('/rest/v1/clientes') && options?.method === 'POST') {
+          return new Response(JSON.stringify({ message: 'duplicate key value violates unique constraint' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+        }
+        return originalFetch(url, options);
+      });
+
+      const response = await request(app)
+        .post('/api/convenios/conv-1/clientes/nuevo')
+        .set('Authorization', 'Bearer token')
+        .send({ cedula: '1712345678', nombre: 'Test', apellido: 'Test', telefono: '0999999999' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('Ya existe un cliente');
+      global.fetch = originalFetch;
+    });
+
+    it('DELETE /api/convenios/:id/clientes/:clienteId retorna 500 si DB falla', async () => {
+      forceDbError = true;
+      const response = await request(app)
+        .delete('/api/convenios/conv-1/clientes/c1')
+        .set('Authorization', 'Bearer token');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('PUT /api/convenios/:id falla validacion ruc en actualizacion', async () => {
+      const response = await request(app)
+        .put('/api/convenios/conv-1')
+        .set('Authorization', 'Bearer token')
+        .send({ ruc: 'invalid' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('GET /api/convenios/:id/historial retorna 500 si DB falla', async () => {
+      forceDbError = true;
+      const response = await request(app)
+        .get('/api/convenios/conv-1/historial')
+        .set('Authorization', 'Bearer token');
+
+      expect(response.status).toBe(500);
     });
   });
 });

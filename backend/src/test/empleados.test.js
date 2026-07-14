@@ -16,12 +16,7 @@ let fetchSpy;
 let simulateDuplicateCorreo = false;
 let simulateDuplicateUsername = false;
 
-beforeAll(async () => {
-  const resolvedPath = require.resolve('../routes/empleados.js');
-  delete require.cache[resolvedPath];
-  empleadosRouter = (await import('../routes/empleados.js')).default;
-});
-
+import empleadosRouter from '../routes/empleados.js';
 const app = express();
 app.use(express.json());
 app.use('/empleados', (req, res, next) => empleadosRouter(req, res, next));
@@ -53,7 +48,8 @@ describe('Empleados Routes', () => {
       }
       
       if (urlStr.includes('/rest/v1/empleados')) {
-        if (forceDbError) {
+        const isMiddlewareCheck = urlStr.includes('select=id%2Cesta_activo%2Croles%28nombre_rol%29');
+        if (forceDbError && !isMiddlewareCheck) {
           return new Response(JSON.stringify({ message: 'DB Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
         }
         

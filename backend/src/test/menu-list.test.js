@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { createRequire } from 'node:module';
+import menuRouter from '../routes/menu.js';
 
-const require = createRequire(import.meta.url);
 let groupMenuRows;
 let addLegacyFields;
 
@@ -23,9 +22,7 @@ const categories = [
 
 beforeAll(() => {
   process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co';
-  process.env.SUPABASE_SERVICE_ROLE_KEY =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
-  const menuRouter = require('../routes/menu.js');
+  process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
   groupMenuRows = menuRouter._private.groupMenuRows;
   addLegacyFields = menuRouter._private.addLegacyFields || ((m) => m);
 });

@@ -1,16 +1,13 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
+import cleanupService from '../services/menuImageCleanup.js';
 
-const require = createRequire(import.meta.url);
 let cleanupOldMenuImages;
 let buildCleanupPlan;
 
 const publicUrl = (name) =>
   `https://example.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/${name}`;
 
-beforeAll(async () => {
-  delete require.cache[require.resolve('../services/menuImageCleanup.js')];
-  const cleanupService = (await import('../services/menuImageCleanup.js')).default;
+beforeAll(() => {
   cleanupOldMenuImages = cleanupService.cleanupOldMenuImages;
   buildCleanupPlan = cleanupService._private.buildCleanupPlan;
 });
@@ -150,5 +147,100 @@ describe('limpieza de imagenes antiguas de menus', () => {
     expect(remove).toHaveBeenCalledWith([`telegram/${name}`]);
     expect(updateIn).toHaveBeenCalledOnce();
     expect(result).toMatchObject({ deleted: 1, referencesCleared: 1 });
+  });
+
+  it('retorna 0 eliminaciones cuando no hay archivos para borrar', async () => {
+    const adminClient = {
+      storage: {
+        from: vi.fn(() => ({
+          list: vi.fn(async () => ({ data: [], error: null })),
+        })),
+      },
+      from: vi.fn((table) => {
+        if (table === 'menu_settings') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { active_date: null, image_retention_days: 14 },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        return {
+          select: () => ({
+            not: () => ({
+              range: async () => ({ data: [], error: null }),
+            }),
+          }),
+        };
+      }),
+    };
+
+    const result = await cleanupOldMenuImages(adminClient, { now: new Date('2026-06-10T12:00:00Z') });
+    expect(result).toMatchObject({ deleted: 0, referencesCleared: 0, scanned: 0 });
+  });
+
+  it('normalizeRetentionDays usa DEFAULT si el valor es invalido', () => {
+    // Se prueba indirectamente a traves del buildCleanupPlan
+    const plan = buildCleanupPlan({
+      now: new Date('2026-06-10T12:00:00Z'),
+      retentionDays: 'invalid',
+      activeDate: null,
+      menuRows: [],
+      files: [],
+    });
+    expect(plan.retentionDays).toBe(14); // DEFAULT_IMAGE_RETENTION_DAYS
+  });
+
+  it('normalizeRetentionDays usa DEFAULT si el valor excede el maximo', () => {
+    const plan = buildCleanupPlan({
+      now: new Date('2026-06-10T12:00:00Z'),
+      retentionDays: 999,
+      activeDate: null,
+      menuRows: [],
+      files: [],
+    });
+    expect(plan.retentionDays).toBe(14); // Excede MAX_IMAGE_RETENTION_DAYS(365)
+  });
+
+  it('normalizeRetentionDays acepta valores validos dentro del rango', () => {
+    const plan = buildCleanupPlan({
+      now: new Date('2026-06-10T12:00:00Z'),
+      retentionDays: 30,
+      activeDate: null,
+      menuRows: [],
+      files: [],
+    });
+    expect(plan.retentionDays).toBe(30);
+  });
+
+  it('ignora archivos con id=null (carpetas virtuales de supabase)', () => {
+    const plan = buildCleanupPlan({
+      now: new Date('2026-06-10T12:00:00Z'),
+      retentionDays: 14,
+      activeDate: null,
+      menuRows: [],
+      files: [
+        { id: null, name: 'menu-dashboard-1746835200000.jpg', created_at: '2025-01-01T00:00:00Z' },
+      ],
+    });
+    expect(plan.pathsToDelete).toEqual([]);
+  });
+
+  it('buildCleanupPlan marca url de imagen para limpiar cuando el archivo sera borrado', () => {
+    const name = 'menu-dashboard-1746835200000.jpg';
+    const url = publicUrl(name);
+    const plan = buildCleanupPlan({
+      now: new Date('2026-06-10T12:00:00Z'),
+      retentionDays: 14,
+      activeDate: null,
+      menuRows: [{ fecha: '2026-05-01', imagen_url: url }],
+      files: [{ name, created_at: '2026-05-10T00:00:00Z' }],
+    });
+    expect(plan.pathsToDelete).toContain(`telegram/${name}`);
+    expect(plan.urlsToClear).toContain(url);
   });
 });
