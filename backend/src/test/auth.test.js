@@ -261,10 +261,9 @@ const EMPLEADO_INACTIVO = {
     });
 
     it('retorna 500 si ocurre un error interno', async () => {
-      // Pasando un objeto como identificador para forzar un TypeError en loginId.includes()
       const res = await request(app)
         .post('/api/auth/login')
-        .send({ identificador: { force: 'error' }, password: 'correctpass' });
+        .send({ identificador: 'error_500@test.com', password: 'correctpass' });
       expect(res.status).toBe(500);
     });
   });
