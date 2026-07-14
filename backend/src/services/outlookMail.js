@@ -266,6 +266,8 @@ const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
       console.log(`[SMTP Mailer] Intentando enviar vía Gmail (${process.env.GMAIL_USER})...`);
       const transporter = nodemailer.createTransport({
         service: 'gmail',
+        port: 465,
+        secure: true,
         auth: {
           user: process.env.GMAIL_USER,
           pass: process.env.GMAIL_APP_PASSWORD,
