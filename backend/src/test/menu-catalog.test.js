@@ -70,4 +70,62 @@ describe('catalogo de alimentos del menu', () => {
     });
     expect(result.created).toBe(true);
   });
+  it('lanza error si falla la busqueda de alimento existente', async () => {
+    const errorObj = new Error('DB Error');
+    const client = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            ilike: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({ data: null, error: errorObj })),
+            })),
+          })),
+        })),
+      })),
+    };
+    await expect(findOrCreateFood(client, { categoryId: 2, name: 'x', userId: '1' })).rejects.toThrow('DB Error');
+  });
+
+  it('lanza error si la insercion falla por un error distinto a duplicado (23505)', async () => {
+    const { client } = createClient({ insertError: { code: '50000', message: 'Insert failed' } });
+    await expect(findOrCreateFood(client, { categoryId: 2, name: 'x', userId: '1' })).rejects.toMatchObject({ code: '50000' });
+  });
+
+  it('recupera el registro concurrentemente insertado si recibe error de duplicidad 23505', async () => {
+    // 1. First find returns null (no error)
+    // 2. Insert throws 23505
+    // 3. Second find returns the newly inserted row concurrently
+    const maybeSingle1 = vi.fn(async () => ({ data: null, error: null }));
+    const maybeSingle2 = vi.fn(async () => ({ data: foodRow, error: null }));
+    let callCount = 0;
+    
+    const ilike = vi.fn(() => ({
+      maybeSingle: vi.fn(async () => {
+        callCount++;
+        return callCount === 1 ? maybeSingle1() : maybeSingle2();
+      })
+    }));
+
+    const client = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ ilike })),
+        })),
+        insert: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn(async () => ({ data: null, error: { code: '23505' } })),
+          })),
+        })),
+      })),
+    };
+
+    const result = await findOrCreateFood(client, { categoryId: 2, name: 'x', userId: '1' });
+    expect(result.id).toBe(8);
+    expect(result.created).toBe(false);
+  });
+
+  it('lanza error si recibe 23505 pero no puede recuperar el registro', async () => {
+    const { client } = createClient({ insertError: { code: '23505' } }); // first find: null, insert: 23505, second find: null
+    await expect(findOrCreateFood(client, { categoryId: 2, name: 'x', userId: '1' })).rejects.toMatchObject({ code: '23505' });
+  });
 });

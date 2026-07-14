@@ -250,5 +250,111 @@ describe('Productos', () => {
     const sortPriceBtn = screen.getByText('Precio');
     fireEvent.click(sortPriceBtn);
     fireEvent.click(sortPriceBtn);
+    
+    const sortStateBtn = screen.getByText('Estado');
+    fireEvent.click(sortStateBtn);
+    fireEvent.click(sortStateBtn);
+  });
+
+  it('valida que el precio no sea negativo al guardar', async () => {
+    (apiFetch as any).mockImplementation((url: string) => {
+      if (url === '/productos') return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockProducts()) });
+      if (url === '/categorias') return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockCategories()) });
+    });
+
+    await renderComponent();
+
+    const newBtn = screen.getByRole('button', { name: /Nuevo Producto/i });
+    fireEvent.click(newBtn);
+
+    const nombreInput = screen.getByPlaceholderText('Ej: Almuerzo Ejecutivo');
+    const precioInput = screen.getByPlaceholderText('0.00');
+
+    fireEvent.change(nombreInput, { target: { value: 'Test' } });
+    fireEvent.change(precioInput, { target: { value: '-5' } });
+    
+    const combos = screen.getAllByRole('combobox');
+    fireEvent.click(combos[combos.length - 1]);
+    const catOption = screen.getByRole('option', { name: /Almuerzos/i });
+    fireEvent.click(catOption);
+
+    const saveBtn = screen.getByRole('button', { name: /Guardar Producto/i });
+    fireEvent.click(saveBtn);
+    
+    const { toast } = await import('sonner');
+    expect(toast.error).toHaveBeenCalledWith('El precio no puede ser negativo');
+  });
+
+  it('permite eliminar un producto', async () => {
+    (apiFetch as any).mockImplementation((url: string, options?: any) => {
+      if (url === '/productos') return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockProducts()) });
+      if (url === '/categorias') return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockCategories()) });
+      if (url === '/productos/p1' && options?.method === 'DELETE') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ message: 'Eliminado' }) });
+      }
+    });
+
+    await renderComponent();
+
+    // Click delete icon
+    const delBtns = screen.getAllByRole('button').filter(b => b.className.includes('text-red-500'));
+    fireEvent.click(delBtns[0]);
+
+    // Confirm dialog
+    const confirmBtn = screen.getByRole('button', { name: /Sí, Eliminar/i });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/productos/p1', expect.objectContaining({ method: 'DELETE' }));
+    });
+  });
+
+  it('valida que la categoria tenga nombre al guardar', async () => {
+    (apiFetch as any).mockImplementation((url: string) => {
+      if (url === '/productos') return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockProducts()) });
+      if (url === '/categorias') return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockCategories()) });
+    });
+
+    await renderComponent();
+
+    const tabsCategories = screen.getByRole('tab', { name: /Categorías/i });
+    fireEvent.focus(tabsCategories);
+    fireEvent.keyDown(tabsCategories, { key: 'Enter', code: 'Enter', charCode: 13 });
+    fireEvent.click(tabsCategories);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Nueva Categoría/i })).toBeInTheDocument());
+
+    const newBtn = screen.getByRole('button', { name: /Nueva Categoría/i });
+    fireEvent.click(newBtn);
+
+    const saveBtn = screen.getByRole('button', { name: /Guardar Categoría/i });
+    fireEvent.click(saveBtn);
+
+    const { toast } = await import('sonner');
+    expect(toast.error).toHaveBeenCalledWith('Nombre obligatorio');
+  });
+
+  it('permite ordenar categorias por diferentes campos', async () => {
+    (apiFetch as any).mockImplementation((url: string) => {
+      if (url === '/productos') return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockProducts()) });
+      if (url === '/categorias') return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockCategories()) });
+    });
+
+    await renderComponent();
+
+    const tabsCategories = screen.getByRole('tab', { name: /Categorías/i });
+    fireEvent.focus(tabsCategories);
+    fireEvent.keyDown(tabsCategories, { key: 'Enter', code: 'Enter', charCode: 13 });
+    fireEvent.click(tabsCategories);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Nueva Categoría/i })).toBeInTheDocument());
+
+    const sortNameBtn = screen.getByText('Nombre de la Categoría');
+    fireEvent.click(sortNameBtn); // Asc
+    fireEvent.click(sortNameBtn); // Desc
+
+    const sortCountBtn = screen.getByText('Productos Vinculados');
+    fireEvent.click(sortCountBtn); // Asc
+    fireEvent.click(sortCountBtn); // Desc
   });
 });
