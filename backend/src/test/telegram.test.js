@@ -1,6 +1,11 @@
 import request from 'supertest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import app from '../../index.js';
+import express from 'express';
+import telegramRouter from '../routes/telegram.js';
+
+const app = express();
+app.use(express.json());
+app.use('/api/telegram', telegramRouter);
 
 describe('Telegram Routes (/api/telegram/broadcast-sessions)', () => {
   let fetchSpy;

@@ -439,3 +439,7 @@ const EMPLEADO_INACTIVO = {
     });
   });
 });
+
+import './authCookies.suite.js';
+import './authMiddleware.suite.js';
+import './authUser.suite.js';

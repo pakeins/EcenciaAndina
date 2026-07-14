@@ -443,3 +443,9 @@ describe('Rutas de Convenios', () => {
     });
   });
 });
+
+import './agreement-documents.suite.js';
+
+import './convenio-import.suite.js';
+import './convenioInvitations.suite.js';
+import './convenios-utils.suite.js';

@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import app from '../../index.js';
 import request from 'supertest';
+import { vi } from 'vitest';
+
+vi.mock('../routes/convenios.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/auth.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/empleados.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/menu.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/alimentos.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/categorias.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/productos.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/ordenes.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/reportes.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/clientes.js', () => ({ default: (req, res, next) => next() }));
+vi.mock('../routes/telegram.js', () => ({ default: (req, res, next) => next() }));
 
 const { checkDatabaseConnection } = app._private;
 
