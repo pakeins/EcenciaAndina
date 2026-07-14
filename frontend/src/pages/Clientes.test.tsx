@@ -198,7 +198,7 @@ describe('Clientes', () => {
     await renderComponent();
     
     // Simulate API fail for DELETE
-    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: RequestInit) => {
       if (options?.method === 'DELETE') {
         return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo eliminar el cliente' }) });
       }
@@ -258,7 +258,7 @@ describe('Clientes', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
-    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: RequestInit) => {
       if (url.includes('/telegram/invitacion') && options?.method === 'POST') {
         return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'No se pudo reinvitar al cliente' }) });
       }
@@ -300,7 +300,7 @@ describe('Clientes', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
-    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: RequestInit) => {
       if (url.includes('/telegram/invitacion') && options?.method === 'POST') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ telegram_onboarding: { status: 'sent' } }) });
       }
@@ -342,7 +342,7 @@ describe('Clientes', () => {
   it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error de red', async () => {
     await renderComponent();
 
-    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: RequestInit) => {
       if (options?.method === 'PUT') {
         return Promise.reject(new Error('Network error'));
       }
@@ -371,7 +371,7 @@ describe('Clientes', () => {
   it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error', async () => {
     await renderComponent();
 
-    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: any) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options: RequestInit) => {
       if (options?.method === 'PUT') {
         return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Error al cambiar estado' }) });
       }
@@ -401,7 +401,7 @@ describe('Clientes', () => {
   it('permite cambiar el estado activo del cliente al clickear el Switch y maneja error de red', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     
-    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: any) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: RequestInit) => {
       if (url.includes('/clientes/tipos')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url.includes('/clientes') && !options) return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678', activo: true, id_tipo_cliente: 2 }]) });
       if (options && options.method === 'PUT') return Promise.reject(new Error('Network error'));
@@ -429,7 +429,7 @@ describe('Clientes', () => {
   });
 
   it('permite activar un cliente inactivo directamente sin confirmacion', async () => {
-    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: any) => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: RequestInit) => {
       if (url.includes('/clientes/tipos')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url.includes('/clientes') && !options) return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c2', nombre: 'Maria', apellido: 'Gomez', cedula: '1712345679', activo: false, id_tipo_cliente: 2 }]) });
       if (options && options.method === 'PUT') return Promise.resolve({ ok: true, json: () => Promise.resolve({ mensaje: 'Estado actualizado' }) });

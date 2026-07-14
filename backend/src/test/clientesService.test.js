@@ -536,7 +536,7 @@ describe('clientesService', () => {
         .mockImplementationOnce((res) => res({ data: [{ id_orden: 1 }], error: null })) // ordenes
         .mockImplementationOnce((res) => res({ error: null })) // delete detalle_orden
         .mockImplementationOnce((res) => res({ error: null })); // delete ordenes
-        // the rest resolves to null by default
+      // the rest resolves to null by default
 
       const res = await clientesService.hardDeleteCliente(mockAdminClient, 1);
       expect(res.success).toBe(true);

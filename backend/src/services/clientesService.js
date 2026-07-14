@@ -445,12 +445,12 @@ const reinviteClienteTelegram = async (adminClient, idCliente, user) => {
     );
     await setConsentState(adminClient, pending.chat_id, {
       status: 'awaiting_decision',
-        idCliente: client.id_cliente,
-        subscriptionId: pending.id,
-        invitationId: null,
-        policyVersion: await getConsentVersion(),
-        promptMessageIds: [sent?.message_id].filter(Boolean),
-        cleanupMessageIds: [],
+      idCliente: client.id_cliente,
+      subscriptionId: pending.id,
+      invitationId: null,
+      policyVersion: await getConsentVersion(),
+      promptMessageIds: [sent?.message_id].filter(Boolean),
+      cleanupMessageIds: [],
     });
     await recordConsentEvent({
       idCliente: client.id_cliente,

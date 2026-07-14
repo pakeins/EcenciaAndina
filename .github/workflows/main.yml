@@ -535,11 +535,11 @@ jobs:
             set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET || 'EcenciaInviteToken2026' }}"
             set_env "GMAIL_USER" "${{ secrets.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com' }}"
             set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD || 'dummy-password' }}"
-            set_env "INTERNAL_API_SECRET" "${{ secrets.INTERNAL_API_SECRET || 'dev-internal-secret-123' }}"
+            set_env "INTERNAL_API_SECRET" "${{ secrets.INTERNAL_API_SECRET || 'dummy-val' }}"
             set_env "TELEGRAM_MICROSERVICE_URL" "https://${{ secrets.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api"
             set_env "AZURE_DOMAIN" "${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}"
             set_env "N8N_MENU_WEBHOOK_URL" "${{ secrets.N8N_MENU_WEBHOOK_URL || 'http://n8n:5678/webhook/ECENCIA-enviar-menu-manual' }}"
-            set_env "N8N_MENU_WEBHOOK_SECRET" "${{ secrets.N8N_MENU_WEBHOOK_SECRET || 'change-this-local-menu-webhook-secret' }}"
+            set_env "N8N_MENU_WEBHOOK_SECRET" "${{ secrets.N8N_MENU_WEBHOOK_SECRET || 'dummy-val' }}"
             set_env "PUBLIC_BACKEND_URL" "https://ecenciaapp.eastus2.cloudapp.azure.com/api"
             
             # Exportar variables necesarias para docker-compose

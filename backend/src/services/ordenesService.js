@@ -406,10 +406,10 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
           msg = `✅ <b>Pedido Consumido</b>\n\nTu pedido #<b>${numOrden}</b> ha sido marcado como consumido.\n¡Gracias por preferirnos y buen provecho!`;
         } else if (id_estado === ORDER_STATE.CANCELLED) {
           msg = `❌ <b>Pedido Cancelado</b>\n\nTu pedido #<b>${numOrden}</b> ha sido cancelado por el administrador.\nSi tienes dudas, por favor contáctanos.`;
-          if (devolvioSaldo) msg += `\n\n💰 Se ha devuelto el saldo correspondiente a tu monedero prepago.`;
+          if (devolvioSaldo) msg += '\n\n💰 Se ha devuelto el saldo correspondiente a tu monedero prepago.';
         } else if (id_estado === ORDER_STATE.RESERVED && orden.id_estado === ORDER_STATE.CONSUMED) {
           msg = `🔄 <b>Cambio de Estado</b>\n\nTu pedido #<b>${numOrden}</b> ha sido devuelto al estado <b>Reservado</b>.`;
-          if (devolvioSaldo) msg += `\n\n💰 Se ha devuelto el saldo correspondiente a tu monedero prepago.`;
+          if (devolvioSaldo) msg += '\n\n💰 Se ha devuelto el saldo correspondiente a tu monedero prepago.';
         }
         
         if (msg) {
