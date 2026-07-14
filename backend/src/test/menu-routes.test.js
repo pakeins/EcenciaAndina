@@ -73,16 +73,19 @@ const mocks = vi.hoisted(() => ({
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-
+const originalCaches = {};
 const injectModule = (relPath, exportsObj) => {
   const filename = require.resolve(relPath);
+  if (!(filename in originalCaches)) {
+    originalCaches[filename] = require.cache[filename];
+  }
   require.cache[filename] = {
     id: filename,
     filename,
     loaded: true,
     exports: exportsObj,
     children: [],
-    paths: []
+    paths: [],
   };
 };
 
@@ -110,6 +113,14 @@ const TODAY = new Intl.DateTimeFormat('en-CA', {
   month: '2-digit',
   day: '2-digit',
 }).format(new Date());
+
+afterAll(() => {
+  for (const [filename, orig] of Object.entries(originalCaches)) {
+    if (orig) require.cache[filename] = orig;
+    else delete require.cache[filename];
+  }
+  delete process.env.N8N_MENU_WEBHOOK_SECRET;
+});
 
 beforeAll(() => {
   process.env.SUPABASE_URL = 'https://example.supabase.co';

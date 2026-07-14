@@ -113,7 +113,7 @@ describe('Categorias Routes', () => {
         .set('Authorization', 'Bearer token')
         .send({ nombre_categoria: '' });
 
-      expect(response.status).toBe(400);
+      console.log(response.body); expect(response.status).toBe(400);
       expect(response.body.error).toMatch(/Invalid input/);
     });
   });
@@ -154,7 +154,7 @@ describe('Categorias Routes', () => {
         .set('Authorization', 'Bearer token')
         .send({ nombre_categoria: '' });
 
-      expect(response.status).toBe(400);
+      console.log(response.body); expect(response.status).toBe(400);
       expect(response.body.error).toMatch(/Invalid input/);
     });
   });

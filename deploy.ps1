@@ -179,10 +179,64 @@ ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFil
 # Limpiar archivo tar.gz local
 Remove-Item backend.tar.gz
 
+# Generar e inyectar el archivo .env de producción a la máquina virtual
+Write-Host "Generando archivo .env de producción basado en el .env local..." -ForegroundColor Yellow
+$localEnvPath = "backend/.env"
+$tempProdEnvPath = "backend/.env.production_temp"
+
+if (Test-Path $localEnvPath) {
+    # Cargar variables del .env local
+    $envVars = @{}
+    Get-Content $localEnvPath | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith("#") -and $line -like "*=*") {
+            $parts = $line.Split("=", 2)
+            $key = $parts[0].Trim()
+            $val = $parts[1].Trim()
+            $envVars[$key] = $val
+        }
+    }
+
+    # Adaptar variables críticas para producción
+    $envVars["NODE_ENV"] = "production"
+    $envVars["PORT"] = "3001"
+    $envVars["COOKIE_SECURE"] = "false"
+    $envVars["COOKIE_SAME_SITE"] = "lax"
+    $envVars["CORS_ORIGINS"] = "https://ecenciaapp.eastus2.cloudapp.azure.com,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+    $envVars["PUBLIC_FRONTEND_URL"] = "https://ecenciaapp.eastus2.cloudapp.azure.com"
+    $envVars["PUBLIC_BACKEND_URL"] = "https://ecenciaapp.eastus2.cloudapp.azure.com/api"
+    $envVars["FRONTEND_URL"] = "https://ecenciaapp.eastus2.cloudapp.azure.com"
+    $envVars["N8N_MENU_WEBHOOK_URL"] = "http://n8n:5678/webhook/ecencia-enviar-menu-manual"
+    $envVars["N8N_ECENCIA_BACKEND_URL"] = "http://backend:3001"
+    $envVars["TELEGRAM_MICROSERVICE_URL"] = "https://ecencia-bot-function.azurewebsites.net/api"
+    $envVars["PASSWORD_RECOVERY_REDIRECT_URL"] = "https://ecenciaapp.eastus2.cloudapp.azure.com/login"
+    $envVars["CONVENIOS_UPLOAD_DIR"] = "/usr/src/convenios"
+    
+    # Asegurar que el secreto de invitación de Telegram tenga al menos 32 caracteres
+    if ($envVars["TELEGRAM_INVITE_TOKEN_SECRET"] -like "GENERA_UN_SECRETO*" -or $envVars["TELEGRAM_INVITE_TOKEN_SECRET"].Length -lt 32) {
+        $envVars["TELEGRAM_INVITE_TOKEN_SECRET"] = "EcenciaInviteTokenSecretLargo2026Prod"
+    }
+
+    # Escribir archivo temporal
+    $envContent = @()
+    $envVars.GetEnumerator() | Sort-Object Name | ForEach-Object {
+        $envContent += "$($_.Key)=$($_.Value)"
+    }
+    $envContent | Out-File -FilePath $tempProdEnvPath -Encoding utf8 -Force
+    
+    Write-Host "Subiendo el archivo .env de producción a la máquina virtual..." -ForegroundColor Yellow
+    scp -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $tempProdEnvPath azureuser@${ip}:/home/azureuser/ECenciaAPP/backend/.env
+    
+    Remove-Item $tempProdEnvPath -ErrorAction SilentlyContinue
+    Write-Host "¡Archivo .env de producción configurado en el servidor!" -ForegroundColor Green
+} else {
+    Write-Warning "No se encontró el archivo backend/.env local. No se inyectaron variables de entorno en la VM."
+}
+
 Write-Host "¡Backend subido y descomprimido en /home/azureuser/ECenciaAPP/!" -ForegroundColor Green
 
 # 9. Levantar el Backend en Docker Compose en la VM
-Write-Host "[8/8] Levantando el Backend con Docker Compose..." -ForegroundColor Yellow
+Write-Host "[8/11] Levantando el Backend con Docker Compose..." -ForegroundColor Yellow
 ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose down && docker compose up -d --build"
 
 # 10. Importar y activar flujos de n8n
@@ -196,6 +250,56 @@ Write-Host "¡Flujos de n8n importados y activados exitosamente!" -ForegroundCol
 Write-Host "[10/11] Configurando Webhook de Telegram hacia el servidor de Producción..." -ForegroundColor Yellow
 ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose exec -T backend npm run telegram:set-webhook"
 Write-Host "¡Webhook de Telegram configurado exitosamente!" -ForegroundColor Green
+
+# 12. Sincronizar Variables en Azure Function (Bot)
+Write-Host "[11/11] Sincronizando configuraciones con Azure Function App..." -ForegroundColor Yellow
+$functionAppName = "ecencia-bot-function"
+if (Get-Command az -ErrorAction SilentlyContinue) {
+    try {
+        Write-Host "Actualizando variables en la Azure Function App ($functionAppName)..."
+        # Tomamos las variables leídas del env local
+        $supaUrl = $envVars["SUPABASE_URL"]
+        $supaKey = $envVars["SUPABASE_SERVICE_ROLE_KEY"]
+        $supaAnon = $envVars["SUPABASE_ANON_KEY"]
+        $tgToken = $envVars["TELEGRAM_BOT_TOKEN"]
+        $tgUsername = $envVars["TELEGRAM_BOT_USERNAME"]
+        if (-not $tgUsername) { $tgUsername = "EcenciaBot" }
+        $tgContact = $envVars["TELEGRAM_PRIVACY_CONTACT"]
+        if (-not $tgContact) { $tgContact = "ecenciaconvenios@outlook.com" }
+        $tgConsent = $envVars["TELEGRAM_CONSENT_VERSION"]
+        if (-not $tgConsent) { $tgConsent = "EC-LOPDP-2026-06" }
+        $tgInvite = $envVars["TELEGRAM_INVITE_TOKEN_SECRET"]
+        $tgWHSecret = $envVars["TELEGRAM_WEBHOOK_SECRET"]
+        $internalSecret = $envVars["INTERNAL_API_SECRET"]
+        $tz = $envVars["N8N_ECENCIA_TIMEZONE"]
+        if (-not $tz) { $tz = "America/Bogota" }
+
+        # Ejecutar el comando az config
+        az functionapp config appsettings set `
+            --name $functionAppName `
+            --resource-group RG-TERRAFORM-PROCESS `
+            --settings `
+                SUPABASE_URL="$supaUrl" `
+                SUPABASE_SERVICE_ROLE_KEY="$supaKey" `
+                SUPABASE_ANON_KEY="$supaAnon" `
+                TELEGRAM_BOT_TOKEN="$tgToken" `
+                TELEGRAM_BOT_USERNAME="$tgUsername" `
+                TELEGRAM_PRIVACY_CONTACT="$tgContact" `
+                TELEGRAM_CONSENT_VERSION="$tgConsent" `
+                TELEGRAM_INVITE_TOKEN_SECRET="$tgInvite" `
+                TELEGRAM_WEBHOOK_SECRET="$tgWHSecret" `
+                INTERNAL_API_SECRET="$internalSecret" `
+                PUBLIC_FRONTEND_URL="https://ecenciaapp.eastus2.cloudapp.azure.com" `
+                N8N_ECENCIA_TIMEZONE="$tz" `
+                N8N_ECENCIA_ORIGEN_NOMBRE="Telegram" > $null
+                
+        Write-Host "¡Azure Function App Settings actualizados exitosamente!" -ForegroundColor Green
+    } catch {
+        Write-Warning "Hubo un problema actualizando las variables en la Azure Function App. Asegúrese de que existe y está autenticado en az CLI."
+    }
+} else {
+    Write-Warning "La Azure CLI (az) no está instalada localmente o no está disponible en la terminal. Se omite la sincronización automática de la Function App."
+}
 
 Write-Host "=========================================================" -ForegroundColor Green
 Write-Host " ¡Despliegue Completado Exitosamente! " -ForegroundColor Green

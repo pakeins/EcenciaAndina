@@ -1,13 +1,7 @@
 const { createHttpError, getDateInTimeZone } = require('./reporting');
 const { CLIENT_TYPE } = require('../constants/domain');
-const {
-  getConsentVersion,
-  privacyText,
-  createInvitation,
-  recordConsentEvent,
-  sendMessage
-} = require('./telegramMicroservice');
-const { sendOutlookMail, buildInvitationEmail } = require('./outlookMail');
+const telegramMicroservice = require('./telegramMicroservice');
+const outlookMail = require('./outlookMail');
 
 const CLIENT_SELECT = `
   *,
@@ -31,11 +25,11 @@ const CLIENT_SELECT = `
 const sendTelegramInvitationEmail = async ({ client, onboarding }) => {
   try {
     const inviteLink = String(onboarding.onboarding_url || '').replace('t.me', 'telegram.me');
-    const emailData = buildInvitationEmail({
+    const emailData = outlookMail.buildInvitationEmail({
       nombre: client.nombre,
       inviteLink,
     });
-    const mailResult = await sendOutlookMail({
+    const mailResult = await outlookMail.sendOutlookMail({
       to: client.correo,
       ...emailData,
     });
@@ -57,7 +51,7 @@ const sendTelegramReactivationEmail = async ({ client }) => {
       text: `Hola ${client.nombre || 'cliente'},\n\nTu acceso al bot de Telegram ha sido reactivado por el administrador. Ya puedes seguir usando el bot para realizar tus pedidos.\n\nAtentamente,\nEquipo ECencia Andina\n${fromEmail}`,
       html: `<p>Hola <strong>${client.nombre || 'cliente'}</strong>,</p><p>Tu acceso al bot de Telegram ha sido reactivado por el administrador. Ya puedes seguir usando el bot para realizar tus pedidos.</p><br><p>Atentamente,<br>Equipo ECencia Andina<br>${fromEmail}</p>`,
     };
-    return await sendOutlookMail({
+    return await outlookMail.sendOutlookMail({
       to: client.correo,
       ...emailData,
     });
@@ -267,7 +261,7 @@ const resolvePrivacyRequest = async (adminClient, requestId, payload, user) => {
     if (clearResult.error) throw clearResult.error;
     
     if (status === 'resolved' && clearResult.data?.chat_id) {
-      await sendMessage(
+      await telegramMicroservice.sendMessage(
         clearResult.data.chat_id,
         '✅ <b>Solicitud Atendida</b>\n\nTu solicitud de eliminacion de datos ha sido procesada exitosamente. Como resultado, <b>tu suscripcion al bot ha sido revocada</b> y ya no recibiras el menu diario.\n\nPara cualquier duda adicional, acercate a Ecencia Andina.',
         { remove_keyboard: true },
@@ -275,7 +269,7 @@ const resolvePrivacyRequest = async (adminClient, requestId, payload, user) => {
       ).catch((err) => console.error('No se pudo enviar notificacion de privacidad por Telegram:', String(err?.message || err || '').replace(/[\r\n]/g, '_')));
     } else if (status === 'rejected' && clearResult.data?.chat_id) {
       const motivo = resolution_notes ? `\n\n<b>Motivo:</b> ${resolution_notes}` : '';
-      await sendMessage(
+      await telegramMicroservice.sendMessage(
         clearResult.data.chat_id,
         `❌ <b>Solicitud Rechazada</b>\n\nTu solicitud de eliminacion de datos ha sido rechazada por la administracion.${motivo}\n\nPara cualquier duda adicional, acercate a Ecencia Andina.`,
         null,
@@ -370,7 +364,7 @@ const createCliente = async (adminClient, payload, user) => {
 
   let onboarding;
   try {
-    onboarding = await createInvitation(
+    onboarding = await telegramMicroservice.createInvitation(
       created.id_cliente,
       user.empleado_id || user.id,
     );
@@ -425,8 +419,8 @@ const reinviteClienteTelegram = async (adminClient, idCliente, user) => {
       .update({
         consent_status: 'pending',
         is_active: false,
-        consent_notice_version: await getConsentVersion(),
-        consent_notice_text: await privacyText(),
+        consent_notice_version: await telegramMicroservice.getConsentVersion(),
+        consent_notice_text: await telegramMicroservice.privacyText(),
         consent_method: null,
         accepted_at: null,
         rejected_at: null,
@@ -438,9 +432,9 @@ const reinviteClienteTelegram = async (adminClient, idCliente, user) => {
       .single();
     if (updateError) throw updateError;
 
-    const sent = await sendMessage(
+    const sent = await telegramMicroservice.sendMessage(
       pending.chat_id,
-      await privacyText(),
+      await telegramMicroservice.privacyText(),
       directConsentKeyboard(),
     );
     await setConsentState(adminClient, pending.chat_id, {
@@ -448,11 +442,11 @@ const reinviteClienteTelegram = async (adminClient, idCliente, user) => {
       idCliente: client.id_cliente,
       subscriptionId: pending.id,
       invitationId: null,
-      policyVersion: await getConsentVersion(),
+      policyVersion: await telegramMicroservice.getConsentVersion(),
       promptMessageIds: [sent?.message_id].filter(Boolean),
       cleanupMessageIds: [],
     });
-    await recordConsentEvent({
+    await telegramMicroservice.recordConsentEvent({
       idCliente: client.id_cliente,
       subscriptionId: pending.id,
       eventType: 'admin_reinvited',
@@ -487,7 +481,7 @@ const reinviteClienteTelegram = async (adminClient, idCliente, user) => {
     if (resetResult.error) throw resetResult.error;
   }
 
-  const onboarding = await createInvitation(
+  const onboarding = await telegramMicroservice.createInvitation(
     client.id_cliente,
     user.empleado_id || user.id,
   );
@@ -495,7 +489,7 @@ const reinviteClienteTelegram = async (adminClient, idCliente, user) => {
     client,
     onboarding,
   });
-  await recordConsentEvent({
+  await telegramMicroservice.recordConsentEvent({
     idCliente: client.id_cliente,
     subscriptionId: subscription?.id,
     invitationId: onboarding.invitationId,
@@ -532,7 +526,7 @@ const revokeTelegram = async (adminClient, idCliente) => {
   if (updateError) throw updateError;
 
   if (subscription.chat_id) {
-    await sendMessage(
+    await telegramMicroservice.sendMessage(
       subscription.chat_id,
       '🚫 <b>Suscripcion Revocada</b>\n\nTu acceso al bot de Telegram ha sido revocado por la administracion. Ya no recibiras notificaciones ni menus diarios.',
       { remove_keyboard: true },
@@ -543,7 +537,7 @@ const revokeTelegram = async (adminClient, idCliente) => {
     });
   }
 
-  await recordConsentEvent({
+  await telegramMicroservice.recordConsentEvent({
     idCliente: idCliente,
     subscriptionId: subscription.id,
     eventType: 'revoked',
@@ -813,7 +807,7 @@ const deleteCliente = async (adminClient, idCliente) => {
   }
 
   if (sub?.chat_id) {
-    await sendMessage(
+    await telegramMicroservice.sendMessage(
       sub.chat_id,
       '🚫 <b>Cuenta Eliminada</b>\n\nTu cuenta ha sido eliminada del sistema de Ecencia Andina. Como resultado, tu suscripcion al bot de Telegram ha sido revocada permanentemente y todos tus datos asociados han sido borrados.\n\nGracias por utilizar nuestro servicio.',
       { remove_keyboard: true },
@@ -860,7 +854,7 @@ const hardDeleteCliente = async (adminClient, idCliente) => {
   if (finalError) throw finalError;
 
   if (sub?.chat_id) {
-    await sendMessage(
+    await telegramMicroservice.sendMessage(
       sub.chat_id,
       '🚫 <b>Cuenta Eliminada (Borrado Forzado)</b>\n\nTu cuenta ha sido eliminada completamente del sistema de Ecencia Andina junto con todos tus datos y registros financieros. Ya no tienes acceso al bot.\n\nGracias por utilizar nuestro servicio.',
       { remove_keyboard: true },

@@ -8,7 +8,7 @@ content = content.replace(
 
 content = content.replace(
   'set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET }}"',
-  'set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET || \'EcenciaInviteToken2026\' }}"'
+  'set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET || \'EcenciaInviteTokenSecretLargo2026Prod\' }}"'
 );
 
 content = content.replace(

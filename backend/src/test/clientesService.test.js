@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
-const telegramMicroservicePath = require.resolve('../services/telegramMicroservice.js');
-const outlookMailPath = require.resolve('../services/outlookMail.js');
-
-const mockTelegramMicroservice = {
+const mockTelegramMicroservice = vi.hoisted(() => ({
   getConsentVersion: vi.fn(() => 'v1.0'),
   privacyText: vi.fn(() => 'Privacy policy text'),
   createInvitation: vi.fn(async (idCliente, empleadoId) => ({
@@ -16,28 +13,24 @@ const mockTelegramMicroservice = {
   })),
   recordConsentEvent: vi.fn(async () => {}),
   sendMessage: vi.fn(async () => ({ message_id: 12345 }))
-};
+}));
 
-const mockOutlookMail = {
+const mockOutlookMail = vi.hoisted(() => ({
   sendOutlookMail: vi.fn(async () => ({ status: 'delivered', messageId: 'msg-id' })),
   buildInvitationEmail: vi.fn(() => ({ subject: 'Invite', text: 'Text', html: 'Html' }))
-};
+}));
 
-delete require.cache[telegramMicroservicePath];
-require.cache[telegramMicroservicePath] = {
-  id: telegramMicroservicePath,
-  filename: telegramMicroservicePath,
-  loaded: true,
-  exports: mockTelegramMicroservice
-};
+const telegramMicroservice = require('../services/telegramMicroservice.js');
+const outlookMail = require('../services/outlookMail.js');
 
-delete require.cache[outlookMailPath];
-require.cache[outlookMailPath] = {
-  id: outlookMailPath,
-  filename: outlookMailPath,
-  loaded: true,
-  exports: mockOutlookMail
-};
+vi.spyOn(telegramMicroservice, 'createInvitation').mockImplementation(mockTelegramMicroservice.createInvitation);
+vi.spyOn(telegramMicroservice, 'recordConsentEvent').mockImplementation(mockTelegramMicroservice.recordConsentEvent);
+vi.spyOn(telegramMicroservice, 'sendMessage').mockImplementation(mockTelegramMicroservice.sendMessage);
+vi.spyOn(telegramMicroservice, 'getConsentVersion').mockImplementation(mockTelegramMicroservice.getConsentVersion);
+vi.spyOn(telegramMicroservice, 'privacyText').mockImplementation(mockTelegramMicroservice.privacyText);
+
+vi.spyOn(outlookMail, 'sendOutlookMail').mockImplementation(mockOutlookMail.sendOutlookMail);
+vi.spyOn(outlookMail, 'buildInvitationEmail').mockImplementation(mockOutlookMail.buildInvitationEmail);
 
 const clientesService = require('../services/clientesService.js');
 

@@ -1,6 +1,6 @@
 import request from 'supertest';
 import express from 'express';
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach, afterAll } from 'vitest';
 
 // Mock validation
 vi.mock('../validation/ecencia', () => ({

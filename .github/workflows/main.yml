@@ -461,6 +461,26 @@ jobs:
             --resource-group RG-TERRAFORM-PROCESS \
             --setting-names WEBSITE_RUN_FROM_PACKAGE 2>/dev/null || echo "Setting not found or login skipped, continuing..."
         continue-on-error: true
+      - name: Configure Azure Function App Settings
+        run: |
+          az functionapp config appsettings set \
+            --name ${{ secrets.AZURE_FUNCTIONAPP_NAME }} \
+            --resource-group RG-TERRAFORM-PROCESS \
+            --settings \
+              SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+              SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+              SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+              TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+              TELEGRAM_BOT_USERNAME="${{ secrets.TELEGRAM_BOT_USERNAME || 'EcenciaBot' }}" \
+              TELEGRAM_PRIVACY_CONTACT="${{ secrets.TELEGRAM_PRIVACY_CONTACT || 'ecenciaconvenios@outlook.com' }}" \
+              TELEGRAM_CONSENT_VERSION="${{ secrets.TELEGRAM_CONSENT_VERSION || 'EC-LOPDP-2026-06' }}" \
+              TELEGRAM_INVITE_TOKEN_SECRET="${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET || 'EcenciaInviteTokenSecretLargo2026Prod' }}" \
+              TELEGRAM_WEBHOOK_SECRET="${{ secrets.TELEGRAM_WEBHOOK_SECRET || 'EcenciaWebhookSecret2026' }}" \
+              INTERNAL_API_SECRET="${{ secrets.INTERNAL_API_SECRET || 'dummy-val' }}" \
+              PUBLIC_FRONTEND_URL="https://${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}" \
+              N8N_ECENCIA_TIMEZONE="${{ secrets.N8N_ECENCIA_TIMEZONE || 'America/Bogota' }}" \
+              N8N_ECENCIA_ORIGEN_NOMBRE="Telegram"
+        continue-on-error: true
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
         with:
@@ -527,12 +547,14 @@ jobs:
               fi
             }
             
+            set_env "NODE_ENV" "production"
+            set_env "PORT" "3001"
             set_env "SUPABASE_URL" "${{ secrets.SUPABASE_URL }}"
             set_env "SUPABASE_ANON_KEY" "${{ secrets.SUPABASE_ANON_KEY }}"
             set_env "SUPABASE_SERVICE_ROLE_KEY" "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
             set_env "TELEGRAM_BOT_TOKEN" "${{ secrets.TELEGRAM_BOT_TOKEN }}"
             set_env "TELEGRAM_WEBHOOK_SECRET" "${{ secrets.TELEGRAM_WEBHOOK_SECRET || 'EcenciaWebhookSecret2026' }}"
-            set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET || 'EcenciaInviteToken2026' }}"
+            set_env "TELEGRAM_INVITE_TOKEN_SECRET" "${{ secrets.TELEGRAM_INVITE_TOKEN_SECRET || 'EcenciaInviteTokenSecretLargo2026Prod' }}"
             set_env "GMAIL_USER" "${{ secrets.GMAIL_USER || 'ecencia.andina.notificaciones@gmail.com' }}"
             set_env "GMAIL_APP_PASSWORD" "${{ secrets.GMAIL_APP_PASSWORD || 'dummy-password' }}"
             set_env "INTERNAL_API_SECRET" "${{ secrets.INTERNAL_API_SECRET || 'dummy-val' }}"
@@ -540,7 +562,20 @@ jobs:
             set_env "AZURE_DOMAIN" "${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}"
             set_env "N8N_MENU_WEBHOOK_URL" "http://n8n:5678/webhook/ecencia-enviar-menu-manual"
             set_env "N8N_MENU_WEBHOOK_SECRET" "${{ secrets.N8N_MENU_WEBHOOK_SECRET || 'dummy-val' }}"
-            set_env "PUBLIC_BACKEND_URL" "https://ecenciaapp.eastus2.cloudapp.azure.com/api"
+            set_env "PUBLIC_BACKEND_URL" "https://${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}/api"
+            set_env "PUBLIC_FRONTEND_URL" "https://${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}"
+            set_env "FRONTEND_URL" "https://${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}"
+            set_env "CORS_ORIGINS" "${{ secrets.CORS_ORIGINS || 'https://ecenciaapp.eastus2.cloudapp.azure.com,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173' }}"
+            set_env "COOKIE_SECURE" "false"
+            set_env "COOKIE_SAME_SITE" "lax"
+            set_env "TELEGRAM_BOT_USERNAME" "${{ secrets.TELEGRAM_BOT_USERNAME || 'EcenciaBot' }}"
+            set_env "TELEGRAM_PRIVACY_CONTACT" "${{ secrets.TELEGRAM_PRIVACY_CONTACT || 'ecenciaconvenios@outlook.com' }}"
+            set_env "TELEGRAM_CONSENT_VERSION" "${{ secrets.TELEGRAM_CONSENT_VERSION || 'EC-LOPDP-2026-06' }}"
+            set_env "N8N_ECENCIA_BACKEND_URL" "http://backend:3001"
+            set_env "N8N_ECENCIA_TIMEZONE" "${{ secrets.N8N_ECENCIA_TIMEZONE || 'America/Bogota' }}"
+            set_env "N8N_ECENCIA_ORIGEN_NOMBRE" "Telegram"
+            set_env "N8N_ECENCIA_ESTADO_RESERVADO_NOMBRE" "Reservado"
+            set_env "CONVENIOS_UPLOAD_DIR" "/usr/src/convenios"
             
             # Exportar variables necesarias para docker-compose
             export GITHUB_REPOSITORY=${{ github.repository }}

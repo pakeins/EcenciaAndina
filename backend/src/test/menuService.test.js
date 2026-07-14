@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
@@ -45,42 +45,17 @@ const mockSupabaseClient = {
   }
 };
 
-const mockSupabaseModule = {
-  getAdminClient: () => mockSupabaseClient,
-  supabase: mockSupabaseClient
-};
+const supabaseModule = require('../config/supabase.js');
+const menuImageCleanup = require('../services/menuImageCleanup.js');
+const menuCatalog = require('../services/menuCatalog.js');
 
-delete require.cache[supabasePath];
-require.cache[supabasePath] = {
-  id: supabasePath,
-  filename: supabasePath,
-  loaded: true,
-  exports: mockSupabaseModule
-};
-
-const mockMenuImageCleanup = {
-  cleanupOldMenuImages: vi.fn()
-};
-delete require.cache[menuImageCleanupPath];
-require.cache[menuImageCleanupPath] = {
-  id: menuImageCleanupPath,
-  filename: menuImageCleanupPath,
-  loaded: true,
-  exports: mockMenuImageCleanup
-};
-
-const mockMenuCatalog = {
-  findOrCreateFood: vi.fn(async () => ({ id: 100 }))
-};
-delete require.cache[menuCatalogPath];
-require.cache[menuCatalogPath] = {
-  id: menuCatalogPath,
-  filename: menuCatalogPath,
-  loaded: true,
-  exports: mockMenuCatalog
-};
+vi.spyOn(supabaseModule, 'getAdminClient').mockReturnValue(mockSupabaseClient);
+vi.spyOn(menuImageCleanup, 'cleanupOldMenuImages').mockReturnValue();
+vi.spyOn(menuCatalog, 'findOrCreateFood').mockResolvedValue({ id: 100 });
 
 const menuService = require('../services/menuService.js');
+
+afterAll(() => { vi.restoreAllMocks(); });
 
 describe('menuService', () => {
   beforeEach(() => {

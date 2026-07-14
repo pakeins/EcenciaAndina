@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createRequire } from 'module';
@@ -6,42 +6,33 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
 // ─── injectModule ────────────────────────────────────────────────────────────
-const injectModule = (relPath, exportsObj) => {
-  const filename = require.resolve(relPath);
-  require.cache[filename] = {
-    id: filename,
-    filename,
-    loaded: true,
-    exports: exportsObj,
-    children: [],
-    paths: [],
-  };
-};
-
-// ─── Mocks de dependencias CJS ───────────────────────────────────────────────
-const fakeCleanupResult = {
-  retentionDays: 14,
-  cutoffDate: '2026-07-01',
-  scanned: 10,
-  protected: 5,
-  deleted: 2,
-  referencesCleared: 1,
-};
-
-injectModule('../config/supabase.js', {
+vi.mock('../config/supabase.js', () => ({
   getAdminClient: () => ({ from: () => ({ select: () => ({ data: [], error: null }) }) }),
-});
+}));
 
-injectModule('../services/menuImageCleanup.js', {
-  cleanupOldMenuImages: async () => fakeCleanupResult,
-});
+vi.mock('../services/menuImageCleanup.js', () => ({
+  cleanupOldMenuImages: async () => ({
+    retentionDays: 14,
+    cutoffDate: '2026-07-01',
+    scanned: 10,
+    protected: 5,
+    deleted: 2,
+    referencesCleared: 1,
+  }),
+}));
 
-injectModule('../middlewares/authMiddleware.js', (req, _res, next) => {
-  req.user = { id: 'u1', email: 'admin@example.com', rol: 'administrador' };
-  next();
-});
+vi.mock('../middlewares/authMiddleware.js', () => ({
+  default: (req, _res, next) => {
+    req.user = { id: 'u1', email: 'admin@example.com', rol: 'administrador' };
+    next();
+  }
+}));
 
-injectModule('../middlewares/roleMiddleware.js', () => (_req, _res, next) => next());
+vi.mock('../middlewares/roleMiddleware.js', () => ({
+  default: () => (_req, _res, next) => next()
+}));
+
+
 
 // ─── Cargar router DESPUÉS de los mocks ──────────────────────────────────────
 const menuRouter = require('../routes/menu.js');
