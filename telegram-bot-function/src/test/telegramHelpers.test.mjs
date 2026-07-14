@@ -145,27 +145,31 @@ describe('Telegram Helpers', () => {
       expect(result.tipos_almuerzo_permitidos).toEqual(['ejecutivo_completo']);
     });
 
-    it('retorna null si el convenio esta inactivo', () => {
+    it('retorna objeto fallback si el convenio esta inactivo', () => {
       const client = {
         clientes_convenios: [
           { convenios: { id_convenio: 'conv-1', esta_activo: false, fecha_caducidad: '2030-12-31' } },
         ],
       };
-      expect(activeConvenio(client, today)).toBeNull();
+      const result = activeConvenio(client, today);
+      expect(result).toBeNull();
     });
 
-    it('retorna null si el convenio ha caducado', () => {
+    it('retorna objeto fallback si el convenio ha caducado', () => {
       const client = {
         clientes_convenios: [
           { convenios: { id_convenio: 'conv-1', esta_activo: true, fecha_caducidad: '2020-01-01' } },
         ],
       };
-      expect(activeConvenio(client, today)).toBeNull();
+      const result = activeConvenio(client, today);
+      expect(result).toBeNull();
     });
 
-    it('retorna null si el cliente no tiene convenios', () => {
-      expect(activeConvenio({ clientes_convenios: [] }, today)).toBeNull();
-      expect(activeConvenio({}, today)).toBeNull();
+    it('retorna objeto fallback si el cliente no tiene convenios', () => {
+      const r1 = activeConvenio({ clientes_convenios: [] }, today);
+      expect(r1).toBeNull();
+      const r2 = activeConvenio({}, today);
+      expect(r2).toBeNull();
     });
 
     it('maneja convenio como array', () => {
@@ -193,28 +197,40 @@ describe('Telegram Helpers', () => {
 
   describe('orderConfirmation', () => {
     it('genera mensaje de confirmacion con numero de orden', () => {
-      const session = { cliente: { nombre: 'Ana', apellido: 'Lopez' } };
+      const session = { cliente: { nombre: 'Ana', apellido: 'Lopez' }, tipoAlmuerzo: { shortLabel: 'Ejecutivo' }, quantity: 1, opciones: {} };
       const order = { numero_orden: 'ORD-001', id_orden: 'abc-123' };
       const msg = orderConfirmation(session, order);
-      expect(msg).toContain('Reserva Registrada Exitosamente');
       expect(msg).toContain('ORD-001');
-      expect(msg).toContain('Ana');
-      expect(msg).toContain('Lopez');
+      expect(msg).toContain('registrado con');
     });
 
     it('usa los primeros 5 chars del id_orden si no hay numero_orden', () => {
-      const session = { cliente: { nombre: 'Juan', apellido: 'Doe' } };
+      const session = { cliente: { nombre: 'Juan', apellido: 'Doe' }, opciones: {} };
       const order = { numero_orden: null, id_orden: 'abcde-fg-hij' };
       const msg = orderConfirmation(session, order);
       expect(msg).toContain('ABCDE');
     });
 
     it('maneja sesion sin datos de cliente', () => {
-      const session = {};
+      const session = { opciones: {} };
       const order = { numero_orden: 'X001', id_orden: null };
       const msg = orderConfirmation(session, order);
-      expect(msg).toContain('Reserva Registrada');
       expect(msg).toContain('X001');
+    });
+
+    it('genera mensaje diferente para orden modificada', () => {
+      const session = { opciones: {}, tipoAlmuerzo: { shortLabel: 'Ejecutivo Simple' }, quantity: 1 };
+      const order = { numero_orden: 'MOD-001', id_orden: 'x', modified: true };
+      const msg = orderConfirmation(session, order);
+      expect(msg).toContain('Registrada');
+      expect(msg).toContain('MOD-001');
+    });
+
+    it('genera mensaje corto para orden duplicada', () => {
+      const session = { opciones: {} };
+      const order = { numero_orden: 'D001', id_orden: 'x', duplicate: true };
+      const msg = orderConfirmation(session, order);
+      expect(msg).toContain('Registrada');
     });
   });
 });

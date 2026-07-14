@@ -198,17 +198,54 @@ const actualizarOrdenCompleta = async (adminClient, id_orden, payload, user) => 
 const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
   const { id_estado, forceFallback } = payload;
   let orden;
+  let devolvioSaldo = false;
 
-  if (id_estado === ORDER_STATE.CONSUMED) {
-    const { data, error: errOrden } = await adminClient
-      .from('ordenes')
-      .select('id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_producto, cantidad)')
-      .eq('id_orden', id_orden)
-      .single();
-    
-    orden = data;
-    if (errOrden) throw errOrden;
+  const { data: ordenPrevia, error: errOrdenPrevia } = await adminClient
+    .from('ordenes')
+    .select('id_estado, id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_producto, cantidad)')
+    .eq('id_orden', id_orden)
+    .single();
+  
+  if (errOrdenPrevia) throw errOrdenPrevia;
+  orden = ordenPrevia;
 
+  if (orden.id_estado === ORDER_STATE.CONSUMED && id_estado !== ORDER_STATE.CONSUMED) {
+    const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
+    if (orden.metodo_pago === 'Saldo Prepago' || (isDirectClient && orden.metodo_pago === 'Pendiente')) {
+      for (const det of orden.detalle_orden) {
+        const { data: saldoActual } = await adminClient
+          .from('saldos_servicio')
+          .select('cantidad_disponible')
+          .eq('id_cliente', orden.id_cliente)
+          .eq('id_producto', det.id_producto)
+          .maybeSingle();
+          
+        if (saldoActual) {
+          await adminClient
+            .from('saldos_servicio')
+            .update({ 
+              cantidad_disponible: saldoActual.cantidad_disponible + det.cantidad, 
+              updated_by: user.id 
+            })
+            .eq('id_cliente', orden.id_cliente)
+            .eq('id_producto', det.id_producto);
+        } else {
+          await adminClient
+            .from('saldos_servicio')
+            .insert({
+              id_cliente: orden.id_cliente,
+              id_producto: det.id_producto,
+              cantidad_disponible: det.cantidad,
+              created_by: user.id,
+              updated_by: user.id
+            });
+        }
+      }
+      devolvioSaldo = true;
+    }
+  }
+
+  if (id_estado === ORDER_STATE.CONSUMED && orden.id_estado !== ORDER_STATE.CONSUMED) {
     if (orden.metodo_pago === 'Convenio Empresa') {
       const { data: cliente, error: errCliente } = await adminClient
         .from('clientes')
@@ -333,10 +370,14 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
     updated_by: user.id,
   };
 
-  if (id_estado === ORDER_STATE.CONSUMED && orden) {
+  if (id_estado === ORDER_STATE.CONSUMED && orden.id_estado !== ORDER_STATE.CONSUMED) {
     const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
     if (isDirectClient && orden.metodo_pago === 'Pendiente') {
       updatePayload.metodo_pago = 'Saldo Prepago';
+    }
+  } else if (orden.id_estado === ORDER_STATE.CONSUMED && id_estado !== ORDER_STATE.CONSUMED) {
+    if (orden.metodo_pago === 'Saldo Prepago') {
+      updatePayload.metodo_pago = 'Pendiente';
     }
   }
 
@@ -361,10 +402,14 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
         let msg = null;
         const numOrden = data.numero_orden || data.id_orden.split('-')[0].substring(0, 5).toUpperCase();
         
-        if (id_estado === ORDER_STATE.CONSUMED) {
+        if (id_estado === ORDER_STATE.CONSUMED && orden.id_estado !== ORDER_STATE.CONSUMED) {
           msg = `✅ <b>Pedido Consumido</b>\n\nTu pedido #<b>${numOrden}</b> ha sido marcado como consumido.\n¡Gracias por preferirnos y buen provecho!`;
         } else if (id_estado === ORDER_STATE.CANCELLED) {
           msg = `❌ <b>Pedido Cancelado</b>\n\nTu pedido #<b>${numOrden}</b> ha sido cancelado por el administrador.\nSi tienes dudas, por favor contáctanos.`;
+          if (devolvioSaldo) msg += `\n\n💰 Se ha devuelto el saldo correspondiente a tu monedero prepago.`;
+        } else if (id_estado === ORDER_STATE.RESERVED && orden.id_estado === ORDER_STATE.CONSUMED) {
+          msg = `🔄 <b>Cambio de Estado</b>\n\nTu pedido #<b>${numOrden}</b> ha sido devuelto al estado <b>Reservado</b>.`;
+          if (devolvioSaldo) msg += `\n\n💰 Se ha devuelto el saldo correspondiente a tu monedero prepago.`;
         }
         
         if (msg) {

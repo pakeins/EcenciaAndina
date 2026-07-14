@@ -30,18 +30,22 @@ const CLIENT_SELECT = `
 
 const sendTelegramInvitationEmail = async ({ client, onboarding }) => {
   try {
-    const inviteLink = onboarding.onboarding_url;
+    const inviteLink = String(onboarding.onboarding_url || '').replace('t.me', 'telegram.me');
     const emailData = buildInvitationEmail({
       nombre: client.nombre,
       inviteLink,
     });
-    return await sendOutlookMail({
+    const mailResult = await sendOutlookMail({
       to: client.correo,
       ...emailData,
     });
+    return {
+      ...mailResult,
+      recipient: client.correo,
+    };
   } catch (error) {
     console.error('Error sending telegram invitation email:', error.message);
-    return { status: 'failed', error: error.message };
+    return { status: 'failed', error: error.message, recipient: client.correo };
   }
 };
 
@@ -91,7 +95,7 @@ const telegramSummary = (client) => {
     status,
     policy_current:
       subscription?.consent_status === 'accepted' &&
-      subscription.consent_notice_version === getConsentVersion(),
+      subscription.consent_notice_version === (process.env.TELEGRAM_CONSENT_VERSION || '1.0'),
     consent_version: subscription?.consent_notice_version || null,
     has_chat: Boolean(subscription?.chat_id),
     telegram_username: subscription?.telegram_username || null,
@@ -151,7 +155,7 @@ const directConsentKeyboard = () => ({
 
 const publicOnboarding = (onboarding) => ({
   status: onboarding.status,
-  onboarding_url: onboarding.onboarding_url,
+  onboarding_url: String(onboarding.onboarding_url || '').replace('t.me', 'telegram.me'),
   expires_at: onboarding.expires_at,
   email_delivery: onboarding.email_delivery || null,
 });
@@ -421,8 +425,8 @@ const reinviteClienteTelegram = async (adminClient, idCliente, user) => {
       .update({
         consent_status: 'pending',
         is_active: false,
-        consent_notice_version: getConsentVersion(),
-        consent_notice_text: privacyText(),
+        consent_notice_version: await getConsentVersion(),
+        consent_notice_text: await privacyText(),
         consent_method: null,
         accepted_at: null,
         rejected_at: null,
@@ -436,17 +440,17 @@ const reinviteClienteTelegram = async (adminClient, idCliente, user) => {
 
     const sent = await sendMessage(
       pending.chat_id,
-      privacyText(),
+      await privacyText(),
       directConsentKeyboard(),
     );
     await setConsentState(adminClient, pending.chat_id, {
       status: 'awaiting_decision',
-      idCliente: client.id_cliente,
-      subscriptionId: pending.id,
-      invitationId: null,
-      policyVersion: getConsentVersion(),
-      promptMessageIds: [sent?.message_id].filter(Boolean),
-      cleanupMessageIds: [],
+        idCliente: client.id_cliente,
+        subscriptionId: pending.id,
+        invitationId: null,
+        policyVersion: await getConsentVersion(),
+        promptMessageIds: [sent?.message_id].filter(Boolean),
+        cleanupMessageIds: [],
     });
     await recordConsentEvent({
       idCliente: client.id_cliente,

@@ -19,28 +19,39 @@ const normalizeText = (value) =>
 
 const readUpdate = (update) => {
   if (update.callback_query) {
+    const from = update.callback_query.from || {};
     return {
-      chatId: String(update.callback_query.message.chat.id),
-      messageId: update.callback_query.message.message_id,
-      text: update.callback_query.data,
-      telegramUserId: update.callback_query.from.id,
-      telegramUsername: update.callback_query.from.username,
+      updateId: Number(update.update_id || 0) || null,
+      messageId: Number(update.callback_query.message?.message_id || 0) || null,
+      chatId: String(update.callback_query.message?.chat?.id || from.id || ''),
+      telegramUserId: String(from.id || ''),
+      telegramUsername: String(from.username || ''),
+      text: String(update.callback_query.data || ''),
+      callbackId: String(update.callback_query.id || ''),
       isCallback: true,
-      callbackId: update.callback_query.id,
+      contactPhone: '',
+      contactVerified: false,
     };
   }
-  if (update.message) {
-    return {
-      chatId: String(update.message.chat.id),
-      messageId: update.message.message_id,
-      text: update.message.text || '',
-      contactPhone: update.message.contact?.phone_number,
-      telegramUserId: update.message.from.id,
-      telegramUsername: update.message.from.username,
-      isCallback: false,
-    };
-  }
-  return {};
+
+  const message = update.message || update.edited_message || {};
+  const from = message.from || {};
+  const contact = message.contact || null;
+  const contactUserId = contact?.user_id ? String(contact.user_id) : '';
+  const fromId = String(from.id || '');
+
+  return {
+    updateId: Number(update.update_id || 0) || null,
+    messageId: Number(message.message_id || 0) || null,
+    chatId: String(message.chat?.id || from.id || ''),
+    telegramUserId: fromId,
+    telegramUsername: String(from.username || ''),
+    text: String(message.text || ''),
+    callbackId: '',
+    isCallback: false,
+    contactPhone: String(contact?.phone_number || ''),
+    contactVerified: Boolean(contact?.phone_number && contactUserId && fromId && contactUserId === fromId),
+  };
 };
 
 const parseStartToken = (text) => {
@@ -62,7 +73,11 @@ const handleTelegramUpdate = async (update) => {
   }
 
   let subscription = await getSubscriptionByChat(parsed.chatId);
-  const command = normalizeText(parsed.text).split(/\s+/)[0];
+  // Normalize command: lowercase + strip accents but KEEP the leading slash
+  const rawCommand = String(parsed.text || '').split(/\s+/)[0];
+  const command = rawCommand.startsWith('/')
+    ? '/' + normalizeText(rawCommand.slice(1))
+    : normalizeText(rawCommand);
   if (await handlePrivacyCommand(command, parsed, subscription)) return;
 
   if (subscription?.consent_status === 'accepted' && !hasCurrentConsent(subscription)) {
@@ -160,6 +175,28 @@ const handleTelegramUpdate = async (update) => {
     }
     if (!parsed.isCallback) await deleteMessage(parsed.chatId, parsed.messageId);
     await sendMessage(parsed.chatId, 'Completa el consentimiento usando los botones visibles.');
+    return;
+  }
+
+  if (['/misaldo', '/misdatos', '/revocar', '/eliminarmisdatos', '/privacidad'].includes(command)) {
+    const handled = await handlePrivacyCommand(command, parsed, subscription);
+    if (handled) return;
+  }
+
+  if (command === '/ayuda') {
+    await sendMessage(
+      parsed.chatId,
+      '📖 <b>Comandos disponibles</b>\n\n' +
+      '/menu — Ver el menu de hoy y hacer una reserva\n' +
+      '/pedido — Consultar tu reserva activa de hoy\n' +
+      '/cancelar — Cancelar el proceso de seleccion actual\n' +
+      '/misdatos — Ver los datos personales registrados\n' +
+      '/revocar — Revocar tu consentimiento y desactivar el acceso\n' +
+      '/eliminarmisdatos — Solicitar la eliminacion de tus datos\n' +
+      '/ayuda — Mostrar este mensaje de ayuda',
+      null,
+      'HTML'
+    );
     return;
   }
 

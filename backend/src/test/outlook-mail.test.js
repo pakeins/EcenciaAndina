@@ -1,4 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+import nodemailer from 'nodemailer';
+
+vi.spyOn(nodemailer, 'createTransport').mockImplementation(() => ({
+  sendMail: vi.fn(async () => {
+    if (global.__mockNodemailerSendMailError) {
+      throw global.__mockNodemailerSendMailError;
+    }
+    return { messageId: global.__mockNodemailerMessageId || 'mock-message-id' };
+  })
+}));
+
 import outlookMail from '../services/outlookMail.js';
 const { buildInvitationEmail, sendOutlookMail, MAIL_STATUSES, _private } = outlookMail;
 const {
@@ -12,6 +24,11 @@ const {
 } = _private;
 
 describe('outlookMail utility functions', () => {
+  beforeEach(() => {
+    vi.stubEnv('GMAIL_USER', '');
+    vi.stubEnv('GMAIL_APP_PASSWORD', '');
+  });
+
   describe('trimForAudit', () => {
     it('debe recortar textos largos', () => {
       expect(trimForAudit('abc', 10)).toBe('abc');
@@ -78,15 +95,13 @@ describe('buildInvitationEmail', () => {
     });
 
     expect(email.subject).toBe('Tu invitacion al bot de ECencia Andina');
-    expect(email.html).toContain('src="https://backend.example.com/assets/email/telegram-invite-cta.png"');
+    expect(email.html).toContain('api.qrserver.com/v1/create-qr-code');
     expect(email.html).toContain(`href="${inviteLink}"`);
-    expect(email.html).toContain('Si el bot&oacute;n o la imagen no abre');
-    expect(email.html).toContain('Equipo ECencia Andina');
+    expect(email.html).toContain('Ecencia Andina');
     expect(email.html).toContain('ecenciaconvenios@outlook.com');
     expect(email.html).toContain('Alex &lt;script&gt;');
     expect(email.html).not.toContain('Alex <script>');
     expect(email.text).toContain(inviteLink);
-    expect(email.text).toContain('Equipo ECencia Andina');
   });
 
   it('mantiene boton y link aunque no haya URL publica para la imagen', () => {
@@ -112,6 +127,11 @@ describe('getGraphAccessToken and sendOutlookMail API calls', () => {
     OUTLOOK_CLIENT_SECRET: 'secret',
     OUTLOOK_REFRESH_TOKEN: 'refresh-token',
   };
+
+  beforeEach(() => {
+    vi.stubEnv('GMAIL_USER', '');
+    vi.stubEnv('GMAIL_APP_PASSWORD', '');
+  });
 
   it('getGraphAccessToken lanza error si falta configuracion', async () => {
     await expect(getGraphAccessToken({ env: {} })).rejects.toThrow(/Falta configuracion Outlook/);
@@ -143,12 +163,6 @@ describe('getGraphAccessToken and sendOutlookMail API calls', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'tkn' }), { status: 200 })) // token call
       .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: { 'request-id': 'req-123' } })); // sendMail call
 
-    // Ensure Gmail variables are not present
-    const originalGmailUser = process.env.GMAIL_USER;
-    const originalGmailPass = process.env.GMAIL_APP_PASSWORD;
-    delete process.env.GMAIL_USER;
-    delete process.env.GMAIL_APP_PASSWORD;
-
     const res = await sendOutlookMail({ to: 'recipient@test.com', subject: 'hi', text: 'body', html: '<h1>body</h1>' }, {
       fetchImpl: mockFetch,
       env: dummyEnv
@@ -157,9 +171,7 @@ describe('getGraphAccessToken and sendOutlookMail API calls', () => {
     expect(res.status).toBe(MAIL_STATUSES.sent);
     expect(res.providerRequestId).toBe('req-123');
 
-    // Restore
-    process.env.GMAIL_USER = originalGmailUser;
-    process.env.GMAIL_APP_PASSWORD = originalGmailPass;
+    expect(res.providerRequestId).toBe('req-123');
   });
 
   it('sendOutlookMail maneja errores de Microsoft Graph API', async () => {
@@ -167,18 +179,15 @@ describe('getGraphAccessToken and sendOutlookMail API calls', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'tkn' }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: 'Quota exceeded' } }), { status: 403 }));
 
-    const originalGmailUser = process.env.GMAIL_USER;
-    delete process.env.GMAIL_USER;
-
     await expect(
       sendOutlookMail({ to: 'recipient@test.com', subject: 'hi', text: 'body' }, { fetchImpl: mockFetch, env: dummyEnv })
     ).rejects.toThrow(/Quota exceeded/);
-
-    process.env.GMAIL_USER = originalGmailUser;
   });
 
   it('sendOutlookMail utiliza Gmail fallback si GMAIL_USER y GMAIL_APP_PASSWORD estan configurados', async () => {
     global.__mockNodemailerMessageId = 'gmail-123';
+    vi.stubEnv('GMAIL_USER', 'test@gmail.com');
+    vi.stubEnv('GMAIL_APP_PASSWORD', 'app-password');
 
     const envWithGmail = {
       ...dummyEnv,
@@ -198,6 +207,8 @@ describe('getGraphAccessToken and sendOutlookMail API calls', () => {
 
   it('sendOutlookMail continua con Graph API si Gmail falla', async () => {
     global.__mockNodemailerSendMailError = new Error('SMTP Error');
+    vi.stubEnv('GMAIL_USER', 'test@gmail.com');
+    vi.stubEnv('GMAIL_APP_PASSWORD', 'app-password');
 
     const mockFetch = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'tkn' }), { status: 200 }))

@@ -25,7 +25,7 @@ const TIPOS_ALMUERZO = [
 ];
 
 const ESTADO_RESERVADO_NOMBRE = 'Reservado';
-const ORIGEN_NOMBRE = 'Telegram Bot';
+const ORIGEN_NOMBRE = process.env.N8N_ECENCIA_ORIGEN_NOMBRE || 'Telegram';
 
 const getLookupId = async (table, idField, nameField, nameValue) => {
   const { data, error } = await supabase.getAdminClient()
@@ -163,7 +163,8 @@ const insertOrder = async (session) => {
         },
       })
       .eq('id_orden', session.orderId);
-    return { id_orden: session.orderId, modified: true };
+    const { data: orderMeta } = await adminClient.from('ordenes').select('numero_orden').eq('id_orden', session.orderId).single();
+    return { id_orden: session.orderId, numero_orden: orderMeta?.numero_orden, modified: true };
   }
 
   const existing = await findActiveTodayOrder(session.cliente.id_cliente);
@@ -227,8 +228,8 @@ const findActiveTodayOrder = async (clientId) => {
     .eq('id_cliente', clientId)
     .eq('canal_origen', 'Telegram')
     .eq('id_estado', 1) // Solo considerar pedidos en estado Reservado
-    .gte('created_at', `${today}T00:00:00Z`)
-    .lt('created_at', `${tomorrowFromDate(today)}T00:00:00Z`)
+    .gte('created_at', `${today}T05:00:00Z`)
+    .lt('created_at', `${tomorrowFromDate(today)}T05:00:00Z`)
     .limit(1)
     .maybeSingle();
   if (error) throw error;
@@ -307,7 +308,7 @@ const handlePedidoCallback = async (parsed, subscription) => {
   if (action === 'mod') {
     // Verificar que la orden sigue en estado Reservado
     const { data: order } = await supabase.getAdminClient()
-      .from('ordenes').select('id_orden,id_estado,id_cliente').eq('id_orden', orderId).maybeSingle();
+      .from('ordenes').select('id_orden,numero_orden,id_estado,id_cliente').eq('id_orden', orderId).maybeSingle();
     if (!order || order.id_estado !== 1) {
       await telegramApi.sendMessage(chatId, 'Esta reserva ya no esta en estado Reservado y no puede modificarse.');
       return true;
@@ -338,7 +339,8 @@ const handlePedidoCallback = async (parsed, subscription) => {
       return true;
     }
     
-    await telegramApi.sendMessage(chatId, `Vamos a modificar tu reserva <code>${orderId}</code>.\n¿Qué parte de tu almuerzo deseas modificar?`, modificarPasosKeyboard(session, session.sid), 'HTML');
+    const shortOrderId = order.numero_orden ? `#${order.numero_orden}` : `#${orderId.split('-')[0].substring(0, 5).toUpperCase()}`;
+    await telegramApi.sendMessage(chatId, `Vamos a modificar tu reserva <code>${shortOrderId}</code>.\n¿Qué parte de tu almuerzo deseas modificar?`, modificarPasosKeyboard(session, session.sid), 'HTML');
     return true;
   }
 

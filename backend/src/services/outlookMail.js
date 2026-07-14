@@ -1,16 +1,4 @@
-let nodemailer = require('nodemailer');
-if (process.env.NODE_ENV === 'test') {
-  nodemailer = {
-    createTransport: () => ({
-      sendMail: async (options) => {
-        if (global.__mockNodemailerSendMailError) {
-          throw global.__mockNodemailerSendMailError;
-        }
-        return { messageId: global.__mockNodemailerMessageId || 'mock-gmail-id' };
-      }
-    })
-  };
-}
+const nodemailer = require('nodemailer');
 const GRAPH_SEND_MAIL_URL = 'https://graph.microsoft.com/v1.0/me/sendMail';
 
 const MAIL_STATUSES = {
@@ -125,117 +113,112 @@ const getGraphAccessToken = async ({ fetchImpl = fetch, env } = {}) => {
   return { accessToken: body.access_token, fromEmail: config.fromEmail };
 };
 
-const buildInvitationHtml = ({ firstName, inviteLink, ctaImageUrl, fromEmail }) => {
+const buildInvitationHtml = ({ firstName, inviteLink, fromEmail }) => {
   const safeFirstName = escapeHtml(firstName);
   const safeInviteLink = inviteLink ? escapeHtml(inviteLink) : '';
-  const safeImageUrl = ctaImageUrl ? escapeHtml(ctaImageUrl) : '';
   const safeFromEmail = escapeHtml(fromEmail);
-
-  const imageBlock = safeImageUrl && safeInviteLink
-    ? `
-      <tr>
-        <td style="padding:0 0 22px;">
-          <a href="${safeInviteLink}" target="_blank" style="text-decoration:none;">
-            <img src="${safeImageUrl}" width="600" alt="Abrir bot de ECencia Andina en Telegram" style="display:block;width:100%;max-width:600px;border:0;border-radius:16px;">
-          </a>
-        </td>
-      </tr>`
-    : '';
+  const qrUrl = safeInviteLink ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(safeInviteLink)}` : '';
 
   const actionBlock = safeInviteLink
     ? `
       <tr>
-        <td align="center" style="padding:10px 0 24px;">
-          <a href="${safeInviteLink}" target="_blank" style="display:inline-block;background:#2F4D49;color:#FFFFFF;font-family:Arial,sans-serif;font-size:16px;font-weight:700;line-height:20px;text-decoration:none;padding:14px 24px;border-radius:6px;">
-            Abrir invitaci&oacute;n en Telegram
-          </a>
+        <td style="padding:0 32px 32px;">
+          <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:32px 24px;text-align:center;">
+            <p style="margin:0 0 24px;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;">
+              Activa tu asistente virtual en Telegram
+            </p>
+            <a href="${safeInviteLink}" target="_blank" style="display:inline-block;background-color:#0ea5e9;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;line-height:20px;text-decoration:none;padding:14px 32px;border-radius:6px;letter-spacing:0.5px;">
+              CONECTAR TELEGRAM
+            </a>
+            <p style="margin:24px 0 0;color:#94a3b8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:19px;">
+              O copia este enlace: <br>
+              <a href="${safeInviteLink}" target="_blank" style="color:#0ea5e9;text-decoration:none;word-break:break-all;">${safeInviteLink}</a>
+            </p>
+          </div>
         </td>
       </tr>
       <tr>
-        <td style="padding:0 0 24px;">
-          <p style="margin:0;color:#61603C;font-family:Arial,sans-serif;font-size:13px;line-height:19px;">
-            Si el bot&oacute;n o la imagen no abre, copia y pega este enlace en tu navegador:
-            <br>
-            <a href="${safeInviteLink}" target="_blank" style="color:#7A402E;word-break:break-all;">${safeInviteLink}</a>
+        <td style="padding:0 32px 40px;text-align:center;">
+          <p style="margin:0 0 16px;color:#64748b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;">
+            ¿Abriendo esto desde tu computadora? Escanea el codigo QR:
           </p>
+          <div style="display:inline-block;padding:12px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 2px 0 rgba(0,0,0,0.05);">
+            <img src="${qrUrl}" width="150" height="150" alt="Código QR" style="display:block;border-radius:4px;" />
+          </div>
         </td>
       </tr>`
     : `
       <tr>
-        <td style="padding:0 0 24px;">
-          <p style="margin:0;color:#7A402E;font-family:Arial,sans-serif;font-size:15px;line-height:22px;">
-            El link de registro no est&aacute; disponible. Contacta al administrador de ECencia Andina.
-          </p>
+        <td style="padding:0 32px 24px;">
+          <div style="background-color:#fef2f2;border-left:4px solid #ef4444;padding:16px;">
+            <p style="margin:0;color:#991b1b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;">
+              <strong>Atención:</strong> El link de registro no está disponible en este momento. Por favor contacta al administrador.
+            </p>
+          </div>
         </td>
       </tr>`;
 
-  return `<!doctype html>
-<html>
-  <body style="margin:0;padding:0;background:#D1CDC4;">
-    <div style="display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;">
-      Registra tu Telegram para recibir el men&uacute; cuando ECencia Andina lo env&iacute;e.
-    </div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#D1CDC4;margin:0;padding:24px 0;">
-      <tr>
-        <td align="center" style="padding:0 12px;">
-          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#FFFFFF;border-radius:16px;overflow:hidden;">
-            ${imageBlock}
-            <tr>
-              <td style="padding:0 28px 8px;">
-                <p style="margin:0 0 12px;color:#7A402E;font-family:Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">
-                  ECencia Andina
-                </p>
-                <h1 style="margin:0 0 12px;color:#2F4D49;font-family:Arial,sans-serif;font-size:28px;line-height:34px;">
-                  Hola ${safeFirstName}, activa tu registro en Telegram
-                </h1>
-                <p style="margin:0;color:#2F4D49;font-family:Arial,sans-serif;font-size:16px;line-height:24px;">
-                  Te invitamos a vincular tu Telegram con tu registro de cliente para recibir el men&uacute; del d&iacute;a cuando ECencia Andina lo env&iacute;e y reservar tus almuerzos desde el bot.
-                </p>
-              </td>
-            </tr>
-            ${actionBlock}
-            <tr>
-              <td style="padding:0 28px 24px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#D1CDC4;border-radius:8px;">
-                  <tr>
-                    <td style="padding:18px 20px;">
-                      <p style="margin:0 0 10px;color:#2F4D49;font-family:Arial,sans-serif;font-size:15px;font-weight:700;line-height:22px;">
-                        Para completar el registro:
-                      </p>
-                      <p style="margin:0;color:#2F4D49;font-family:Arial,sans-serif;font-size:14px;line-height:22px;">
-                        1. Abre el bot desde la imagen, el bot&oacute;n o el enlace.<br>
-                        2. Acepta el aviso de privacidad.<br>
-                        3. Comparte tu tel&eacute;fono usando el bot&oacute;n de Telegram.
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 28px 30px;">
-                <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="border-top:1px solid #D1CDC4;padding-top:18px;">
-                  <tr>
-                    <td valign="top">
-                      <p style="margin:0;color:#2F4D49;font-family:Arial,sans-serif;font-size:15px;font-weight:700;line-height:20px;">
-                        Equipo ECencia Andina
-                      </p>
-                      <p style="margin:0;color:#7A402E;font-family:Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:.08em;line-height:18px;">
-                        TRADICION NATURAL
-                      </p>
-                      <p style="margin:4px 0 0;color:#61603C;font-family:Arial,sans-serif;font-size:13px;line-height:19px;">
-                        <a href="mailto:${safeFromEmail}" style="color:#61603C;text-decoration:none;">${safeFromEmail}</a>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invitación a ECencia Andina</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;">
+    Tu cuenta corporativa ha sido creada exitosamente. Activa tu asistente virtual.
+  </div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4f6f8;margin:0;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding:40px 32px 20px;text-align:center;border-bottom:1px solid #e2e8f0;">
+              <h1 style="margin:0;color:#1b4332;font-size:28px;font-weight:800;letter-spacing:-0.5px;">
+                Ecencia Andina
+              </h1>
+              <p style="margin:8px 0 0;color:#64748b;font-size:14px;font-weight:500;">
+                Servicio exclusivo de almuerzos corporativos
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 32px 24px;">
+              <h2 style="margin:0 0 16px;color:#0f172a;font-size:22px;font-weight:700;">
+                ¡Hola, ${safeFirstName}! 👋
+              </h2>
+              <p style="margin:0;color:#475569;font-size:16px;line-height:26px;">
+                Tu cuenta corporativa ha sido creada exitosamente. Desde ahora, podras gestionar tus reservas diarias, consultar el menu y realizar modificaciones directamente desde tu celular de forma automatica y rapida.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Action -->
+          ${actionBlock}
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 32px;text-align:center;">
+              <p style="margin:0;color:#64748b;font-size:13px;line-height:20px;">
+                ¿Tienes alguna duda? Contáctanos respondiendo a este correo:
+                <br>
+                <a href="mailto:${safeFromEmail}" style="color:#0ea5e9;text-decoration:none;font-weight:500;">${safeFromEmail}</a>
+              </p>
+              <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;">
+                &copy; ${new Date().getFullYear()} Ecencia Andina. Todos los derechos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
 </html>`;
 };
 
@@ -269,7 +252,6 @@ const buildInvitationEmail = ({ nombre, inviteLink, invitationMessage, env = pro
 };
 
 const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
-  const env = options.env || process.env;
   const recipient = String(to || '').trim().toLowerCase();
   if (!recipient) {
     const error = new Error('El cliente no tiene correo para enviar la invitacion.');
@@ -277,15 +259,13 @@ const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
     throw error;
   }
 
-  if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) {
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
     try {
       const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
+        service: 'gmail',
         auth: {
-          user: env.GMAIL_USER,
-          pass: env.GMAIL_APP_PASSWORD,
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD,
         },
       });
 

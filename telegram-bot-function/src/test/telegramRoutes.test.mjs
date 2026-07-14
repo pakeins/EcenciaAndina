@@ -101,10 +101,13 @@ describe('telegramRoutes - Main Router', () => {
       };
       const res = _private.readUpdate(update);
       expect(res).toEqual({
+        updateId: null,
         chatId: '123',
         messageId: 456,
         text: 'some_data',
-        telegramUserId: 789,
+        contactPhone: '',
+        contactVerified: false,
+        telegramUserId: '789',
         telegramUsername: 'user1',
         isCallback: true,
         callbackId: 'cb_123'
@@ -122,19 +125,33 @@ describe('telegramRoutes - Main Router', () => {
       };
       const res = _private.readUpdate(update);
       expect(res).toEqual({
+        updateId: null,
         chatId: '123',
         messageId: 456,
         text: 'hello',
-        contactPhone: undefined,
-        telegramUserId: 789,
+        contactPhone: '',
+        contactVerified: false,
+        telegramUserId: '789',
         telegramUsername: 'user1',
-        isCallback: false
+        isCallback: false,
+        callbackId: ''
       });
     });
 
     it('debe retornar vacío si no es mensaje ni callback', () => {
       const res = _private.readUpdate({});
-      expect(res).toEqual({});
+      expect(res).toEqual({
+        updateId: null,
+        chatId: '',
+        messageId: null,
+        text: '',
+        contactPhone: '',
+        contactVerified: false,
+        telegramUserId: '',
+        telegramUsername: '',
+        isCallback: false,
+        callbackId: ''
+      });
     });
   });
 

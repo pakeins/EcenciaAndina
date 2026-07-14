@@ -101,20 +101,6 @@ async function acceptConsent(parsed, subscription, consentState) {
     .from('telegram_subscriptions')
     .update({ consent_status: 'pending' })
     .eq('id', consentState.subscriptionId);
-  await telegramConsent.recordConsentEvent({
-    idCliente: consentState.idCliente,
-    subscriptionId: consentState.subscriptionId,
-    eventType: 'consent_step_accepted',
-    method: 'telegram_button',
-    telegramUserId: parsed.telegramUserId,
-    chatId: parsed.chatId,
-    evidence: {
-      action: 'accept_policy_button',
-      message_id: parsed.messageId,
-      accepted_version: consentState.policyVersion,
-    },
-    includeNotice: false,
-  });
 }
 
 async function rejectConsent(parsed, subscription, consentState) {
@@ -137,8 +123,8 @@ async function rejectConsent(parsed, subscription, consentState) {
   await telegramConsent.recordConsentEvent({
     idCliente: consentState.idCliente,
     subscriptionId: consentState.subscriptionId,
-    eventType: 'consent_rejected',
-    method: 'telegram_button',
+    eventType: 'rejected',
+    method: 'telegram_inline_button',
     telegramUserId: parsed.telegramUserId,
     chatId: parsed.chatId,
     evidence: { action: 'reject_policy_button', message_id: parsed.messageId, rejected_version: consentState.policyVersion },
@@ -162,17 +148,6 @@ async function validateAndSaveContact(parsed, subscription, consentState) {
       parsed.chatId,
       `⚠️ El numero enviado (${parsed.contactPhone}) no coincide con el numero registrado para el cliente ${client.nombre} ${client.apellido}. Por favor, asegurate de enviar tu propio numero usando el boton proporcionado. Si tu numero ha cambiado, contacta a administracion.`,
     );
-    await telegramConsent.recordConsentEvent({
-      idCliente: consentState.idCliente,
-      subscriptionId: consentState.subscriptionId,
-      eventType: 'consent_phone_mismatch',
-      method: 'telegram_contact',
-      telegramUserId: parsed.telegramUserId,
-      chatId: parsed.chatId,
-      phone: contactPhone,
-      evidence: { provided_phone: parsed.contactPhone, expected_phone: client.telefono },
-      includeNotice: false,
-    });
     return;
   }
   await supabase.getAdminClient()
@@ -180,15 +155,22 @@ async function validateAndSaveContact(parsed, subscription, consentState) {
     .update({
       phone_normalized: clientPhone,
       consent_status: 'accepted',
+      is_active: true,
       consent_notice_version: consentState.policyVersion,
-      consent_date: new Date().toISOString(),
+      consent_notice_text: telegramConsent.privacyText(),
+      accepted_at: new Date().toISOString(),
+      linked_at: new Date().toISOString(),
+      rejected_at: null,
+      revoked_at: null,
+      deletion_requested_at: null,
+      consent_method: 'telegram_contact_button',
     })
     .eq('id', consentState.subscriptionId);
   await telegramConsent.recordConsentEvent({
     idCliente: consentState.idCliente,
     subscriptionId: consentState.subscriptionId,
-    eventType: 'consent_accepted',
-    method: 'telegram_contact',
+    eventType: 'accepted',
+    method: 'telegram_contact_button',
     telegramUserId: parsed.telegramUserId,
     chatId: parsed.chatId,
     phone: clientPhone,
@@ -196,7 +178,7 @@ async function validateAndSaveContact(parsed, subscription, consentState) {
     includeNotice: true,
   });
   if (consentState.invitationId) {
-    await telegramConsent.consumeInvitation(consentState.invitationId, consentState.subscriptionId);
+    await telegramConsent.consumeInvitation(consentState.invitationId);
   }
   await telegramApi.sendMessage(
     parsed.chatId,
@@ -208,6 +190,9 @@ async function validateAndSaveContact(parsed, subscription, consentState) {
     for (const msgId of consentState.cleanupMessageIds) {
       await telegramApi.deleteMessage(parsed.chatId, msgId).catch(() => {});
     }
+  }
+  if (!parsed.isCallback) {
+    await telegramApi.deleteMessage(parsed.chatId, parsed.messageId).catch(() => {});
   }
   await telegramState.deleteState(telegramState.consentKey(parsed.chatId));
 }
@@ -290,12 +275,207 @@ async function requestPolicyReconsent(parsed, subscription) {
 
 async function handlePrivacyCommand(command, parsed, subscription) {
   const { chatId, messageId } = parsed;
-  if (command === '/misdatos') {
-    const dataText = '<b>Tus Datos</b>\nNombre: Juan\n(Datos de prueba)';
-    await telegramApi.sendMessage(chatId, dataText, null, 'HTML');
-  } else if (command === '/revocar') {
-    await telegramApi.sendMessage(chatId, '¿Estás seguro que deseas revocar tu acceso?', revokeConfirmKeyboard());
+
+  if (command === '/privacidad') {
+    const settings = telegramConsent.getPrivacySettings();
+    await telegramApi.sendMessage(
+      chatId,
+      `🛡️ <b>Centro de Privacidad</b>\n\n${telegramConsent.privacyText()}\n\n<b>Comandos disponibles:</b>\n/misdatos - Ver mis datos\n/eliminarmisdatos - Borrar mis datos\n/revocar - Retirar consentimiento\n/ayuda - Ver mas opciones\n\n<a href="${settings.policyUrl}">Ver Politica Completa</a>`,
+      null,
+      'HTML'
+    );
+    return true;
   }
+
+  if (command === '/misaldo') {
+    if (!subscription) {
+      await telegramApi.sendMessage(chatId, '⚠️ <b>Sin suscripcion</b>\n\nEste chat no tiene una suscripcion de Telegram vinculada.', null, 'HTML');
+      return true;
+    }
+    
+    const { data: clientInfo, error } = await supabase.getAdminClient()
+      .from('clientes')
+      .select(`
+        id_tipo_cliente,
+        clientes_convenios(
+          convenios(esta_activo, nombre_empresa)
+        ),
+        saldos_servicio(cantidad_disponible, productos(nombre_producto))
+      `)
+      .eq('id_cliente', subscription.id_cliente)
+      .single();
+
+    if (error || !clientInfo) {
+      await telegramApi.sendMessage(chatId, '⚠️ No pudimos obtener tu informacion. Por favor, contacta al administrador.', null, 'HTML');
+      return true;
+    }
+
+    if (clientInfo.id_tipo_cliente === 1) { // AGREEMENT
+      const convenioRel = clientInfo.clientes_convenios?.[0]?.convenios;
+      if (convenioRel && convenioRel.esta_activo) {
+        const empresa = convenioRel.nombre_empresa || 'tu empresa';
+        await telegramApi.sendMessage(chatId, `✅ <b>Convenio Activo</b>\n\nTu convenio con la empresa <b>${empresa}</b> se encuentra activo. Puedes disfrutar de tus almuerzos con normalidad.`, null, 'HTML');
+      } else {
+        await telegramApi.sendMessage(chatId, `⚠️ <b>Convenio Inactivo</b>\n\nTu convenio actualmente no se encuentra activo. Por favor, comunícate con la administración.`, null, 'HTML');
+      }
+    } else { // DIRECT
+      const saldos = clientInfo.saldos_servicio || [];
+      const totalSaldos = saldos.reduce((sum, s) => sum + (s.cantidad_disponible || 0), 0);
+      
+      if (totalSaldos > 0) {
+        let detalle = '';
+        saldos.forEach(s => {
+          if (s.cantidad_disponible > 0) {
+            const nombre = s.productos?.nombre_producto || 'Almuerzo general';
+            detalle += `\n• ${s.cantidad_disponible}x ${nombre}`;
+          }
+        });
+        await telegramApi.sendMessage(chatId, `💰 <b>Saldo Disponible</b>\n\nActualmente tienes <b>${totalSaldos}</b> almuerzos disponibles en tu monedero prepago.\n${detalle}`, null, 'HTML');
+      } else {
+        await telegramApi.sendMessage(chatId, `⚠️ <b>Sin Saldo</b>\n\nActualmente no tienes almuerzos disponibles en tu monedero prepago. Por favor, acércate a caja para realizar una recarga.`, null, 'HTML');
+      }
+    }
+    return true;
+  }
+
+  if (command === '/misdatos') {
+    if (!subscription) {
+      await telegramApi.sendMessage(chatId, '⚠️ <b>Sin suscripcion</b>\n\nEste chat no tiene una suscripcion de Telegram vinculada.', null, 'HTML');
+      return true;
+    }
+    await supabase.getAdminClient()
+      .from('telegram_privacy_audits')
+      .insert({ action: 'misdatos', outcome: 'informed', chat_id: String(chatId) });
+    await telegramApi.sendMessage(
+      chatId,
+      '📁 <b>Tus Datos Personales</b>\n\nCategorias de datos que almacenamos:\n' +
+      '• Identificador del chat de Telegram\n' +
+      '• Numero de telefono (enmascarado)\n' +
+      '• Nombre del cliente (segun tu registro)\n' +
+      '• Selecciones de menu y reservas\n' +
+      '• Historial de consentimiento\n\n' +
+      `<b>Estado del consentimiento:</b> <code>${subscription.consent_status}</code>\n\n` +
+      `Para acceder, rectificar o eliminar tus datos, contacta a: <b>${telegramConsent.getPrivacySettings().contact}</b> o usa /eliminarmisdatos.`,
+      null,
+      'HTML'
+    );
+    return true;
+  }
+
+  if (command === '/revocar') {
+    if (!subscription) {
+      await telegramApi.sendMessage(chatId, '⚠️ <b>Sin suscripcion</b>\n\nNo existe una suscripcion vinculada para revocar.', null, 'HTML');
+      return true;
+    }
+    if (['rejected', 'revoked'].includes(subscription.consent_status)) {
+      await telegramApi.sendMessage(chatId, '🚫 <b>Ya estas revocado</b>\n\nTu suscripcion ya se encuentra bloqueada.', null, 'HTML');
+      return true;
+    }
+    await telegramApi.sendMessage(
+      chatId,
+      '🛑 <b>Revocar Consentimiento</b>\n\n<b>Confirma tu decision:</b>\n\nRevocar el consentimiento bloqueara tu acceso al bot de Ecencia Andina. No recibiras menus hasta que un administrador reactive tu suscripcion.',
+      revokeConfirmKeyboard(),
+      'HTML'
+    );
+    return true;
+  }
+
+  if (parsed.text === 'revocar:cancel') {
+    if (parsed.isCallback) await telegramApi.removeInlineKeyboard(chatId, messageId).catch(() => {});
+    await telegramApi.sendMessage(chatId, '✅ <b>Accion Cancelada</b>\n\nTu consentimiento se mantiene activo y seguiras disfrutando del servicio.', null, 'HTML');
+    return true;
+  }
+
+  if (parsed.text === 'revocar:confirm') {
+    if (parsed.isCallback) await telegramApi.removeInlineKeyboard(chatId, messageId).catch(() => {});
+    if (!subscription) {
+      await telegramApi.sendMessage(chatId, '⚠️ <b>Sin suscripcion</b>\n\nNo existe una suscripcion vinculada para revocar.', null, 'HTML');
+      return true;
+    }
+    await supabase.getAdminClient()
+      .from('telegram_subscriptions')
+      .update({
+        consent_status: 'rejected',
+        is_active: false,
+        revoked_at: new Date().toISOString(),
+      })
+      .eq('id', subscription.id);
+    await supabase.getAdminClient()
+      .from('telegram_privacy_audits')
+      .insert({ action: 'revocar', outcome: 'revoked', chat_id: String(chatId) });
+    await telegramState.deleteChatStates(chatId);
+    await telegramApi.sendMessage(
+      chatId,
+      '🚫 <b>Consentimiento Revocado</b>\n\nTu acceso ha quedado bloqueado. Ya no recibiras el menu diario hasta que un administrador reactive tu suscripcion.',
+      removeKeyboard(),
+      'HTML'
+    );
+    return true;
+  }
+
+  if (command === '/eliminarmisdatos') {
+    if (!subscription) {
+      await telegramApi.sendMessage(chatId, '⚠️ <b>Sin datos</b>\n\nEste chat no tiene datos Telegram vinculados.', null, 'HTML');
+      return true;
+    }
+
+    const client = await getClientById(subscription.id_cliente);
+
+    const { data: existingRequests } = await supabase.getAdminClient()
+      .from('telegram_privacy_requests')
+      .select('id, status')
+      .eq('id_cliente', subscription.id_cliente)
+      .in('status', ['pending', 'in_review']);
+
+    if (existingRequests && existingRequests.length > 0) {
+      await telegramApi.sendMessage(
+        chatId,
+        '⏳ <b>Solicitud en curso</b>\n\nYa hemos recibido tu solicitud anteriormente. Actualmente se encuentra en proceso de gestion.',
+        null,
+        'HTML'
+      );
+      return true;
+    }
+
+    await supabase.getAdminClient()
+      .from('telegram_privacy_audits')
+      .insert({ action: 'eliminarmisdatos', outcome: 'requested', chat_id: String(chatId) });
+
+    const { data: privacyRequest, error } = await supabase.getAdminClient()
+      .from('telegram_privacy_requests')
+      .insert({
+        id_cliente: subscription.id_cliente,
+        subscription_id: subscription.id,
+        request_type: 'deletion',
+        status: 'pending',
+        source: 'telegram'
+      })
+      .select()
+      .single();
+
+    if (error && error.code !== '23505') {
+      console.error('Error al insertar solicitud de privacidad:', error);
+    }
+
+    if (privacyRequest && client) {
+      try {
+        const { sendPrivacyRequestNotificationEmail } = require('../services/telegramInvitationEmail');
+        sendPrivacyRequestNotificationEmail(client, privacyRequest).catch(err => console.error('Error notificacion:', err));
+      } catch (e) {
+        console.warn('Módulo de correos no disponible en este entorno.');
+      }
+    }
+
+    await telegramApi.sendMessage(
+      chatId,
+      '🗑️ <b>Solicitud Recibida</b>\n\nHemos recibido tu solicitud de eliminacion de datos personales.\n\nEl requerimiento ha sido registrado automaticamente y nuestro equipo de privacidad lo evaluara y procesara en el plazo establecido por la ley. En caso de requerir detalles adicionales, te contactaremos.',
+      null,
+      'HTML'
+    );
+    return true;
+  }
+
+  return false;
 }
 
 module.exports = {

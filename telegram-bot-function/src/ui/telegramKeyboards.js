@@ -28,7 +28,7 @@ const optionsKeyboard = (kind, options, sid) => {
 const tipoAlmuerzoKeyboard = (sid, permitidos) => {
   const options = TIPOS_ALMUERZO.filter((t) => {
     if (!permitidos || permitidos.length === 0) return true;
-    const genCode = t.nombreProducto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\\s+/g, '_');
+    const genCode = t.nombreProducto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
     return permitidos.includes(t.code) || permitidos.includes(genCode);
   });
   return inlineKeyboard(
@@ -94,7 +94,7 @@ const modificarPasosKeyboard = (session, sid) => {
   if (tipo.requiresPostre && session.opciones?.postre) {
     rows.push([{ text: `🍰 Postre (${session.opciones.postre})`, callback_data: `modstep:postre:${sid}` }]);
   }
-  rows.push([{ text: '⬅️ Volver a confirmar', callback_data: `confirmar:back:${sid}` }]);
+  rows.push([{ text: '🔙 Volver al resumen', callback_data: `confirmar:back:${sid}` }]);
   return inlineKeyboard(rows);
 };
 
