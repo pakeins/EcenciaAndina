@@ -253,14 +253,17 @@ const buildInvitationEmail = ({ nombre, inviteLink, invitationMessage, env = pro
 
 const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
   const recipient = String(to || '').trim().toLowerCase();
+  console.log(`[SMTP Mailer] Iniciando envío de correo a: ${recipient}`);
   if (!recipient) {
     const error = new Error('El cliente no tiene correo para enviar la invitacion.');
     error.code = 'MAIL_MISSING_RECIPIENT';
+    console.error(`[SMTP Mailer] Error: ${error.message}`);
     throw error;
   }
 
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
     try {
+      console.log(`[SMTP Mailer] Intentando enviar vía Gmail (${process.env.GMAIL_USER})...`);
       const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
@@ -281,15 +284,17 @@ const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
       }
 
       const info = await transporter.sendMail(mailOptions);
+      console.log(`[SMTP Mailer] ¡Correo enviado con éxito vía Gmail! Message ID: ${info.messageId}`);
       return {
         status: MAIL_STATUSES.sent,
         providerRequestId: info.messageId || null,
       };
     } catch (gmailError) {
-      console.error('Nodemailer Gmail failed, trying Outlook Graph if configured...', gmailError.message);
+      console.error('[SMTP Mailer] Nodemailer Gmail falló, intentando con Outlook Graph...', gmailError.message);
     }
   }
 
+  console.log('[SMTP Mailer] Intentando enviar vía Microsoft Graph API...');
   const { accessToken } = await getGraphAccessToken(options);
   const response = await (options.fetchImpl || fetch)(GRAPH_SEND_MAIL_URL, {
     method: 'POST',
@@ -311,12 +316,16 @@ const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
   });
 
   if (!response.ok) {
-    throw new Error(await graphErrorMessage(response, `Microsoft Graph rechazo el envio (${response.status}).`));
+    const errMsg = await graphErrorMessage(response, `Microsoft Graph rechazo el envio (${response.status}).`);
+    console.error(`[SMTP Mailer] Microsoft Graph falló: ${errMsg}`);
+    throw new Error(errMsg);
   }
 
+  const requestId = response.headers?.get?.('request-id') || response.headers?.get?.('x-ms-request-id') || null;
+  console.log(`[SMTP Mailer] ¡Correo enviado con éxito vía Microsoft Graph! Request ID: ${requestId}`);
   return {
     status: MAIL_STATUSES.sent,
-    providerRequestId: response.headers?.get?.('request-id') || response.headers?.get?.('x-ms-request-id') || null,
+    providerRequestId: requestId,
   };
 };
 

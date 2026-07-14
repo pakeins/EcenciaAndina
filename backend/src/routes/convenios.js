@@ -57,7 +57,7 @@ function formatConvenio(conv) {
     tipos_almuerzo_permitidos: conv.tipos_almuerzo_permitidos || [],
     totalColaboradores: conv.clientes_convenios?.[0]?.count || 0,
     consumoMensual: 0,
-    archivo_firmado: conv.archivo_firmado ? `http://localhost:3001/uploads/convenios/${conv.archivo_firmado}` : null,
+    archivo_firmado: conv.archivo_firmado ? `/api/uploads/convenios/${conv.archivo_firmado}` : null,
   };
 }
 
@@ -303,7 +303,7 @@ router.get('/:id/historial', async (req, res) => {
     
     const historialFormateado = data.map(h => ({
       ...h,
-      archivo_url: h.archivo_firmado ? `http://localhost:3001/uploads/convenios/${h.archivo_firmado}` : null
+      archivo_url: h.archivo_firmado ? `/api/uploads/convenios/${h.archivo_firmado}` : null
     }));
     
     res.json(historialFormateado);

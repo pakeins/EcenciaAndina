@@ -161,9 +161,9 @@ if (Test-Path backend.tar.gz) {
     Remove-Item backend.tar.gz
 }
 
-# Crear archivo tar.gz excluyendo node_modules locales
+# Crear archivo tar.gz excluyendo node_modules locales, base de datos n8n local y archivos .env locales
 Write-Host "Empaquetando directorio backend..."
-tar --exclude="backend/node_modules" -czf backend.tar.gz backend docker-compose.yml
+tar --exclude="backend/node_modules" --exclude="backend/n8n/.n8n" --exclude="backend/.env*" -czf backend.tar.gz backend docker-compose.yml
 
 # Crear el directorio del proyecto en la VM por si no existe
 ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@$ip "mkdir -p /home/azureuser/ECenciaAPP/convenios"
@@ -185,12 +185,20 @@ Write-Host "¡Backend subido y descomprimido en /home/azureuser/ECenciaAPP/!" -F
 Write-Host "[8/8] Levantando el Backend con Docker Compose..." -ForegroundColor Yellow
 ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose down && docker compose up -d --build"
 
+# 10. Importar y activar flujos de n8n
+Write-Host "[9/11] Importando y activando flujos de n8n..." -ForegroundColor Yellow
+Write-Host "Esperando 10 segundos a que n8n inicie..."
+Start-Sleep -Seconds 10
+ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose exec -T n8n n8n import:workflow --separate --input=/workflows/ && docker compose exec -T n8n n8n publish:workflow --id=ecenciaTelegramMenuReservas && docker compose restart n8n"
+Write-Host "¡Flujos de n8n importados y activados exitosamente!" -ForegroundColor Green
+
+# 11. Configurar Webhook de Telegram
+Write-Host "[10/11] Configurando Webhook de Telegram hacia el servidor de Producción..." -ForegroundColor Yellow
+ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose exec -T backend npm run telegram:set-webhook"
+Write-Host "¡Webhook de Telegram configurado exitosamente!" -ForegroundColor Green
+
 Write-Host "=========================================================" -ForegroundColor Green
 Write-Host " ¡Despliegue Completado Exitosamente! " -ForegroundColor Green
 Write-Host " Aplicación disponible en: http://$ip " -ForegroundColor Green
 Write-Host "=========================================================" -ForegroundColor Green
 
-# 10. Configurar Webhook de Telegram
-Write-Host "[9/9] Configurando Webhook de Telegram hacia el servidor de Producción..." -ForegroundColor Yellow
-ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose exec -T backend npm run telegram:set-webhook"
-Write-Host "¡Webhook de Telegram configurado exitosamente!" -ForegroundColor Green

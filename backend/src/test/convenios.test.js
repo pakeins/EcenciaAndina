@@ -149,7 +149,7 @@ describe('Rutas de Convenios', () => {
       // Valida primer convenio (completamente poblado)
       expect(res.body[0].id).toBe('conv-1');
       expect(res.body[0].totalColaboradores).toBe(2);
-      expect(res.body[0].archivo_firmado).toBe('http://localhost:3001/uploads/convenios/documento.pdf');
+      expect(res.body[0].archivo_firmado).toBe('/api/uploads/convenios/documento.pdf');
       
       // Valida segundo convenio (vacío/por defecto)
       expect(res.body[1].id).toBe('conv-2');

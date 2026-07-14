@@ -79,6 +79,8 @@ const apiLimiter = rateLimit({
 });
 
 // Servir archivos estáticos de convenios
+app.use('/api/uploads/convenios', express.static(path.join(__dirname, '../convenios')));
+
 // --- RUTAS ---
 
 // 1. Ruta base de prueba

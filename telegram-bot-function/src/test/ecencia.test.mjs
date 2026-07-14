@@ -264,7 +264,7 @@ describe('Ecencia Validation', () => {
       const menuDiarioData = {
         fecha: '2026-07-13',
         alimentos_ids: [1, 2, 3],
-        imagen_url: 'http://image.jpg'
+        imagen_url: 'https://image.jpg'
       };
       expect(ecencia.parseBody(ecencia.schemas.menuDiario, menuDiarioData)).toBeDefined();
 
