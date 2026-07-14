@@ -9,7 +9,7 @@ const mockAdminId = 'f6321bf4-3eb3-4bf0-967a-1234567890ab';
 const mockEmpId = 'a1234567-1234-1234-1234-1234567890cd';
 const nonExistentId = '00000000-0000-0000-0000-000000000000';
 
-let empleadosRouter;
+
 let forceDbError = false;
 let forceAuthError = false;
 let fetchSpy;
