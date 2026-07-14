@@ -6,7 +6,7 @@ export default defineConfig({
     fileParallelism: false, // EJECUTA LOS TESTS EN SERIE PARA EVITAR EL BUG DE COVERAGE DE V8
     setupFiles: ['dotenv/config'],
     coverage: {
-      provider: 'v8',
+      provider: 'istanbul',
       all: true,
       reporter: ['text', 'lcov', 'html'],
       reportsDirectory: './coverage',
