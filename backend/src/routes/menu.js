@@ -302,7 +302,7 @@ router.post('/enviar', async (req, res) => {
     const dailyMenu = await saveDailyMenu(adminClient, opciones, photoUrl, req.user.id);
     menuSaved = true;
     await saveActiveMenuState(adminClient, dailyMenu.fecha, opciones, categories, photoUrl, req.user.id);
-    const cleanup = await cleanupOldMenuImages(adminClient);
+    const cleanup = await menuImageCleanup.cleanupOldMenuImages(adminClient);
     const webhookUrl = getN8nMenuWebhookUrl();
     const clientIds = cleanClientIds(payload.clientIds);
 
