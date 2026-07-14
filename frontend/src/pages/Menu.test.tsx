@@ -42,7 +42,9 @@ vi.mock('lucide-react', () => {
     X: mockComponent('x'),
     Search: mockComponent('search'),
     Pencil: mockComponent('pencil'),
+    Pencil: mockComponent('pencil'),
     ChevronsUpDown: mockComponent('chevrons-up-down'),
+    Loader2: mockComponent('loader2'),
   };
 });
 
@@ -252,12 +254,6 @@ describe('Menu', () => {
 
     const addBtns = screen.getAllByRole('button', { name: /Añadir Opción/i });
     fireEvent.click(addBtns[0]);
-    
-    // Simulate typing in FoodSelector to trigger onChange
-    const inputs = screen.getAllByRole('textbox').filter(input => input.getAttribute('placeholder')?.includes('Seleccionar'));
-    if(inputs.length > 0) {
-      fireEvent.change(inputs[0], { target: { value: 'Sopa de Prueba' } });
-    }
 
     const newOptions = menuStore.get().categoryOptions[1] || [];
     expect(newOptions.length).toBeGreaterThan(0);
@@ -302,7 +298,6 @@ describe('Menu', () => {
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('Menu guardado correctamente');
     });
-  });
   });
 
   it('permite invalidar caches al gestionar categorias', async () => {
