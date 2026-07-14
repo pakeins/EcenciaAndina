@@ -221,6 +221,39 @@ describe('Rutas de Convenios', () => {
       const historialCalls = fetchSpy.mock.calls.filter(call => call[0].toString().includes('/rest/v1/conveniohistorial') && call[1]?.method === 'POST');
       expect(historialCalls.length).toBe(1);
     });
+
+    it('No guarda historial si las fechas no cambian en la renovacion', async () => {
+      // Las fechas de conv-1 son '2025-01-01' y '2025-12-31'
+      const payload = { fecha_inicio: '2025-01-01', fecha_caducidad: '2025-12-31' };
+      const res = await request(app).put('/api/convenios/conv-1').set('Authorization', 'Bearer token').send(payload);
+      
+      expect(res.status).toBe(200);
+      const historialCalls = fetchSpy.mock.calls.filter(call => call[0].toString().includes('/rest/v1/conveniohistorial') && call[1]?.method === 'POST');
+      // No deberia haber llamadas porque handleConvenioRenewal retorna false
+      expect(historialCalls.length).toBe(0);
+    });
+
+    it('Imprime un error en consola si falla el insert del historial', async () => {
+      const originalConsoleError = console.error;
+      console.error = vi.fn();
+      
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockImplementation(async (url, options) => {
+        if (url.toString().includes('/rest/v1/conveniohistorial') && options?.method === 'POST') {
+          return new Response(JSON.stringify({ message: 'history insert error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        }
+        return originalFetch(url, options);
+      });
+
+      const payload = { fecha_inicio: '2027-01-01', fecha_caducidad: '2027-12-31' };
+      const res = await request(app).put('/api/convenios/conv-1').set('Authorization', 'Bearer token').send(payload);
+      
+      expect(res.status).toBe(200);
+      expect(console.error).toHaveBeenCalledWith('Error al guardar historial:', expect.objectContaining({ message: 'history insert error' }));
+      
+      console.error = originalConsoleError;
+      global.fetch = originalFetch;
+    });
   });
 
   describe('Clientes de Convenio', () => {
@@ -259,6 +292,59 @@ describe('Rutas de Convenios', () => {
     it('POST /api/convenios/:id/clientes/nuevo rechaza cédula duplicada', async () => {
       const res = await request(app).post('/api/convenios/conv-1/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: 'duplicate', nombre: 'Nuevo', apellido: 'Cli' });
       expect(res.status).toBe(400);
+    });
+
+    it('POST /api/convenios/:id/clientes/nuevo falla si se supera el cupo máximo', async () => {
+      const res = await request(app).post('/api/convenios/conv-lleno/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: '4444444444', nombre: 'Nuevo', apellido: 'Cli' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/cupo máximo/);
+    });
+
+    it('POST /api/convenios/:id/clientes/nuevo lanza 404 si la base de datos falla al validar cupo', async () => {
+      forceDbError = true;
+      const res = await request(app).post('/api/convenios/conv-1/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: '2222222222' });
+      expect(res.status).toBe(404);
+    });
+
+    it('POST /api/convenios/:id/clientes/nuevo lanza 500 si ocurre un error al insertar que no es duplicate key', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockImplementation(async (url, options) => {
+        const urlStr = url.toString();
+        if (urlStr.includes('/rest/v1/clientes') && options?.method === 'POST') {
+          return new Response(JSON.stringify({ message: 'generic insertion error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        }
+        return originalFetch(url, options);
+      });
+
+      const res = await request(app)
+        .post('/api/convenios/conv-1/clientes/nuevo')
+        .set('Authorization', 'Bearer token')
+        .send({ cedula: '1712345678', nombre: 'Test', apellido: 'Test', telefono: '0999999999' });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('generic insertion error');
+      global.fetch = originalFetch;
+    });
+
+    it('POST /api/convenios/:id/clientes/nuevo lanza 500 si ocurre error al vincular en clientes_convenios', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockImplementation(async (url, options) => {
+        const urlStr = url.toString();
+        // Fallar unicamente en el segundo insert (clientes_convenios)
+        if (urlStr.includes('/rest/v1/clientes_convenios') && options?.method === 'POST') {
+          return new Response(JSON.stringify({ message: 'link error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        }
+        return originalFetch(url, options);
+      });
+
+      const res = await request(app)
+        .post('/api/convenios/conv-1/clientes/nuevo')
+        .set('Authorization', 'Bearer token')
+        .send({ cedula: '3333333333', nombre: 'Nuevo', apellido: 'Cli' });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('link error');
+      global.fetch = originalFetch;
     });
 
     it('DELETE /api/convenios/:id/clientes/:clienteId desvincula el cliente', async () => {
@@ -317,6 +403,15 @@ describe('Rutas de Convenios', () => {
       expect(res.status).toBe(400);
     });
     
+    it('POST /api/convenios/:id/upload rechaza archivos que no sean PDF o imagenes', async () => {
+      const res = await request(app)
+        .post('/api/convenios/conv-1/upload')
+        .set('Authorization', 'Bearer token')
+        .attach('archivo', Buffer.from('fake text data'), 'documento.txt');
+        
+      expect(res.status).toBe(500); // Express multer error middleware returns 500 by default unless handled specifically
+    });
+
     it('POST /api/convenios/:id/upload sube el archivo con éxito', async () => {
       const res = await request(app)
         .post('/api/convenios/conv-1/upload')
@@ -378,6 +473,29 @@ describe('Rutas de Convenios', () => {
         id_cliente: 'cli-1',
       });
       expect(res.status).toBe(404);
+    });
+
+    it('POST /api/convenios/:id/clientes retorna 500 si DB falla en insert', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockImplementation(async (url, options) => {
+        const urlStr = url.toString();
+        if (urlStr.includes('/rest/v1/clientes_convenios') && options?.method === 'POST') {
+          return new Response(JSON.stringify({ message: 'generic insertion error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        }
+        return originalFetch(url, options);
+      });
+
+      const res = await request(app).post('/api/convenios/conv-1/clientes').set('Authorization', 'Bearer token').send({
+        id_cliente: 'cli-rep',
+      });
+      expect(res.status).toBe(500);
+      global.fetch = originalFetch;
+    });
+
+    it('GET /api/convenios/:id/clientes retorna 500 si la base de datos falla', async () => {
+      forceDbError = true;
+      const res = await request(app).get('/api/convenios/conv-1/clientes').set('Authorization', 'Bearer token');
+      expect(res.status).toBe(500);
     });
 
     it('POST /api/convenios/:id/upload retorna 500 si la base de datos falla', async () => {

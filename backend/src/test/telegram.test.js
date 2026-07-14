@@ -155,4 +155,75 @@ describe('Telegram Routes (/api/telegram/broadcast-sessions)', () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toBeDefined();
   });
+
+  // --- Nuevos tests para 100% coverage ---
+
+  it('debe manejar req.body indefinido o vacío', async () => {
+    // Para probar la linea: const { menu = {}, ... } = req.body || {};
+    // enviamos algo nulo si express lo permitiera o sin body
+    // request(app) manda al menos {} si no ponemos send, pero podemos mandar un string vacio.
+    const res = await request(app)
+      .post('/api/telegram/broadcast-sessions')
+      .set('X-Ecencia-Webhook-Secret', 'supersecret')
+      .send(); // Esto genera un req.body vacio {} o nulo dependiendo de express.json()
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    // Como menu esta vacio, el caption solo deberia tener el titulo y despedida
+    expect(res.body[0].caption).toBe('🍽️ <b>Menú del Día</b>\n\n¡Que disfrutes tu almuerzo! 😊');
+  });
+
+  it('debe manejar subscriptions nulas de la base de datos', async () => {
+    // Forzamos a que supabase responda con null para subscriptions
+    fetchSpy.mockImplementationOnce(async (url) => {
+      if (url.toString().includes('/rest/v1/telegram_subscriptions')) {
+        return new Response(JSON.stringify(null), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify([]), { status: 200 });
+    });
+
+    const res = await request(app)
+      .post('/api/telegram/broadcast-sessions')
+      .set('X-Ecencia-Webhook-Secret', 'supersecret')
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('debe filtrar valores nulos o indefinidos en cancelledChatIds', async () => {
+    const payload = {
+      cancelledChatIds: [null, undefined, '12345', '']
+    };
+
+    const res = await request(app)
+      .post('/api/telegram/broadcast-sessions')
+      .set('X-Ecencia-Webhook-Secret', 'supersecret')
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    const cancellations = res.body.filter(s => s.isCancellation);
+    expect(cancellations).toHaveLength(1);
+    expect(cancellations[0].chatId).toBe('12345');
+  });
+
+  it('debe manejar un error de base de datos sin un mensaje especifico', async () => {
+    fetchSpy.mockImplementationOnce(async (url) => {
+      if (url.toString().includes('/rest/v1/telegram_subscriptions')) {
+        // Enviar un error de postgrest crudo que podria no tener "message" parseable 
+        // o lanzar una excepcion vacia
+        return new Response(JSON.stringify({}), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify([]), { status: 200 });
+    });
+
+    const res = await request(app)
+      .post('/api/telegram/broadcast-sessions')
+      .set('X-Ecencia-Webhook-Secret', 'supersecret')
+      .send({});
+
+    expect(res.status).toBe(500);
+    // Verificamos el mensaje por defecto cuando error.message es indefinido
+    expect(res.body.error).toBe('No se pudieron preparar las sesiones de broadcast.');
+  });
 });
