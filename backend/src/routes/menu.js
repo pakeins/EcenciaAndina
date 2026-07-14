@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 const { getAdminClient } = require('../config/supabase');
 const { parseBody, schemas, sendValidationError } = require('../validation/ecencia');
-const { cleanupOldMenuImages } = require('../services/menuImageCleanup');
+const menuImageCleanup = require('../services/menuImageCleanup');
 const { findOrCreateFood } = require('../services/menuCatalog');
 
 const router = express.Router();
@@ -102,7 +102,7 @@ const requireN8nCleanupSecret = (req, res, next) => {
 const runImageCleanup = async (_req, res) => {
   try {
     const adminClient = getAdminClient();
-    const result = await cleanupOldMenuImages(adminClient);
+    const result = await menuImageCleanup.cleanupOldMenuImages(adminClient);
     res.json({ mensaje: 'Limpieza de imagenes ejecutada.', ...result });
   } catch (error) {
     console.error('Error limpiando imagenes de menu:', error);

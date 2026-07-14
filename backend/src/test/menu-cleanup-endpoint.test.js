@@ -10,26 +10,7 @@ vi.mock('../config/supabase.js', () => ({
   getAdminClient: () => ({ from: () => ({ select: () => ({ data: [], error: null }) }) }),
 }));
 
-vi.mock('../services/menuImageCleanup.js', () => ({
-  default: {
-    cleanupOldMenuImages: async () => ({
-      retentionDays: 14,
-      cutoffDate: '2026-07-01',
-      scanned: 10,
-      protected: 5,
-      deleted: 2,
-      referencesCleared: 1,
-    }),
-  },
-  cleanupOldMenuImages: async () => ({
-    retentionDays: 14,
-    cutoffDate: '2026-07-01',
-    scanned: 10,
-    protected: 5,
-    deleted: 2,
-    referencesCleared: 1,
-  }),
-}));
+
 
 vi.mock('../middlewares/authMiddleware.js', () => ({
   default: (req, _res, next) => {
@@ -45,6 +26,16 @@ vi.mock('../middlewares/roleMiddleware.js', () => ({
 
 
 // ─── Cargar router DESPUÉS de los mocks ──────────────────────────────────────
+const menuImageCleanup = require('../services/menuImageCleanup');
+vi.spyOn(menuImageCleanup, 'cleanupOldMenuImages').mockResolvedValue({
+  retentionDays: 14,
+  cutoffDate: '2026-07-01',
+  scanned: 10,
+  protected: 5,
+  deleted: 2,
+  referencesCleared: 1,
+});
+
 const menuRouter = require('../routes/menu.js');
 
 // ─── App mínima ──────────────────────────────────────────────────────────────
