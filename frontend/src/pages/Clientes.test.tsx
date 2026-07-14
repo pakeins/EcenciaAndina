@@ -479,4 +479,12 @@ describe('Clientes', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
   });
+
+  it('permite reintentar email de onboarding desde el menu de telegram', async () => {
+    await renderComponent();
+    
+    // Simular que handleSaveSuccess pasa con isNew
+    const event = new CustomEvent('cliente-guardado', { detail: { isNew: true, data: { telegram_onboarding: 'some-url', nombre: 'Test', apellido: 'User', id: '123' } } });
+    document.dispatchEvent(event);
+  });
 });

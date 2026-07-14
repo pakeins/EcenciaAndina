@@ -404,12 +404,12 @@ const handleAcceptedSession = async (parsed, traceId) => {
     const kind = parts[0];
     const code = parts[1];
     if (kind !== 'tipo') {
-      await telegramApi.sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos));
+      await telegramApi.sendMessage(chatId, 'Elige el tipo de almuerzo con los botones.', tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos));
       return;
     }
     const tipo = TIPOS_ALMUERZO.find((t) => t.code === code);
     if (!tipo) {
-      await telegramApi.sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos));
+      await telegramApi.sendMessage(chatId, 'Tipo de almuerzo no reconocido. Usa los botones.', tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos));
       return;
     }
     
@@ -536,7 +536,7 @@ const promptMenu = async (chatId, client) => {
   const photoUrl = activeMenuState?.photoUrl || process.env.N8N_ECENCIA_MENU_IMAGE_URL || 'https://lkffhdcavohaxdihvwlb.supabase.co/storage/v1/object/public/ecencia-menu-assets/telegram/ecencia-menu-demo.png';
 
   const caption = menuCaption(session.date);
-  const inlineKeyboardData = await tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos);
+  const inlineKeyboardData = tipoAlmuerzoKeyboard(session.sid, session.convenio?.tipos_almuerzo_permitidos);
 
   await telegramApi.sendPhoto(chatId, photoUrl, caption, inlineKeyboardData, 'HTML');
 };

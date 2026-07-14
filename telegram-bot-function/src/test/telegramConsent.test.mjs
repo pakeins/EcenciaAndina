@@ -343,11 +343,13 @@ describe('claimInvitation', () => {
       const client = makeFakeClient();
       await consumeInvitation('inv-123', () => client);
       // Completa sin errores
+      expect(client._records.telegram_invitations).toBeDefined();
     });
 
     it('no hace nada si el invitationId es nulo o indefinido', async () => {
       const client = makeFakeClient();
       await consumeInvitation(null, () => client);
+      expect(Object.keys(client._records).length).toBe(0);
     });
 
     it('lanza error si falla la actualización en base de datos', async () => {
@@ -379,6 +381,7 @@ describe('claimInvitation', () => {
       }, () => client);
 
       // Completa sin errores y debe haber insertado en el store
+      expect(client._records.telegram_consent_events.length).toBe(1);
     });
 
     it('registra evento sin incluir aviso si includeNotice=false', async () => {
@@ -390,6 +393,7 @@ describe('claimInvitation', () => {
         method: 'telegram_command',
         includeNotice: false
       }, () => client);
+      expect(client._records.telegram_consent_events.length).toBe(1);
     });
   });
 });
