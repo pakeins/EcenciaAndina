@@ -58,6 +58,9 @@ const EMPLEADO_INACTIVO = {
 
       // --- Supabase Auth (Respuestas crudas del servidor de Supabase) ---
       if (urlStr.includes('/auth/v1/token') && urlStr.includes('grant_type=password')) {
+        if (body?.email === 'error_500@test.com') {
+          return Promise.reject(new Error('Fatal internal error'));
+        }
         if (body?.email === 'admin@test.com' && body?.password === 'correctpass') {
           return jsonResponse({
             access_token: 'valid-access-token',
@@ -261,9 +264,10 @@ const EMPLEADO_INACTIVO = {
     });
 
     it('retorna 500 si ocurre un error interno', async () => {
+      // Pasando un objeto como identificador para forzar un TypeError en loginId.includes()
       const res = await request(app)
         .post('/api/auth/login')
-        .send({ identificador: 'error_500@test.com', password: 'correctpass' });
+        .send({ identificador: { force: 'error' }, password: 'correctpass' });
       expect(res.status).toBe(500);
     });
   });
