@@ -340,16 +340,21 @@ describe('claimInvitation', () => {
 
   describe('consumeInvitation', () => {
     it('consume la invitacion actualizando consumed_at', async () => {
-      const client = makeFakeClient();
-      await consumeInvitation('inv-123', () => client);
-      // Completa sin errores
-      expect(client._records.telegram_invitations).toBeDefined();
+      const dbMock = {
+        from: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockResolvedValue({ error: null })
+      };
+      await consumeInvitation('inv-123', () => dbMock);
+      expect(dbMock.from).toHaveBeenCalledWith('telegram_invitations');
+      expect(dbMock.update).toHaveBeenCalled();
     });
 
     it('no hace nada si el invitationId es nulo o indefinido', async () => {
-      const client = makeFakeClient();
-      await consumeInvitation(null, () => client);
-      expect(Object.keys(client._records).length).toBe(0);
+      const dbMock = { from: vi.fn() };
+      await consumeInvitation(null, () => dbMock);
+      expect(dbMock.from).not.toHaveBeenCalled();
     });
 
     it('lanza error si falla la actualización en base de datos', async () => {
@@ -365,7 +370,10 @@ describe('claimInvitation', () => {
 
   describe('recordConsentEvent', () => {
     it('registra evento de consentimiento insertando en telegram_consent_events', async () => {
-      const client = makeFakeClient();
+      const dbMock = {
+        from: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockResolvedValue({ error: null })
+      };
       
       await recordConsentEvent({
         idCliente: 'cli-123',
@@ -378,22 +386,27 @@ describe('claimInvitation', () => {
         phone: '593999999999',
         evidence: { ip: '127.0.0.1' },
         includeNotice: true
-      }, () => client);
+      }, () => dbMock);
 
-      // Completa sin errores y debe haber insertado en el store
-      expect(client._records.telegram_consent_events.length).toBe(1);
+      expect(dbMock.from).toHaveBeenCalledWith('telegram_consent_events');
+      expect(dbMock.insert).toHaveBeenCalled();
     });
 
     it('registra evento sin incluir aviso si includeNotice=false', async () => {
-      const client = makeFakeClient();
+      const dbMock = {
+        from: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockResolvedValue({ error: null })
+      };
       
       await recordConsentEvent({
         idCliente: 'cli-123',
         eventType: 'policy_reconsent_requested',
         method: 'telegram_command',
         includeNotice: false
-      }, () => client);
-      expect(client._records.telegram_consent_events.length).toBe(1);
+      }, () => dbMock);
+      
+      expect(dbMock.from).toHaveBeenCalledWith('telegram_consent_events');
+      expect(dbMock.insert).toHaveBeenCalled();
     });
   });
 });
