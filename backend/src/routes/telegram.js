@@ -27,7 +27,7 @@ const requireWebhookSecret = (req, res, next) => {
   // while the backend/dashboard uses "X-Ecencia-Webhook-Secret"
   const provided = req.get('X-Ecencia-Webhook-Secret') || req.get('X-Eciencia-Webhook-Secret');
   if (!secureEquals(provided, expectedSecret)) {
-    console.error(`[broadcast-sessions] 401 Unauthorized. Received secret does not match.`);
+    console.error('[broadcast-sessions] 401 Unauthorized. Received secret does not match.');
     return res.status(401).json({ error: 'Acceso no autorizado al endpoint de broadcast.' });
   }
   next();
