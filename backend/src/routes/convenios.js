@@ -229,16 +229,15 @@ router.post('/', adminOnly, async (req, res) => {
   }
 });
 
-// ACTUALIZAR CONVENIO (Y manejar historial si es renovación)
-router.put('/:id', adminOnly, async (req, res) => {
-  const { id } = req.params;
-  const { activo, ruc, nombre_empresa, fecha_inicio, fecha_caducidad, tipos_almuerzo_permitidos, ...rest } = req.body;
-  const actualizacion = { ...rest, updated_by: req.user.id };
-  
+const buildConvenioUpdatePayload = (body, userId) => {
+  const { activo, ruc, nombre_empresa, fecha_inicio, fecha_caducidad, tipos_almuerzo_permitidos, cupo_maximo, ...rest } = body;
+  const actualizacion = { ...rest, updated_by: userId };
+  let error = null;
+
   if (activo !== undefined) actualizacion.esta_activo = activo;
   if (ruc) {
     if (!/^\d+$/.test(ruc) || ruc.length !== 13) {
-      return res.status(400).json({ error: 'El RUC debe tener exactamente 13 dígitos numéricos.' });
+      error = 'El RUC debe tener exactamente 13 dígitos numéricos.';
     }
     actualizacion.ruc = ruc;
   }
@@ -247,35 +246,50 @@ router.put('/:id', adminOnly, async (req, res) => {
   if (fecha_caducidad) actualizacion.fecha_caducidad = fecha_caducidad;
   if (tipos_almuerzo_permitidos !== undefined) actualizacion.tipos_almuerzo_permitidos = tipos_almuerzo_permitidos;
   
-  if (req.body.cupo_maximo !== undefined) {
-    if (req.body.cupo_maximo < 0) return res.status(400).json({ error: 'El cupo máximo no puede ser menor a 0.' });
-    actualizacion.cupo_maximo = req.body.cupo_maximo;
+  if (cupo_maximo !== undefined) {
+    if (cupo_maximo < 0) error = 'El cupo máximo no puede ser menor a 0.';
+    actualizacion.cupo_maximo = cupo_maximo;
+  }
+  return { actualizacion, error, fecha_inicio, fecha_caducidad };
+};
+
+const handleConvenioRenewal = async (adminClient, id, actual, fecha_inicio, fecha_caducidad) => {
+  const formatDate = (dateStr) => dateStr ? new Date(dateStr).toISOString().split('T')[0] : null;
+  const dbInicio = formatDate(actual.fecha_inicio);
+  const reqInicio = formatDate(fecha_inicio);
+  const dbFin = formatDate(actual.fecha_caducidad);
+  const reqFin = formatDate(fecha_caducidad);
+
+  if ((reqInicio && reqInicio !== dbInicio) || (reqFin && reqFin !== dbFin)) {
+    const { error: insertError } = await adminClient.from('conveniohistorial').insert([{
+      id_convenio: id,
+      fecha_inicio: actual.fecha_inicio,
+      fecha_caducidad: actual.fecha_caducidad,
+      archivo_firmado: actual.archivo_firmado
+    }]);
+    if (insertError) console.error('Error al guardar historial:', insertError);
+    return true; // Indicate that it was renewed and we need to reset the file
+  }
+  return false;
+};
+
+// ACTUALIZAR CONVENIO (Y manejar historial si es renovación)
+router.put('/:id', adminOnly, async (req, res) => {
+  const { id } = req.params;
+  const { actualizacion, error: payloadError, fecha_inicio, fecha_caducidad } = buildConvenioUpdatePayload(req.body, req.user.id);
+  
+  if (payloadError) {
+    return res.status(400).json({ error: payloadError });
   }
 
   try {
     const adminClient = getAdminClient();
 
-    // Si se están actualizando las fechas (Renovación), guardamos el actual en el historial
     if (fecha_inicio || fecha_caducidad) {
       const { data: actual } = await adminClient.from('convenios').select('*').eq('id_convenio', id).single();
       if (actual) {
-        // Verificar si las fechas realmente cambiaron para considerar que es una renovación
-        const formatDate = (dateStr) => dateStr ? new Date(dateStr).toISOString().split('T')[0] : null;
-        const dbInicio = formatDate(actual.fecha_inicio);
-        const reqInicio = formatDate(fecha_inicio);
-        const dbFin = formatDate(actual.fecha_caducidad);
-        const reqFin = formatDate(fecha_caducidad);
-
-        if ((reqInicio && reqInicio !== dbInicio) || (reqFin && reqFin !== dbFin)) {
-          // Solo guardamos en historial si ya tenía fechas previas y hubo un cambio
-          const { error: insertError } = await adminClient.from('conveniohistorial').insert([{
-            id_convenio: id,
-            fecha_inicio: actual.fecha_inicio,
-            fecha_caducidad: actual.fecha_caducidad,
-            archivo_firmado: actual.archivo_firmado
-          }]);
-          if (insertError) console.error('Error al guardar historial:', insertError);
-          // Al renovar, el nuevo periodo empieza sin archivo firmado (debe subirse el nuevo)
+        const wasRenewed = await handleConvenioRenewal(adminClient, id, actual, fecha_inicio, fecha_caducidad);
+        if (wasRenewed) {
           actualizacion.archivo_firmado = null;
         }
       }

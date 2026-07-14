@@ -50,6 +50,41 @@ const {
   validateMenuImageInput
 } = menuService;
 
+const cancelOrdersForMenuCorrection = async (adminClient, today) => {
+  const startOfDay = new Date(`${today}T00:00:00-05:00`).toISOString();
+  const endOfDay = new Date(`${today}T23:59:59.999-05:00`).toISOString();
+
+  const { data: ordenesParaCancelar } = await adminClient
+    .from('ordenes')
+    .select('id_orden, id_cliente')
+    .eq('id_origen', 1)
+    .gte('created_at', startOfDay)
+    .lte('created_at', endOfDay)
+    .neq('id_estado', 3);
+
+  let cancelledChatIds = [];
+  if (ordenesParaCancelar && ordenesParaCancelar.length > 0) {
+    const idOrdenes = ordenesParaCancelar.map((o) => o.id_orden);
+    const idClientes = [...new Set(ordenesParaCancelar.map((o) => o.id_cliente).filter(Boolean))];
+
+    await adminClient
+      .from('ordenes')
+      .update({ id_estado: 3, observaciones: 'Cancelado automáticamente por corrección de menú' })
+      .in('id_orden', idOrdenes);
+
+    if (idClientes.length > 0) {
+      const { data: subs } = await adminClient
+        .from('telegram_subscriptions')
+        .select('chat_id')
+        .in('id_cliente', idClientes)
+        .eq('is_active', true);
+      if (subs) {
+        cancelledChatIds = subs.map((s) => s.chat_id).filter(Boolean);
+      }
+    }
+  }
+  return cancelledChatIds;
+};
 const requireN8nCleanupSecret = (req, res, next) => {
   const expectedSecret = process.env.N8N_MENU_WEBHOOK_SECRET;
   if (!expectedSecret) {
@@ -284,37 +319,7 @@ router.post('/enviar', async (req, res) => {
 
     let cancelledChatIds = [];
     if (isResend && isMenuDifferent) {
-      const startOfDay = new Date(`${today}T00:00:00-05:00`).toISOString();
-      const endOfDay = new Date(`${today}T23:59:59.999-05:00`).toISOString();
-
-      const { data: ordenesParaCancelar } = await adminClient
-        .from('ordenes')
-        .select('id_orden, id_cliente')
-        .eq('id_origen', 1)
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay)
-        .neq('id_estado', 3);
-
-      if (ordenesParaCancelar && ordenesParaCancelar.length > 0) {
-        const idOrdenes = ordenesParaCancelar.map((o) => o.id_orden);
-        const idClientes = [...new Set(ordenesParaCancelar.map((o) => o.id_cliente).filter(Boolean))];
-
-        await adminClient
-          .from('ordenes')
-          .update({ id_estado: 3, observaciones: 'Cancelado automáticamente por corrección de menú' })
-          .in('id_orden', idOrdenes);
-
-        if (idClientes.length > 0) {
-          const { data: subs } = await adminClient
-            .from('telegram_subscriptions')
-            .select('chat_id')
-            .in('id_cliente', idClientes)
-            .eq('is_active', true);
-          if (subs) {
-            cancelledChatIds = subs.map((s) => s.chat_id).filter(Boolean);
-          }
-        }
-      }
+      cancelledChatIds = await cancelOrdersForMenuCorrection(adminClient, today);
     }
 
     const response = await fetch(webhookUrl, {

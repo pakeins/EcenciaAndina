@@ -47,32 +47,79 @@ const requestPasswordReset = async ({ email, adminClient, authClient, redirectTo
 };
 
 // Ruta para el LOGIN
+const fetchEmployeeEmail = async (adminClient, loginId) => {
+  if (String(loginId).includes('@')) return { email: String(loginId) };
+  
+  const { data: empleado, error } = await adminClient
+    .from('empleados')
+    .select('correo')
+    .eq('nombre_usuario', loginId)
+    .single();
+
+  if (error || !empleado) {
+    console.error('Login: Usuario no encontrado en tabla empleados:', loginId, error?.message); // NOSONAR
+    return { error: 'Usuario no encontrado' };
+  }
+  return { email: empleado.correo };
+};
+
+const getEmployeeData = async (adminClient, uid, uemail) => {
+  const { data: byIdData, error: byIdError } = await adminClient
+    .from('empleados')
+    .select('*, roles(nombre_rol)')
+    .eq('id', uid)
+    .limit(1);
+
+  if (byIdError) console.error('Login: Error buscando datos del empleado por ID:', byIdError.message);
+  if (byIdData && byIdData.length > 0) return byIdData[0];
+
+  const { data: byEmailData, error: byEmailError } = await adminClient
+    .from('empleados')
+    .select('*, roles(nombre_rol)')
+    .eq('correo', uemail)
+    .limit(1);
+
+  if (byEmailError) console.error('Login: Error en fallback por correo:', byEmailError.message);
+  if (byEmailData && byEmailData.length > 0) return byEmailData[0];
+  
+  return null;
+};
+
+const determineFrontendRole = (empleadoData) => {
+  const rawRoles = empleadoData.roles || empleadoData.Roles;
+  const roleName = (Array.isArray(rawRoles) ? rawRoles[0]?.nombre_rol : rawRoles?.nombre_rol) || '';
+  const normRole = roleName.toLowerCase().trim();
+  
+  return ['administrativo', 'administrador', 'admin'].includes(normRole) ? 'administrador' : 'caja';
+};
+
+const syncUserMetadata = async (adminClient, authData, empleadoData, rolFrontend) => {
+  const meta = authData.user.user_metadata || {};
+  if (meta.rol !== rolFrontend || meta.esta_activo !== empleadoData.esta_activo) {
+    await adminClient.auth.admin.updateUserById(authData.user.id, {
+      user_metadata: { 
+        ...meta,
+        rol: rolFrontend,
+        esta_activo: empleadoData.esta_activo
+      }
+    });
+  }
+};
+
+// Ruta para el LOGIN
 router.post('/login', async (req, res) => {
-  const { identificador, password } = req.body;
-  const loginId = identificador || req.body.email;
+  const loginId = req.body.identificador || req.body.email;
+  const { password } = req.body;
 
   if (!loginId || !password) {
     return res.status(400).json({ mensaje: 'Identificador y contraseña obligatorios' });
   }
 
   try {
-    let emailToLogin = loginId;
     const adminClient = getAdminClient();
-
-    // Si es nombre de usuario, buscar correo
-    if (!loginId.includes('@')) {
-      const { data: empleado, error: empError } = await adminClient
-        .from('empleados')
-        .select('correo')
-        .eq('nombre_usuario', loginId)
-        .single();
-
-      if (empError || !empleado) {
-        console.error('Login: Usuario no encontrado en tabla empleados:', loginId, empError?.message); // NOSONAR
-        return res.status(401).json({ mensaje: 'Usuario no encontrado' });
-      }
-      emailToLogin = empleado.correo;
-    }
+    
+    const { email: emailToLogin, error: emailError } = await fetchEmployeeEmail(adminClient, loginId);
+    if (emailError) return res.status(401).json({ mensaje: emailError });
 
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: emailToLogin,
@@ -84,40 +131,9 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ mensaje: 'Credenciales inválidas' });
     }
 
-    const uid = authData.user.id;
-    const uemail = authData.user.email;
-
-    let { data: empleadosData, error: dbError } = await adminClient
-      .from('empleados')
-      .select('*, roles(nombre_rol)')
-      .eq('id', uid)
-      .limit(1);
-
-    if (dbError) {
-      console.error('Login: Error buscando datos del empleado:', dbError.message);
-    }
-
-    // Fallback por correo si falla el ID
-    if (!dbError && (!empleadosData || empleadosData.length === 0)) {
-      const { data: fallbackData, error: fbError } = await adminClient
-        .from('empleados')
-        .select('*, roles(nombre_rol)')
-        .eq('correo', uemail)
-        .limit(1);
-      
-      if (fbError) {
-        console.error('Login: Error en fallback por correo:', fbError.message);
-      }
-
-      if (fallbackData && fallbackData.length > 0) {
-        empleadosData = fallbackData;
-      }
-    }
-
-    const empleadoData = empleadosData && empleadosData.length > 0 ? empleadosData[0] : null;
-
+    const empleadoData = await getEmployeeData(adminClient, authData.user.id, authData.user.email);
     if (!empleadoData) {
-      console.error('Login: Empleado no encontrado tras auth exitosa:', uid, uemail);
+      console.error('Login: Empleado no encontrado tras auth exitosa:', authData.user.id, authData.user.email);
       return res.status(404).json({ mensaje: 'Empleado no registrado en la base de datos' });
     }
 
@@ -125,35 +141,16 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ mensaje: 'Su cuenta ha sido desactivada.' });
     }
 
-    // Mapeo de Rol para el Frontend
-    let rolFrontend = 'caja';
-    const rawRoles = empleadoData.roles || empleadoData.Roles;
-    const roleName = (Array.isArray(rawRoles) ? rawRoles[0]?.nombre_rol : rawRoles?.nombre_rol) || '';
-    const normRole = roleName.toLowerCase().trim();
+    const rolFrontend = determineFrontendRole(empleadoData);
+    await syncUserMetadata(adminClient, authData, empleadoData, rolFrontend);
 
-    if (['administrativo', 'administrador', 'admin'].includes(normRole)) {
-      rolFrontend = 'administrador';
-    }
-
-    // ACTUALIZAR METADATOS EN SUPABASE AUTH (para que el middleware no tenga que consultar la DB)
-    // Solo lo hacemos si hay cambios o para asegurar sincronización
-    if (authData.user.user_metadata?.rol !== rolFrontend || authData.user.user_metadata?.esta_activo !== empleadoData.esta_activo) {
-      await adminClient.auth.admin.updateUserById(uid, {
-        user_metadata: { 
-          ...authData.user.user_metadata,
-          rol: rolFrontend,
-          esta_activo: empleadoData.esta_activo
-        }
-      });
-    }
-
-    res.json({
+    return res.json({
       mensaje: '¡Acceso concedido!',
       token: authData.session.access_token,
       refresh_token: authData.session.refresh_token,
       user: {
         id: empleadoData.id,
-        email: uemail,
+        email: authData.user.email,
         nombre: empleadoData.nombre,
         apellido: empleadoData.apellido,
         nombre_usuario: empleadoData.nombre_usuario,
@@ -162,7 +159,7 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login: Error fatal:', error);
-    res.status(500).json({ mensaje: 'Error interno del servidor', detalle: error.message });
+    return res.status(500).json({ mensaje: 'Error interno del servidor', detalle: error.message });
   }
 });
 
