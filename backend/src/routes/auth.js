@@ -48,7 +48,7 @@ const requestPasswordReset = async ({ email, adminClient, authClient, redirectTo
 
 // Ruta para el LOGIN
 const fetchEmployeeEmail = async (adminClient, loginId) => {
-  if (String(loginId).includes('@')) return { email: String(loginId) };
+  if (loginId.includes('@')) return { email: loginId };
   
   const { data: empleado, error } = await adminClient
     .from('empleados')

@@ -107,6 +107,10 @@ describe('Rutas HTTP de Auth', () => {
       }
 
       // --- Supabase PostgREST (Base de datos) ---
+      if (urlStr.includes('error_500')) {
+        return Promise.reject(new Error('Fatal internal error'));
+      }
+
       if (urlStr.includes('/rest/v1/empleados')) {
         let acceptHeader = '';
         if (options.headers && typeof options.headers.get === 'function') {
