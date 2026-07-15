@@ -15,28 +15,28 @@ describe('Rutas HTTP de Auth', () => {
     });
 
   const EMPLEADO_ADMIN = {
-  id: '11111111-1111-4111-8111-111111111111',
-  nombre: 'Admin',
-  apellido: 'Test',
-  nombre_usuario: 'admin',
-  correo: 'admin@test.com',
-  esta_activo: true,
-  roles: { nombre_rol: 'administrador' },
-  Roles: { nombre_rol: 'administrador' }
-};
+    id: '11111111-1111-4111-8111-111111111111',
+    nombre: 'Admin',
+    apellido: 'Test',
+    nombre_usuario: 'admin',
+    correo: 'admin@test.com',
+    esta_activo: true,
+    roles: { nombre_rol: 'administrador' },
+    Roles: { nombre_rol: 'administrador' }
+  };
 
-const EMPLEADO_CAJA = {
-  id: '33333333-3333-4333-8333-333333333333',
-  nombre: 'Cajero',
-  apellido: 'Test',
-  nombre_usuario: 'cajero',
-  correo: 'cajero@test.com',
-  esta_activo: true,
-  roles: { nombre_rol: 'caja' },
-  Roles: { nombre_rol: 'caja' }
-};
+  const EMPLEADO_CAJA = {
+    id: '33333333-3333-4333-8333-333333333333',
+    nombre: 'Cajero',
+    apellido: 'Test',
+    nombre_usuario: 'cajero',
+    correo: 'cajero@test.com',
+    esta_activo: true,
+    roles: { nombre_rol: 'caja' },
+    Roles: { nombre_rol: 'caja' }
+  };
 
-const EMPLEADO_INACTIVO = {
+  const EMPLEADO_INACTIVO = {
     ...EMPLEADO_ADMIN,
     id: '22222222-2222-4222-8222-222222222222',
     correo: 'inactive@test.com',
