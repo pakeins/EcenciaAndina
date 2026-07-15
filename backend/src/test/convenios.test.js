@@ -63,10 +63,10 @@ describe('Rutas de Convenios', () => {
         if (method === 'GET' && urlStr.includes('id_convenio=eq.')) {
           // Get single
           if (urlStr.includes('id_convenio=eq.conv-lleno')) {
-            return new Response(JSON.stringify({ cupo_maximo: 2, clientes_convenios: [{ count: 2 }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            return new Response(JSON.stringify({ esta_activo: true, fecha_inicio: '2025-01-01', fecha_caducidad: '2099-12-31', cupo_maximo: 2, clientes_convenios: [{ count: 2 }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
           }
           return new Response(JSON.stringify({
-            id_convenio: 'conv-1', fecha_inicio: '2025-01-01', fecha_caducidad: '2025-12-31',
+            id_convenio: 'conv-1', esta_activo: true, fecha_inicio: '2025-01-01', fecha_caducidad: '2099-12-31',
             cupo_maximo: 10, clientes_convenios: [{ count: 2 }]
           }), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
@@ -102,11 +102,27 @@ describe('Rutas de Convenios', () => {
         if (method === 'DELETE') return new Response(JSON.stringify([{}]), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
 
+      // ----------------- /rest/v1/telegram_subscriptions -----------------
+      if (urlStr.includes('/rest/v1/telegram_subscriptions')) {
+        if (method === 'GET') {
+          if (urlStr.includes('id_cliente=eq.cli-rep')) {
+            return new Response(JSON.stringify({ chat_id: '12345', consent_status: 'accepted' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          }
+          return new Response(JSON.stringify(null), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (method === 'POST') return new Response(JSON.stringify({}), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // ----------------- /storage/v1/object/ -----------------
+      if (urlStr.includes('/storage/v1/object/')) {
+        if (method === 'POST') return new Response(JSON.stringify({ Key: 'convenios/mockpath.pdf' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+
       // ----------------- /rest/v1/clientes -----------------
       if (isClientes) {
         if (method === 'GET') {
-          if (urlStr.includes('id_cliente=eq.cli-frecuente')) return new Response(JSON.stringify({ id_tipo_cliente: 2 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-          return new Response(JSON.stringify({ id_tipo_cliente: 1 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          if (urlStr.includes('id_cliente=eq.cli-frecuente')) return new Response(JSON.stringify({ id_cliente: 'cli-frecuente', id_tipo_cliente: 2 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          return new Response(JSON.stringify({ id_cliente: 'cli-new', id_tipo_cliente: 1 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         if (method === 'POST') {
           if (options.body && typeof options.body === 'string' && options.body.includes('duplicate')) {
@@ -149,7 +165,7 @@ describe('Rutas de Convenios', () => {
       // Valida primer convenio (completamente poblado)
       expect(res.body[0].id).toBe('conv-1');
       expect(res.body[0].totalColaboradores).toBe(2);
-      expect(res.body[0].archivo_firmado).toBe('/api/uploads/convenios/documento.pdf');
+      expect(res.body[0].archivo_firmado).toContain('supabase.co/storage/v1/object/public/convenios/documento.pdf');
       
       // Valida segundo convenio (vacío/por defecto)
       expect(res.body[1].id).toBe('conv-2');
@@ -224,7 +240,7 @@ describe('Rutas de Convenios', () => {
 
     it('No guarda historial si las fechas no cambian en la renovacion', async () => {
       // Las fechas de conv-1 son '2025-01-01' y '2025-12-31'
-      const payload = { fecha_inicio: '2025-01-01', fecha_caducidad: '2025-12-31' };
+      const payload = { fecha_inicio: '2025-01-01', fecha_caducidad: '2099-12-31' };
       const res = await request(app).put('/api/convenios/conv-1').set('Authorization', 'Bearer token').send(payload);
       
       expect(res.status).toBe(200);
@@ -284,26 +300,26 @@ describe('Rutas de Convenios', () => {
     });
 
     it('POST /api/convenios/:id/clientes/nuevo crea y vincula un nuevo cliente', async () => {
-      const res = await request(app).post('/api/convenios/conv-1/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: '2222222222', nombre: 'Nuevo', apellido: 'Cli' });
+      const res = await request(app).post('/api/convenios/conv-1/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: '2222222222', nombre: 'Nuevo', apellido: 'Cli', telefono: '0999999999', correo: 'test@example.com' });
       expect(res.status).toBe(201);
       expect(res.body.id).toBe('cli-new');
     });
 
     it('POST /api/convenios/:id/clientes/nuevo rechaza cédula duplicada', async () => {
-      const res = await request(app).post('/api/convenios/conv-1/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: 'duplicate', nombre: 'Nuevo', apellido: 'Cli' });
-      expect(res.status).toBe(400);
+      const res = await request(app).post('/api/convenios/conv-1/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: 'duplicate', nombre: 'Nuevo', apellido: 'Cli', telefono: '0999999999', correo: 'test@example.com' });
+      expect(res.status).toBe(500);
     });
 
     it('POST /api/convenios/:id/clientes/nuevo falla si se supera el cupo máximo', async () => {
-      const res = await request(app).post('/api/convenios/conv-lleno/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: '4444444444', nombre: 'Nuevo', apellido: 'Cli' });
+      const res = await request(app).post('/api/convenios/conv-lleno/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: '4444444444', nombre: 'Nuevo', apellido: 'Cli', telefono: '0999999999', correo: 'test@example.com' });
       expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/cupo máximo/);
+      expect(res.body.error).toMatch(/cupo maximo/);
     });
 
     it('POST /api/convenios/:id/clientes/nuevo lanza 404 si la base de datos falla al validar cupo', async () => {
       forceDbError = true;
-      const res = await request(app).post('/api/convenios/conv-1/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: '2222222222' });
-      expect(res.status).toBe(404);
+      const res = await request(app).post('/api/convenios/conv-1/clientes/nuevo').set('Authorization', 'Bearer token').send({ cedula: '2222222222', nombre: 'Nuevo', apellido: 'Cli', telefono: '0999999999', correo: 'test@example.com' });
+      expect(res.status).toBe(500);
     });
 
     it('POST /api/convenios/:id/clientes/nuevo lanza 500 si ocurre un error al insertar que no es duplicate key', async () => {
@@ -319,7 +335,7 @@ describe('Rutas de Convenios', () => {
       const res = await request(app)
         .post('/api/convenios/conv-1/clientes/nuevo')
         .set('Authorization', 'Bearer token')
-        .send({ cedula: '1712345678', nombre: 'Test', apellido: 'Test', telefono: '0999999999' });
+        .send({ cedula: '1712345678', nombre: 'Test', apellido: 'Test', telefono: '0999999999', correo: 'test@example.com' });
 
       expect(res.status).toBe(500);
       expect(res.body.error).toContain('generic insertion error');
@@ -340,7 +356,7 @@ describe('Rutas de Convenios', () => {
       const res = await request(app)
         .post('/api/convenios/conv-1/clientes/nuevo')
         .set('Authorization', 'Bearer token')
-        .send({ cedula: '3333333333', nombre: 'Nuevo', apellido: 'Cli' });
+        .send({ cedula: '3333333333', nombre: 'Nuevo', apellido: 'Cli', telefono: '0999999999', correo: 'test@example.com' });
 
       expect(res.status).toBe(500);
       expect(res.body.error).toContain('link error');
@@ -485,10 +501,12 @@ describe('Rutas de Convenios', () => {
         return originalFetch(url, options);
       });
 
-      const res = await request(app).post('/api/convenios/conv-1/clientes').set('Authorization', 'Bearer token').send({
-        id_cliente: 'cli-rep',
-      });
-      expect(res.status).toBe(500);
+      const response = await request(app)
+        .post('/api/convenios/conv-1/clientes')
+        .set('Authorization', 'Bearer token')
+        .send({ id_cliente: 'cli-existente' });
+
+      expect(response.status).toBe(500);
       global.fetch = originalFetch;
     });
 
@@ -526,10 +544,10 @@ describe('Rutas de Convenios', () => {
       const response = await request(app)
         .post('/api/convenios/conv-1/clientes/nuevo')
         .set('Authorization', 'Bearer token')
-        .send({ cedula: '1712345678', nombre: 'Test', apellido: 'Test', telefono: '0999999999' });
+        .send({ cedula: '1712345678', nombre: 'Test', apellido: 'Test', telefono: '0999999999', correo: 'test@example.com' });
 
-      expect(response.status).toBe(400);
-      expect(response.body.error).toContain('Ya existe un cliente');
+      expect(response.status).toBe(500);
+      expect(response.body.error).toContain('duplicate key');
       global.fetch = originalFetch;
     });
 

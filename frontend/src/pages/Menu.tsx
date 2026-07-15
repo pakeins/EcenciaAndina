@@ -329,6 +329,7 @@ export default function Menu() {
         description: data.mensaje || 'Telegram enviara el menu a los chats vinculados.'
       });
       setShowResendConfirm(false);
+      menuStore.reset();
       queryClient.invalidateQueries({ queryKey: ['menus_registrados'] });
     } catch (error) {
       toast.error('No se pudo enviar el menu', {
@@ -380,6 +381,7 @@ export default function Menu() {
 
       toast.success('Menu guardado correctamente');
       setSelectedMenuDate(fecha);
+      menuStore.reset();
       queryClient.invalidateQueries({ queryKey: ['menus_registrados'] });
     } catch (error) {
       toast.error('No se pudo guardar el menu', {
@@ -398,6 +400,7 @@ export default function Menu() {
       if (!response.ok) throw new Error(data.error || 'No se pudo activar el menu');
       toast.success('Menu activado correctamente');
       setSelectedMenuDate(menu.fecha);
+      applyMenu(menu);
       queryClient.invalidateQueries({ queryKey: ['menus_registrados'] });
     } catch (error) {
       toast.error('No se pudo activar el menu', {

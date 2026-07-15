@@ -105,10 +105,10 @@ export function RegisteredMenuList({
               size="sm"
               variant={menu.estado === 'activo' ? 'secondary' : 'default'}
               className="flex-1"
-              disabled={menu.estado === 'activo' || isActivating === menu.fecha}
-              onClick={() => onActivate(menu)}
+              disabled={isActivating === menu.fecha}
+              onClick={() => (menu.estado === 'activo' ? onLoad(menu) : onActivate(menu))}
             >
-              {isActivating === menu.fecha ? 'Activando...' : 'Activar'}
+              {isActivating === menu.fecha ? 'Activando...' : menu.estado === 'activo' ? 'Activado' : 'Activar'}
             </Button>
           </div>
         </article>

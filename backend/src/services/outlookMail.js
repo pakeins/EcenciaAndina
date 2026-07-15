@@ -251,6 +251,113 @@ const buildInvitationEmail = ({ nombre, inviteLink, invitationMessage, env = pro
   };
 };
 
+const buildReactivationHtml = ({ firstName, botUrl, fromEmail }) => {
+  const safeFirstName = escapeHtml(firstName);
+  const safeBotUrl = escapeHtml(botUrl);
+  const safeFromEmail = escapeHtml(fromEmail);
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reactivación de ECencia Andina</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;">
+    Tu acceso al bot ha sido reactivado.
+  </div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4f6f8;margin:0;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding:40px 32px 20px;text-align:center;border-bottom:1px solid #e2e8f0;">
+              <h1 style="margin:0;color:#1b4332;font-size:28px;font-weight:800;letter-spacing:-0.5px;">
+                Ecencia Andina
+              </h1>
+              <p style="margin:8px 0 0;color:#64748b;font-size:14px;font-weight:500;">
+                Servicio exclusivo de almuerzos corporativos
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 32px 24px;">
+              <h2 style="margin:0 0 16px;color:#0f172a;font-size:22px;font-weight:700;">
+                ¡Hola, ${safeFirstName}! 👋
+              </h2>
+              <p style="margin:0;color:#475569;font-size:16px;line-height:26px;">
+                Tu acceso al bot de Telegram ha sido reactivado por el administrador. Ya puedes volver a entrar al chat y seguir realizando tus reservas diarias.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Action -->
+          <tr>
+            <td style="padding:0 32px 32px;">
+              <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:32px 24px;text-align:center;">
+                <p style="margin:0 0 24px;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;">
+                  Abre Telegram para continuar
+                </p>
+                <a href="${safeBotUrl}" target="_blank" style="display:inline-block;background-color:#0ea5e9;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;line-height:20px;text-decoration:none;padding:14px 32px;border-radius:6px;letter-spacing:0.5px;">
+                  IR A TELEGRAM
+                </a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 32px;text-align:center;">
+              <p style="margin:0;color:#64748b;font-size:13px;line-height:20px;">
+                ¿Tienes alguna duda? Contáctanos respondiendo a este correo:
+                <br>
+                <a href="mailto:${safeFromEmail}" style="color:#0ea5e9;text-decoration:none;font-weight:500;">${safeFromEmail}</a>
+              </p>
+              <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;">
+                &copy; ${new Date().getFullYear()} Ecencia Andina. Todos los derechos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+};
+
+const buildReactivationEmail = ({ nombre, botUsername, env = process.env }) => {
+  const firstName = String(nombre || '').trim() || 'cliente';
+  const fromEmail = String(env.OUTLOOK_FROM_EMAIL || DEFAULT_FROM_EMAIL).trim().toLowerCase() || DEFAULT_FROM_EMAIL;
+  
+  // Si no se pasa un botUsername explícito, intentamos leer del entorno, si no caemos en la web de telegram genérica
+  const botUser = botUsername || env.TELEGRAM_BOT_USERNAME?.replace('@', '');
+  const botUrl = botUser ? `https://t.me/${botUser}` : 'https://telegram.org/';
+
+  return {
+    subject: 'Tu acceso al bot de ECencia Andina ha sido reactivado',
+    text: [
+      `Hola ${firstName},`,
+      '',
+      'Tu acceso al bot de Telegram ha sido reactivado por el administrador.',
+      'Ya puedes seguir usando el bot para realizar tus pedidos.',
+      '',
+      botUrl ? `Abre el bot aqui: ${botUrl}` : '',
+      '',
+      'Atentamente,',
+      'Equipo ECencia Andina',
+      'TRADICION NATURAL',
+      fromEmail,
+    ].filter((line, index, all) => line || all[index - 1] !== '').join('\n'),
+    html: buildReactivationHtml({ firstName, botUrl, fromEmail }),
+  };
+};
+
 const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
   const recipient = String(to || '').trim().toLowerCase();
   console.log(`[SMTP Mailer] Iniciando envío de correo a: ${recipient}`);
@@ -334,6 +441,7 @@ const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
 module.exports = {
   MAIL_STATUSES,
   buildInvitationEmail,
+  buildReactivationEmail,
   sendOutlookMail,
   _private: {
     buildPublicAssetUrl,

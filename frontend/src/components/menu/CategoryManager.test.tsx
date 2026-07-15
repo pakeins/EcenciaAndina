@@ -92,6 +92,36 @@ describe('CategoryManager', () => {
     expect(onCategoriesChanged).toHaveBeenCalled();
   });
 
+  it('muestra error si falla el guardado de una nueva categoria', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockCategories)
+      }) // fetchCategories
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'Fallo al guardar' })
+      }); // POST
+
+    render(<CategoryManager onCategoriesChanged={vi.fn()} />);
+    
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Gestionar Categorías/i }));
+    });
+
+    const input = screen.getByPlaceholderText(/Nueva categoría/i);
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Postres' } });
+    });
+
+    const btnAdd = screen.getByRole('button', { name: /Agregar/i });
+    await act(async () => {
+      fireEvent.click(btnAdd);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({ variant: 'destructive', title: 'Error', description: 'Fallo al guardar' });
+  });
+
   it('valida categorias duplicadas', async () => {
     (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -164,5 +194,40 @@ describe('CategoryManager', () => {
     expect(apiFetch).toHaveBeenCalledWith(expect.stringMatching(/\/alimentos\/categorias\/\d+/), expect.objectContaining({ method: 'DELETE' }));
     expect(mockToast).toHaveBeenCalledWith({ title: 'Categoría eliminada' });
     expect(onCategoriesChanged).toHaveBeenCalled();
+  });
+
+  it('muestra error si falla la eliminacion de una categoria', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockCategories)
+      }) // fetchCategories 1
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'Fallo al eliminar' })
+      }); // DELETE
+
+    render(<CategoryManager onCategoriesChanged={vi.fn()} />);
+    
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Gestionar Categorías/i }));
+    });
+
+    const btnDeleteEntradas = await screen.findAllByRole('button');
+    
+    await act(async () => {
+      fireEvent.click(btnDeleteEntradas[2]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Sí, Eliminar/i });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({ variant: 'destructive', title: 'Error', description: 'Fallo al eliminar' });
   });
 });

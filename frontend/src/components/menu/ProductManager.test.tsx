@@ -64,7 +64,6 @@ describe('ProductManager', () => {
     expect(apiFetch).toHaveBeenCalledWith('/alimentos');
     expect(screen.getByText('Gestionar Platos / Alimentos')).toBeInTheDocument();
 
-    // Default category Entradas (id_categoria_menu: 1) should be selected, so it should show Ensalada César
     expect(await screen.findByText('Ensalada César')).toBeInTheDocument();
     expect(screen.queryByText('Sopa de Verduras')).not.toBeInTheDocument();
   });
@@ -149,6 +148,37 @@ describe('ProductManager', () => {
     expect(await screen.findByText('Empanadas')).toBeInTheDocument();
   });
 
+  it('muestra error si falla agregar un nuevo plato', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: { method?: string }) => {
+      if (url === '/alimentos/categorias') return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCategories) });
+      if (url === '/alimentos' && (!options || options.method !== 'POST')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockProducts) });
+      if (url === '/alimentos' && options?.method === 'POST') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Fallo al guardar producto' }) });
+      }
+      return Promise.reject(new Error('Unknown url'));
+    });
+
+    render(<ProductManager onProductsChanged={vi.fn()} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Gestionar Platos/i }));
+    });
+
+    expect(await screen.findByText('Ensalada César')).toBeInTheDocument();
+
+    const input = screen.getByPlaceholderText(/Nuevo plato/i);
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Empanadas' } });
+    });
+
+    const btnAdd = screen.getByRole('button', { name: /Agregar/i });
+    await act(async () => {
+      fireEvent.click(btnAdd);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({ variant: 'destructive', title: 'Error al agregar producto' });
+  });
+
   it('permite eliminar un plato', async () => {
     let callCount = 0;
     (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: { method?: string }) => {
@@ -199,5 +229,44 @@ describe('ProductManager', () => {
     expect(apiFetch).toHaveBeenCalledWith('/alimentos/11', expect.objectContaining({ method: 'DELETE' }));
     expect(mockToast).toHaveBeenCalledWith({ title: 'Producto eliminado' });
     expect(onProductsChanged).toHaveBeenCalled();
+  });
+
+  it('muestra error si falla al eliminar un plato', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, options?: { method?: string }) => {
+      if (url === '/alimentos/categorias') return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCategories) });
+      if (url === '/alimentos' && (!options || options.method !== 'DELETE')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockProducts) });
+      if (url.startsWith('/alimentos/') && options?.method === 'DELETE') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Fallo al eliminar producto' }) });
+      }
+      return Promise.reject(new Error('Unknown url'));
+    });
+
+    render(<ProductManager onProductsChanged={vi.fn()} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Gestionar Platos/i }));
+    });
+
+    expect(await screen.findByText('Ensalada César')).toBeInTheDocument();
+
+    const productRow = screen.getByText('Ensalada César').closest('div');
+    const deleteBtn = productRow?.querySelector('button');
+    
+    if (!deleteBtn) throw new Error('Delete button not found');
+
+    await act(async () => {
+      fireEvent.click(deleteBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Sí, Eliminar/i });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({ variant: 'destructive', title: 'Error', description: 'Fallo al eliminar producto' });
   });
 });

@@ -78,8 +78,7 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Servir archivos estáticos de convenios
-app.use('/api/uploads/convenios', express.static(path.join(__dirname, '../convenios')));
+// Servir archivos estáticos locales de convenios (eliminado a favor de Supabase Storage)
 
 // --- RUTAS ---
 

@@ -67,7 +67,11 @@ const hmacHex = (value) =>
 
 const sha256Hex = (value) => crypto.createHash('sha256').update(String(value || '')).digest('hex');
 
-const invitationUrl = (token) => `https://t.me/${getBotUsername()}?start=${encodeURIComponent(token)}`;
+const invitationUrl = (token) => {
+  const botUsername = getBotUsername();
+  const encodedToken = encodeURIComponent(token);
+  return `https://t.me/${botUsername}?start=${encodedToken}`;
+};
 
 const createInvitation = async (idCliente, createdBy, createClient = getAdminClient) => {
   const adminClient = createClient();

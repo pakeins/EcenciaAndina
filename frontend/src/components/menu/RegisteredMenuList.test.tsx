@@ -61,4 +61,46 @@ describe('RegisteredMenuList', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('No se pudieron cargar los menus registrados.');
     expect(screen.queryByText('No existen menus registrados.')).not.toBeInTheDocument();
   });
+
+  it('permite cargar un menu', async () => {
+    const menus = [makeMenu(1)];
+    const onLoadMock = vi.fn();
+    render(<RegisteredMenuList {...defaultProps} menus={menus} onLoad={onLoadMock} />);
+
+    const cargarBtn = screen.getByRole('button', { name: 'Cargar' });
+    cargarBtn.click();
+    
+    expect(onLoadMock).toHaveBeenCalledWith(menus[0]);
+  });
+
+  it('permite activar un menu inactivo', async () => {
+    const menus = [makeMenu(1)]; // estado inactivo
+    const onActivateMock = vi.fn();
+    render(<RegisteredMenuList {...defaultProps} menus={menus} onActivate={onActivateMock} />);
+
+    const activarBtn = screen.getByRole('button', { name: 'Activar' });
+    activarBtn.click();
+    
+    expect(onActivateMock).toHaveBeenCalledWith(menus[0]);
+  });
+
+  it('muestra Activado y permite cargarlo cuando el estado es activo', async () => {
+    const menus = [makeMenu(7)]; // estado activo
+    const onLoadMock = vi.fn();
+    render(<RegisteredMenuList {...defaultProps} menus={menus} onLoad={onLoadMock} />);
+
+    const activadoBtn = screen.getByRole('button', { name: 'Activado' });
+    expect(activadoBtn).not.toBeDisabled();
+    
+    activadoBtn.click();
+    expect(onLoadMock).toHaveBeenCalledWith(menus[0]);
+  });
+
+  it('deshabilita el boton y muestra Activando... cuando esta en proceso de activacion', async () => {
+    const menus = [makeMenu(1)];
+    render(<RegisteredMenuList {...defaultProps} menus={menus} isActivating={menus[0].fecha} />);
+
+    const activandoBtn = screen.getByRole('button', { name: 'Activando...' });
+    expect(activandoBtn).toBeDisabled();
+  });
 });

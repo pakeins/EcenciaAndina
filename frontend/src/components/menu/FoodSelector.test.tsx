@@ -89,6 +89,31 @@ describe('FoodSelector', () => {
     });
   });
 
+  it('muestra un error por defecto si la creacion falla de forma inesperada', async () => {
+    mockedApiFetch.mockRejectedValue(new Error('Network error'));
+
+    render(
+      <FoodSelector
+        value=""
+        onChange={vi.fn()}
+        idCategoria={2}
+        alimentos={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.change(screen.getByPlaceholderText('Buscar plato...'), {
+      target: { value: 'Sancocho' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Añadir "Sancocho" al catálogo' }));
+
+    await waitFor(() => {
+      expect(mockedToast.error).toHaveBeenCalledWith('No se pudo guardar el nuevo plato', {
+        description: 'Network error',
+      });
+    });
+  });
+
   it('deshabilita el selector cuando la categoria aun no esta disponible', () => {
     render(
       <FoodSelector

@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Users, Building2, Mail, Phone, CalendarDays, Trash2, Search, UserPlus, ArrowLeft, FileDown, ShieldCheck, Eye, Upload, History, FileText } from 'lucide-react';
+import { Plus, Pencil, Users, Building2, Mail, Phone, CalendarDays, Trash2, Search, UserPlus, ArrowLeft, FileDown, ShieldCheck, Eye, Upload, History, FileText, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch, API_BASE_URL } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,6 +33,7 @@ import { differenceInYears } from 'date-fns';
 import { ConvenioToggleStatusDialog } from '@/components/convenios/ConvenioToggleStatusDialog';
 import { ConvenioRenewalDialog } from '@/components/convenios/ConvenioRenewalDialog';
 import { ConvenioReportDialog } from '@/components/convenios/ConvenioReportDialog';
+import { FIELD_LIMITS, isValidEcDocument, isValidEmail, onlyDigits } from '@/lib/validation';
 
 export default function Convenios() {
   const [convenios, setConvenios] = useState<Convenio[]>([]);
@@ -82,6 +83,15 @@ export default function Convenios() {
     return expiryDate < today;
   };
 
+  const getDaysUntilExpiry = (dateStr: string) => {
+    if (!dateStr) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiryDate = new Date(dateStr + 'T00:00:00');
+    const diffTime = expiryDate.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
   const [formData, setFormData] = useState({
     ruc: '',
     nombre_empresa: '',
@@ -96,17 +106,15 @@ export default function Convenios() {
 
   // --- GESTIÓN DE COLABORADORES ---
   const [associatedClients, setAssociatedClients] = useState<Client[]>([]);
-  const [availableClients, setAvailableClients] = useState<Client[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newClientData, setNewClientData] = useState({
     cedula: '',
     nombre: '',
     apellido: '',
-    telefono: ''
+    telefono: '',
+    correo: ''
   });
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   useEffect(() => {
     fetchConvenios();
@@ -153,12 +161,6 @@ export default function Convenios() {
     } finally { setIsLoadingClients(false); }
   };
 
-  const fetchAllClientsForSelection = async () => {
-    try {
-      const response = await apiFetch('/clientes');
-      if (response.ok) setAvailableClients(await response.json());
-    } catch (err) { console.error(err); }
-  };
 
   const handleOpenNew = () => {
     setEditingConvenio(null);
@@ -183,7 +185,6 @@ export default function Convenios() {
     });
     fetchAssociatedClients(convenio.id);
     fetchHistorial(convenio.id);
-    fetchAllClientsForSelection();
     setDialogOpen(true);
     setShowCreateForm(false);
   };
@@ -239,22 +240,41 @@ export default function Convenios() {
   };
 
   const handleCreateAndAddClient = async () => {
-    if (!newClientData.cedula || !newClientData.nombre || !newClientData.apellido) {
-      toast.error('Cédula, nombre y apellido son obligatorios'); return;
+    if (!newClientData.cedula || !newClientData.nombre || !newClientData.apellido || !newClientData.correo) {
+      toast.error('Cédula, nombre, apellido y correo son obligatorios'); return;
     }
+    if (newClientData.cedula.length !== 10 || !isValidEcDocument(newClientData.cedula)) {
+      toast.error('Ingrese una cedula valida de 10 digitos'); return;
+    }
+    if (newClientData.nombre.trim().length > FIELD_LIMITS.nombre || newClientData.apellido.trim().length > FIELD_LIMITS.nombre) {
+      toast.error(`Nombre y apellido no pueden superar ${FIELD_LIMITS.nombre} caracteres`); return;
+    }
+    if (newClientData.telefono && newClientData.telefono.length !== 10) {
+      toast.error('El telefono debe tener exactamente 10 digitos'); return;
+    }
+    if (!isValidEmail(newClientData.correo)) {
+      toast.error('Ingrese un correo electronico valido'); return;
+    }
+
     if (!editingConvenio) return;
     setIsSaving(true);
     try {
+      const payload = {
+        ...newClientData,
+        cedula: onlyDigits(newClientData.cedula),
+        telefono: onlyDigits(newClientData.telefono),
+        correo: newClientData.correo.trim().toLowerCase(),
+      };
       const response = await apiFetch(`/convenios/${editingConvenio.id}/clientes/nuevo`, {
         method: 'POST',
-        body: JSON.stringify(newClientData)
+        body: JSON.stringify(payload)
       });
       const data = await response.json();
       if (response.ok) {
         toast.success('Cliente creado y vinculado');
         setAssociatedClients([...associatedClients, data]);
         setShowCreateForm(false);
-        setNewClientData({ cedula: '', nombre: '', apellido: '', telefono: '' });
+        setNewClientData({ cedula: '', nombre: '', apellido: '', telefono: '', correo: '' });
         fetchConvenios();
       } else toast.error(data.error);
     } finally { setIsSaving(false); }
@@ -268,6 +288,9 @@ export default function Convenios() {
         toast.success('Retirado');
         setAssociatedClients(associatedClients.filter(c => c.id !== clientId));
         fetchConvenios();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'No se pudo retirar al cliente');
       }
     } catch (err) { toast.error('Error de conexión'); }
   };
@@ -303,6 +326,7 @@ export default function Convenios() {
       if (response.ok) {
         const data = await response.json();
         setConvenios(convenios.map(c => c.id === id ? data : c));
+        if (editingConvenio?.id === id) setEditingConvenio(data);
       }
     } finally { setIsAlertOpen(false); setConvenioToToggle(null); }
   };
@@ -330,6 +354,7 @@ export default function Convenios() {
       if (response.ok) {
         const data = await response.json();
         setConvenios(convenios.map(c => c.id === convenioToRenew.id ? data : c));
+        if (editingConvenio?.id === convenioToRenew.id) setEditingConvenio(data);
         toast.success('Convenio renovado y activado. Generando nuevo contrato...');
         setIsRenewalDialogOpen(false);
         setTimeout(() => handleExportPDF(data), 500);
@@ -806,13 +831,6 @@ export default function Convenios() {
     }
   };
 
-  const filteredAvailableClients = availableClients.filter(c => 
-    c.id_tipo_cliente === 1 &&
-    !c.convenio &&
-    !associatedClients.find(ac => ac.id === c.id) &&
-    (clientSearch === '' || c.nombre.toLowerCase().includes(clientSearch.toLowerCase()) || c.cedula.includes(clientSearch))
-  ).slice(0, 10);
-
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '—';
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -847,9 +865,17 @@ export default function Convenios() {
                     <div><CardTitle className="text-lg font-bold text-cafe">{convenio.nombre_empresa}</CardTitle><CardDescription className="font-medium">RUC: {convenio.ruc}</CardDescription></div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <Badge variant={isExpired(convenio.fecha_caducidad) ? 'destructive' : (convenio.activo ? 'default' : 'secondary')}>
-                      {isExpired(convenio.fecha_caducidad) ? 'Vencido' : (convenio.activo ? 'Activo' : 'Inactivo')}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {getDaysUntilExpiry(convenio.fecha_caducidad) !== null && getDaysUntilExpiry(convenio.fecha_caducidad)! >= 0 && getDaysUntilExpiry(convenio.fecha_caducidad)! <= 15 && convenio.activo && (
+                        <div title={`Próximo a vencer en ${getDaysUntilExpiry(convenio.fecha_caducidad)} día(s)`} className="animate-pulse bg-amber-100 text-amber-700 px-2 py-1 rounded-full shadow-sm flex items-center gap-1 border border-amber-300">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span className="text-[11px] font-extrabold">Vence en {getDaysUntilExpiry(convenio.fecha_caducidad)} d</span>
+                        </div>
+                      )}
+                      <Badge variant={isExpired(convenio.fecha_caducidad) ? 'destructive' : (convenio.activo ? 'default' : 'secondary')}>
+                        {isExpired(convenio.fecha_caducidad) ? 'Vencido' : (convenio.activo ? 'Activo' : 'Inactivo')}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -1120,39 +1146,13 @@ export default function Convenios() {
             <TabsContent value="clients" className="space-y-4 py-4">
               {!showCreateForm ? (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar por nombre o cédula..."
-                        className="pl-10"
-                        value={clientSearch}
-                        onChange={e => setClientSearch(e.target.value)}
-                        onFocus={() => setIsSearchFocused(true)}
-                        onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-                      />
-                      {(clientSearch || isSearchFocused) && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-[250px] overflow-y-auto">
-                          <div className="p-2 border-b bg-accent/50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                            {clientSearch ? 'Resultados de búsqueda' : 'Sugerencias de clientes'}
-                          </div>
-                          {filteredAvailableClients.length > 0 ? (
-                            filteredAvailableClients.map(c => (
-                              <div key={c.id} role="button" tabIndex={0} className="flex items-center justify-between p-2 hover:bg-accent cursor-pointer" onClick={() => { handleAddClient(c.id); setClientSearch(''); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAddClient(c.id); setClientSearch(''); } }}>
-                                <div><p className="text-sm font-medium">{c.nombre} {c.apellido}</p><p className="text-xs text-muted-foreground">{c.cedula}</p></div>
-                                <UserPlus className="h-4 w-4 text-primary" />
-                              </div>
-                            ))
-                          ) : (
-                            <div className="p-4 text-center space-y-2">
-                              <p className="text-sm text-muted-foreground">No se encontró al cliente.</p>
-                              <Button size="sm" variant="outline" onClick={() => setShowCreateForm(true)} className="gap-2 border-cafe text-cafe hover:bg-cafe/10"><Plus className="h-4 w-4" /> Registrar nuevo colaborador</Button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <Button variant="outline" onClick={() => setShowCreateForm(true)} title="Registrar nuevo"><UserPlus className="h-4 w-4" /></Button>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/30 p-3 rounded-md border border-border">
+                    <p className="text-sm text-muted-foreground flex-1">
+                      Agregue nuevos colaboradores a esta empresa. Cada empleado debe tener un registro único.
+                    </p>
+                    <Button onClick={() => setShowCreateForm(true)} className="gap-2 shrink-0 bg-cafe hover:bg-cafe/90 text-white">
+                      <UserPlus className="h-4 w-4" /> Registrar nuevo colaborador
+                    </Button>
                   </div>
 
                   <div className="rounded-md border max-h-[300px] overflow-y-auto">
@@ -1160,7 +1160,7 @@ export default function Convenios() {
                       associatedClients.map(c => (
                         <div key={c.id} className="flex items-center justify-between p-3 border-b last:border-0">
                           <div><p className="text-sm font-medium">{c.nombre} {c.apellido}</p><p className="text-xs text-muted-foreground">{c.cedula}</p></div>
-                          <Button variant="ghost" size="sm" onClick={() => handleRemoveClient(c.id)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleRemoveClient(c.id)} className="text-destructive hover:bg-destructive/10" title="Desvincular colaborador del convenio"><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       ))}
                   </div>
@@ -1171,12 +1171,15 @@ export default function Convenios() {
                     <Button variant="ghost" size="sm" onClick={() => setShowCreateForm(false)} className="h-8 w-8 p-0"><ArrowLeft className="h-4 w-4" /></Button>
                     <h3 className="font-semibold">Nuevo Colaborador</h3>
                   </div>
-                  <div className="space-y-2"><Label>Cédula *</Label><Input value={newClientData.cedula} onChange={e => setNewClientData({ ...newClientData, cedula: e.target.value.replace(/\D/g, '') })} maxLength={13} /></div>
+                  <div className="space-y-2"><Label>Cédula *</Label><Input value={newClientData.cedula} onChange={e => setNewClientData({ ...newClientData, cedula: e.target.value.replace(/\D/g, '') })} maxLength={10} /></div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2"><Label>Nombre *</Label><Input value={newClientData.nombre} onChange={e => setNewClientData({ ...newClientData, nombre: e.target.value.replace(/[\d]/g, '') })} /></div>
                     <div className="space-y-2"><Label>Apellido *</Label><Input value={newClientData.apellido} onChange={e => setNewClientData({ ...newClientData, apellido: e.target.value.replace(/[\d]/g, '') })} /></div>
                   </div>
-                  <div className="space-y-2"><Label>Teléfono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({ ...newClientData, telefono: e.target.value.replace(/\D/g, '') })} maxLength={10} /></div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2"><Label>Teléfono</Label><Input value={newClientData.telefono} onChange={e => setNewClientData({ ...newClientData, telefono: e.target.value.replace(/\D/g, '') })} maxLength={10} /></div>
+                    <div className="space-y-2"><Label>Correo *</Label><Input type="email" value={newClientData.correo} onChange={e => setNewClientData({ ...newClientData, correo: e.target.value })} /></div>
+                  </div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>Cancelar</Button>
                     <Button className="flex-1" onClick={handleCreateAndAddClient} disabled={isSaving}>{isSaving ? 'Guardando...' : 'Crear y Vincular'}</Button>

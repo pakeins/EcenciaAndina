@@ -24,7 +24,7 @@ const CLIENT_SELECT = `
 
 const sendTelegramInvitationEmail = async ({ client, onboarding }) => {
   try {
-    const inviteLink = String(onboarding.onboarding_url || '').replace('t.me', 'telegram.me');
+    const inviteLink = String(onboarding.onboarding_url || '');
     const emailData = outlookMail.buildInvitationEmail({
       nombre: client.nombre,
       inviteLink,
@@ -45,12 +45,9 @@ const sendTelegramInvitationEmail = async ({ client, onboarding }) => {
 
 const sendTelegramReactivationEmail = async ({ client }) => {
   try {
-    const fromEmail = process.env.OUTLOOK_FROM_EMAIL || process.env.GMAIL_USER || 'ecenciaconvenios@outlook.com';
-    const emailData = {
-      subject: 'Tu acceso al bot de ECencia Andina ha sido reactivado',
-      text: `Hola ${client.nombre || 'cliente'},\n\nTu acceso al bot de Telegram ha sido reactivado por el administrador. Ya puedes seguir usando el bot para realizar tus pedidos.\n\nAtentamente,\nEquipo ECencia Andina\n${fromEmail}`,
-      html: `<p>Hola <strong>${client.nombre || 'cliente'}</strong>,</p><p>Tu acceso al bot de Telegram ha sido reactivado por el administrador. Ya puedes seguir usando el bot para realizar tus pedidos.</p><br><p>Atentamente,<br>Equipo ECencia Andina<br>${fromEmail}</p>`,
-    };
+    const emailData = outlookMail.buildReactivationEmail({
+      nombre: client.nombre,
+    });
     return await outlookMail.sendOutlookMail({
       to: client.correo,
       ...emailData,
@@ -149,7 +146,7 @@ const directConsentKeyboard = () => ({
 
 const publicOnboarding = (onboarding) => ({
   status: onboarding.status,
-  onboarding_url: String(onboarding.onboarding_url || '').replace('t.me', 'telegram.me'),
+  onboarding_url: String(onboarding.onboarding_url || ''),
   expires_at: onboarding.expires_at,
   email_delivery: onboarding.email_delivery || null,
 });

@@ -368,20 +368,8 @@ describe('Convenios', () => {
     // Verify Juan Perez is shown as associated client
     expect(await screen.findByText('Juan Perez')).toBeInTheDocument();
 
-    // Search Carlos to trigger suggestions dropdown
-    const searchInput = screen.getByPlaceholderText(/Buscar por nombre o cédula/i);
-    await act(async () => {
-      fireEvent.change(searchInput, { target: { value: 'Carlos' } });
-    });
-
-    // Suggestion dropdown has Carlos Gomez
-    const suggestion = await screen.findByText('Carlos Gomez');
-    await act(async () => {
-      fireEvent.click(suggestion);
-    });
-
-    // Click trigger "Registrar nuevo" button
-    const btnRegistrarNuevo = screen.getByTitle('Registrar nuevo');
+    // Click trigger "Registrar nuevo colaborador" button
+    const btnRegistrarNuevo = screen.getByText(/Registrar nuevo colaborador/i);
     await act(async () => {
       fireEvent.click(btnRegistrarNuevo);
     });
@@ -488,7 +476,7 @@ describe('Convenios', () => {
     }
 
     // Tratar de crear sin campos
-    const btnRegistrarNuevo = screen.getByTitle('Registrar nuevo');
+    const btnRegistrarNuevo = screen.getByText(/Registrar nuevo colaborador/i);
     await act(async () => { fireEvent.click(btnRegistrarNuevo); });
 
     const btnCrearVincular = screen.getByText('Crear y Vincular');

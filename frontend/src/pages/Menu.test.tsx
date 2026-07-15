@@ -95,10 +95,11 @@ describe('Menu', () => {
 
   it('maneja errores al cargar categorias, alimentos, productos y menus', async () => {
     (apiFetch as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Error intencional' }) });
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Error intencional de API' }) });
     });
     await renderComponent();
     await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Error intencional de API');
       expect(screen.queryByTestId('icon-soup')).not.toBeInTheDocument();
     });
   });
@@ -128,6 +129,7 @@ describe('Menu', () => {
   });
 
   it('permite guardar el menú cuando los datos son válidos', async () => {
+    const resetSpy = vi.spyOn(menuStore, 'reset');
     await renderComponent();
     await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
 
@@ -150,10 +152,12 @@ describe('Menu', () => {
         expect.objectContaining({ method: 'PUT' })
       );
       expect(toast.success).toHaveBeenCalledWith('Menu guardado correctamente');
+      expect(resetSpy).toHaveBeenCalled();
     });
   });
 
   it('permite enviar el menú cuando los datos son válidos', async () => {
+    const resetSpy = vi.spyOn(menuStore, 'reset');
     await renderComponent();
     await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
 
@@ -179,6 +183,47 @@ describe('Menu', () => {
         'Menu enviado a n8n correctamente',
         expect.any(Object)
       );
+      expect(resetSpy).toHaveBeenCalled();
+    });
+  });
+
+  it('muestra un error si falla el guardado del menu', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/menu/')) return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Fallo al guardar' }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    act(() => {
+      menuStore.setCategoryOptions(1, ['Sopa']);
+      menuStore.setCategoryOptions(2, ['Plato']);
+    });
+
+    fireEvent.click(screen.getByText('Guardar cambios'));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('No se pudo guardar el menu', expect.any(Object));
+    });
+  });
+
+  it('muestra un error si falla el envio del menu a n8n', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes('/menu/enviar')) return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Fallo de n8n' }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    act(() => {
+      menuStore.setCategoryOptions(1, ['Sopa']);
+      menuStore.setCategoryOptions(2, ['Plato']);
+    });
+
+    fireEvent.click(screen.getByText('ENVIAR MENÚ'));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('No se pudo enviar el menu', expect.any(Object));
     });
   });
 
@@ -306,9 +351,15 @@ describe('Menu', () => {
 
     const btnGestCat = screen.getByRole('button', { name: /Gestionar Categorías/i });
     if(btnGestCat) {
-      fireEvent.click(btnGestCat);
+      await act(async () => {
+        fireEvent.click(btnGestCat);
+      });
       const closeBtn = screen.getByRole('button', { name: /Close/i });
-      if(closeBtn) fireEvent.click(closeBtn);
+      if(closeBtn) {
+        await act(async () => {
+          fireEvent.click(closeBtn);
+        });
+      }
     }
   });
 });

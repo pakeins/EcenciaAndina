@@ -118,8 +118,8 @@ export default function Clientes() {
       if (!response.ok) throw new Error(data.error || 'Error al obtener clientes');
       return data as Client[];
     },
-    staleTime: 1000 * 60 * 2,
-    refetchInterval: 15000,
+    staleTime: 0,
+    refetchInterval: 5000,
   });
 
   const { data: clientTypes = [] } = useQuery({

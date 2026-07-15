@@ -8,22 +8,9 @@ const path = require('path');
 
 const fs = require('fs');
 const crypto = require('node:crypto');
+const clientesService = require('../services/clientesService');
 
-// Configuración de Multer para almacenamiento local
-const uploadDir = path.join(__dirname, '../../../convenios');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + crypto.randomInt(0, 1e9);
-    cb(null, 'convenio-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({ // NOSONAR 
   storage: storage,
@@ -43,6 +30,11 @@ const adminOnly = roleMiddleware(['administrador']);
 
 // Función auxiliar para formatear la respuesta del convenio
 function formatConvenio(conv) {
+  const adminClient = getAdminClient();
+  const archivo_url = conv.archivo_firmado 
+    ? adminClient.storage.from('convenios').getPublicUrl(conv.archivo_firmado).data.publicUrl 
+    : null;
+
   return {
     id: conv.id_convenio,
     ruc: conv.ruc,
@@ -57,7 +49,7 @@ function formatConvenio(conv) {
     tipos_almuerzo_permitidos: conv.tipos_almuerzo_permitidos || [],
     totalColaboradores: conv.clientes_convenios?.[0]?.count || 0,
     consumoMensual: 0,
-    archivo_firmado: conv.archivo_firmado ? `/api/uploads/convenios/${conv.archivo_firmado}` : null,
+    archivo_firmado: archivo_url,
   };
 }
 
@@ -131,63 +123,29 @@ router.post('/:id/clientes', async (req, res) => {
 // CREAR Y AGREGAR NUEVO CLIENTE A CONVENIO
 router.post('/:id/clientes/nuevo', async (req, res) => {
   const { id: id_convenio } = req.params;
-  const { cedula, nombre, apellido, telefono } = req.body;
+  const { cedula, nombre, apellido, telefono, correo } = req.body;
 
   try {
     const adminClient = getAdminClient();
-
-    // VALIDAR CUPO MÁXIMO
-    const { data: convenio, error: convError } = await adminClient
-      .from('convenios')
-      .select('cupo_maximo, clientes_convenios(count)')
-      .eq('id_convenio', id_convenio)
-      .single();
     
-    if (convError || !convenio) return res.status(404).json({ error: 'Convenio no encontrado.' });
-    
-    const countActual = convenio.clientes_convenios?.[0]?.count || 0;
-    if (countActual >= convenio.cupo_maximo) {
-      return res.status(400).json({ error: `Se ha alcanzado el cupo máximo de este convenio (${convenio.cupo_maximo}).` });
-    }
-    
-    // 1. Crear el cliente (Siempre tipo Convenio: ID 1)
-    const { data: newClient, error: clientError } = await adminClient
-      .from('clientes')
-      .insert([{
-        cedula,
-        nombre,
-        apellido,
-        telefono,
-        id_tipo_cliente: 1, // Tipo Convenio
-        created_by: req.user.id
-      }])
-      .select()
-      .single();
+    // Construir el payload tal como lo espera el servicio de clientes
+    const payload = {
+      cedula,
+      nombre,
+      apellido,
+      telefono,
+      correo,
+      id_tipo_cliente: 1, // CLIENT_TYPE.AGREEMENT
+      id_convenio
+    };
 
-    if (clientError) {
-      if (clientError.message.includes('duplicate key')) return res.status(400).json({ error: 'Ya existe un cliente con esta cédula.' });
-      throw clientError;
-    }
+    // Esto validará cupos, creará el cliente, lo vinculará, creará la invitación a telegram y mandará el correo.
+    const result = await clientesService.createCliente(adminClient, payload, req.user || { id: null, rol: 'administrador' });
 
-    // 2. Vincularlo al convenio
-    const { error: linkError } = await adminClient
-      .from('clientes_convenios')
-      .insert([{
-        id_cliente: newClient.id_cliente,
-        id_convenio,
-        created_by: req.user.id
-      }]);
-
-    if (linkError) throw linkError;
-
-    res.status(201).json({
-      id: newClient.id_cliente,
-      cedula: newClient.cedula,
-      nombre: newClient.nombre,
-      apellido: newClient.apellido
-    });
+    res.status(201).json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const status = Number(error?.status || 500);
+    res.status(status >= 400 && status < 600 ? status : 500).json({ error: error.message });
   }
 });
 
@@ -195,9 +153,14 @@ router.post('/:id/clientes/nuevo', async (req, res) => {
 router.delete('/:id/clientes/:clienteId', adminOnly, async (req, res) => {
   try {
     const adminClient = getAdminClient();
-    const { error } = await adminClient.from('clientes_convenios').delete().eq('id_convenio', req.params.id).eq('id_cliente', req.params.clienteId);
-    if (error) throw error;
-    res.json({ mensaje: 'Cliente retirado correctamente' });
+    const { error: errorVinculo } = await adminClient.from('clientes_convenios').delete().eq('id_convenio', req.params.id).eq('id_cliente', req.params.clienteId);
+    if (errorVinculo) throw errorVinculo;
+    
+    // Cambiar al cliente a tipo frecuente (id_tipo_cliente = 2) al perder su convenio
+    const { error: errorUpdate } = await adminClient.from('clientes').update({ id_tipo_cliente: 2 }).eq('id_cliente', req.params.clienteId);
+    if (errorUpdate) throw errorUpdate;
+
+    res.json({ mensaje: 'Cliente retirado correctamente y cambiado a frecuente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -317,7 +280,7 @@ router.get('/:id/historial', async (req, res) => {
     
     const historialFormateado = data.map(h => ({
       ...h,
-      archivo_url: h.archivo_firmado ? `/api/uploads/convenios/${h.archivo_firmado}` : null
+      archivo_url: h.archivo_firmado ? adminClient.storage.from('convenios').getPublicUrl(h.archivo_firmado).data.publicUrl : null
     }));
     
     res.json(historialFormateado);
@@ -333,9 +296,30 @@ router.post('/:id/upload', adminOnly, upload.single('archivo'), async (req, res)
   const { id } = req.params;
   try {
     const adminClient = getAdminClient();
+    
+    // Obtener mimeType (usando el helper para verificar magic bytes si es posible)
+    const mimeType = detectDocumentMimeType(req.file.buffer) || req.file.mimetype;
+    
+    // Rechazar si no es válido incluso tras inspección binaria
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(mimeType)) {
+      return res.status(400).json({ error: 'Formato de archivo no permitido o archivo corrupto.' });
+    }
+
+    const objectPath = createAgreementObjectPath(id, mimeType);
+    
+    // Subir a Supabase Storage
+    const { error: uploadError } = await adminClient.storage
+      .from('convenios')
+      .upload(objectPath, req.file.buffer, {
+        contentType: mimeType,
+        upsert: true
+      });
+      
+    if (uploadError) throw uploadError;
+
     const { data, error } = await adminClient
       .from('convenios')
-      .update({ archivo_firmado: req.file.filename, updated_by: req.user.id })
+      .update({ archivo_firmado: objectPath, updated_by: req.user.id })
       .eq('id_convenio', id)
       .select('*, clientes_convenios(count)')
       .single();

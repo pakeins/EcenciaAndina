@@ -24,6 +24,9 @@ const createInvitationToken = () => crypto.randomBytes(18).toString('base64url')
 const buildInvitationLink = (token, botUsername = cleanBotUsername()) => {
   const cleanUsername = cleanBotUsername(botUsername);
   if (!cleanUsername || !token) return null;
+  if (process.env.NODE_ENV === 'development') {
+    return `https://web.telegram.org/a/#?tgaddr=tg%3A%2F%2Fresolve%3Fdomain%3D${cleanUsername}%26start%3D${token}`;
+  }
   return `https://t.me/${cleanUsername}?start=${token}`;
 };
 

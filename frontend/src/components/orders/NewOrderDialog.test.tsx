@@ -22,20 +22,28 @@ vi.mock('sonner', () => ({
   }
 }));
 
-// Mock Select component to render standard HTML select options without nested divs
-vi.mock('@/components/ui/select', () => {
-  return {
-    Select: ({ children, value, onValueChange }: { children: React.ReactNode; value?: string; onValueChange: (val: string) => void }) => (
-      <select value={value} onChange={(e) => onValueChange(e.target.value)} data-testid="mock-select">
-        {children}
-      </select>
-    ),
-    SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    SelectValue: ({ placeholder }: { placeholder?: string }) => <option value="">{placeholder}</option>,
-    SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => <option value={value}>{children}</option>,
-  };
-});
+// Mocks for Popover and Command to simulate Combobox behavior in tests
+vi.mock('@/components/ui/popover', () => ({
+  Popover: ({ children }: { children: React.ReactNode }) => <div data-testid="mock-popover">{children}</div>,
+  PopoverTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="mock-popover-trigger">{children}</div>,
+  PopoverContent: ({ children }: { children: React.ReactNode }) => <div data-testid="mock-popover-content">{children}</div>,
+}));
+
+vi.mock('@/components/ui/command', () => ({
+  Command: ({ children }: { children: React.ReactNode }) => <div data-testid="mock-command">{children}</div>,
+  CommandInput: ({ placeholder }: { placeholder: string }) => <input placeholder={placeholder} data-testid="mock-command-input" />,
+  CommandList: ({ children }: { children: React.ReactNode }) => <div data-testid="mock-command-list">{children}</div>,
+  CommandEmpty: ({ children }: { children: React.ReactNode }) => <div data-testid="mock-command-empty">{children}</div>,
+  CommandGroup: ({ children }: { children: React.ReactNode }) => <div data-testid="mock-command-group">{children}</div>,
+  CommandItem: ({ children, onSelect }: { children: React.ReactNode, onSelect: () => void }) => (
+    <div 
+      data-testid="mock-command-item" 
+      onClick={() => onSelect()}
+    >
+      {children}
+    </div>
+  ),
+}));
 
 // Mock OrderFormFields to isolate testing and easily mock order item states
 vi.mock('./OrderFormFields', () => {
@@ -111,9 +119,9 @@ describe('NewOrderDialog', () => {
   it('muestra error al guardar una orden sin productos', async () => {
     renderComponent();
 
-    // Select a client using mock-select
-    const select = screen.getByTestId('mock-select');
-    fireEvent.change(select, { target: { value: 'cli-prepago' } });
+    // Select a client using mock-command-item (index 0 is cli-prepago)
+    const items = screen.getAllByTestId('mock-command-item');
+    fireEvent.click(items[0]);
 
     // Submit form (without items added)
     const submitBtn = screen.getByRole('button', { name: /Crear Pedido/i });
@@ -134,9 +142,9 @@ describe('NewOrderDialog', () => {
 
     renderComponent({ onCreate, onOpenChange });
 
-    // Select cli-prepago client
-    const select = screen.getByTestId('mock-select');
-    fireEvent.change(select, { target: { value: 'cli-prepago' } });
+    // Select cli-prepago client (index 0)
+    const items = screen.getAllByTestId('mock-command-item');
+    fireEvent.click(items[0]);
 
     // Click mock add item button to populate order items
     const addItemBtn = screen.getByTestId('simulate-add-item-btn');
@@ -180,9 +188,9 @@ describe('NewOrderDialog', () => {
 
     renderComponent();
 
-    // Select cli-convenio client
-    const select = screen.getByTestId('mock-select');
-    fireEvent.change(select, { target: { value: 'cli-convenio' } });
+    // Select cli-convenio client (index 1)
+    const items = screen.getAllByTestId('mock-command-item');
+    fireEvent.click(items[1]);
 
     // Click mock add item button
     const addItemBtn = screen.getByTestId('simulate-add-item-btn');
@@ -208,8 +216,8 @@ describe('NewOrderDialog', () => {
 
     renderComponent();
 
-    const select = screen.getByTestId('mock-select');
-    fireEvent.change(select, { target: { value: 'cli-prepago' } });
+    const items = screen.getAllByTestId('mock-command-item');
+    fireEvent.click(items[0]); // cli-prepago
 
     const addItemBtn = screen.getByTestId('simulate-add-item-btn');
     fireEvent.click(addItemBtn);
@@ -227,8 +235,8 @@ describe('NewOrderDialog', () => {
 
     renderComponent();
 
-    const select = screen.getByTestId('mock-select');
-    fireEvent.change(select, { target: { value: 'cli-prepago' } });
+    const items = screen.getAllByTestId('mock-command-item');
+    fireEvent.click(items[0]); // cli-prepago
 
     const addItemBtn = screen.getByTestId('simulate-add-item-btn');
     fireEvent.click(addItemBtn);

@@ -17,14 +17,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { UserPlus, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { UserPlus, X, Check, ChevronsUpDown } from 'lucide-react';
 import { OrderFormFields, OrderFormState } from './OrderFormFields';
 import { toast } from 'sonner';
 
@@ -53,6 +48,8 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
   const { handleSubmit, reset, control, formState: { errors } } = form;
   
   const clienteId = form.watch('clienteId');
+
+  const [openCombobox, setOpenCombobox] = useState(false);
 
   const [state, setState] = useState<OrderFormState>({
     items: [],
@@ -147,20 +144,57 @@ export function NewOrderDialog({ open, onOpenChange, onCreate }: NewOrderDialogP
                 name="clienteId"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className={`bg-background text-cafe ${errors.clienteId ? 'border-destructive' : ''}`}>
-                      <SelectValue placeholder={isLoading ? "Cargando clientes..." : "Buscar cliente por nombre o teléfono…"} />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-border shadow-xl">
-                      {clientes
-                        .filter((c) => c.activo)
-                        .map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.nombre} {c.apellido} — {c.telefono || 'Sin Teléfono'}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openCombobox}
+                        className={cn(
+                          "w-full justify-between bg-background text-cafe font-normal",
+                          errors.clienteId && "border-destructive"
+                        )}
+                      >
+                        {field.value
+                          ? (() => {
+                              const c = clientes.find((c) => c.id === field.value);
+                              return c ? `${c.nombre} ${c.apellido} — ${c.telefono || 'Sin Teléfono'}` : "Buscar cliente por nombre o teléfono…";
+                            })()
+                          : (isLoading ? "Cargando clientes..." : "Buscar cliente por nombre o teléfono…")}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-white border border-border shadow-xl" align="start">
+                      <Command>
+                        <CommandInput placeholder="Escribe nombre o teléfono..." />
+                        <CommandList>
+                          <CommandEmpty>No se encontraron clientes.</CommandEmpty>
+                          <CommandGroup>
+                            {clientes
+                              .filter((c) => c.activo)
+                              .map((c) => (
+                                <CommandItem
+                                  key={c.id}
+                                  value={`${c.nombre} ${c.apellido} ${c.telefono || ''}`}
+                                  onSelect={() => {
+                                    field.onChange(c.id);
+                                    setOpenCombobox(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      field.value === c.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {c.nombre} {c.apellido} — {c.telefono || 'Sin Teléfono'}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
               />
               {errors.clienteId && <span className="text-xs text-destructive">{errors.clienteId.message}</span>}

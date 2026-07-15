@@ -27,7 +27,7 @@ import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { EditOrderDialog } from '@/components/orders/EditOrderDialog';
 import { NewOrderDialog } from '@/components/orders/NewOrderDialog';
-import { Pencil, CheckCircle, Phone, Search, MessageCircle, Plus, User, XCircle, AlertTriangle } from 'lucide-react';
+import { Pencil, CheckCircle, Phone, Search, MessageCircle, Plus, User, XCircle, AlertTriangle, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -251,13 +251,13 @@ export default function Pedidos() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/10 hover:bg-secondary/10">
-                  <TableHead className="text-cafe font-bold"># Orden</TableHead>
-                  <TableHead className="text-cafe font-bold">Cliente</TableHead>
-                  <TableHead className="text-cafe font-bold">Tipo de Cliente</TableHead>
+                  <TableHead className="text-cafe font-bold w-[80px]"># Orden</TableHead>
+                  <TableHead className="text-cafe font-bold w-[200px]">Cliente</TableHead>
+                  <TableHead className="text-cafe font-bold w-[120px]">Tipo de Cliente</TableHead>
                   <TableHead className="text-cafe font-bold">Detalle de Pedido</TableHead>
-                  <TableHead className="text-center text-cafe font-bold">Total Productos</TableHead>
-                  <TableHead className="text-center text-cafe font-bold">Total ($)</TableHead>
-                  <TableHead className="text-cafe font-bold">Estado</TableHead>
+                  <TableHead className="text-center text-cafe font-bold w-[100px]">Total Productos</TableHead>
+                  <TableHead className="text-center text-cafe font-bold w-[100px]">Total ($)</TableHead>
+                  <TableHead className="text-cafe font-bold w-[140px]">Estado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -284,17 +284,25 @@ export default function Pedidos() {
                       <TableCell>
                         <div>
                           <p className="font-medium text-foreground">{order.clientes?.nombre} {order.clientes?.apellido}</p>
-                          {['manual', 'sistema'].some(word => order.origenes_pedido?.nombre_origen?.toLowerCase().includes(word)) && (
-                            <div className="flex items-center gap-1 mt-1 text-xs font-medium text-foreground bg-accent/60 rounded-full px-2 py-0.5 w-fit">
-                              <User className="h-3.5 w-3.5" />
-                              Creado por: <span className="font-bold">{order.creador_nombre}</span>
-                            </div>
-                          )}
+                          <div className="flex items-center mt-1.5">
+                            {['manual', 'sistema'].some(word => order.origenes_pedido?.nombre_origen?.toLowerCase().includes(word)) && (
+                              <Badge className="px-2 py-0.5 text-[10px] font-bold bg-cafe/10 text-cafe hover:bg-cafe/20 gap-1.5 rounded-md border-transparent shadow-none">
+                                <User className="h-3 w-3 opacity-90" />
+                                {order.creador_nombre}
+                              </Badge>
+                            )}
+                            {['telegram'].some(word => order.origenes_pedido?.nombre_origen?.toLowerCase().includes(word)) && (
+                              <Badge className="px-2 py-0.5 text-[10px] font-bold bg-cafe/10 text-cafe hover:bg-cafe/20 gap-1.5 rounded-md border-transparent shadow-none">
+                                <Bot className="h-3 w-3 opacity-90 text-blue-600" />
+                                Telegram
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                          <Badge variant="outline" className="w-fit bg-primary/5">
+                          <Badge className="w-fit bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold">
                             {order.clientes?.tipos_cliente?.nombre_tipo || 'Cliente'}
                           </Badge>
                         </div>
@@ -317,7 +325,7 @@ export default function Pedidos() {
                             ))}
                           </div>
                         ) : 'Sin detalles'}
-                        {order.observaciones && (
+                        {order.observaciones && !['telegram'].some(word => order.origenes_pedido?.nombre_origen?.toLowerCase().includes(word)) && (
                           <div className="mt-2 p-2.5 bg-cafe/5 border-2 border-cafe rounded-xl shadow-md animate-in zoom-in-95 duration-200">
                             <p className="text-[12px] font-black text-cafe leading-snug">
                               <span className="uppercase text-[10px] tracking-widest mr-1.5 opacity-80">Nota:</span>

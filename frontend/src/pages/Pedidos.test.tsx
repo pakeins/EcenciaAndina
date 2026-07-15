@@ -6,6 +6,7 @@ import Pedidos from './Pedidos';
 import { apiFetch } from '@/lib/api';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -321,5 +322,79 @@ describe('Pedidos', () => {
     fireEvent.click(btn);
     
     expect(mockNavigate).toHaveBeenCalledWith('/historial-pedidos');
+  });
+
+  it('cubre formatOrderDetails con claves desconocidas y sortedOrders con igual prioridad', async () => {
+    const customOrders = [
+      ...getMockOrders(),
+      {
+        id_orden: 'o3',
+        created_at: new Date(Date.now() - 10000).toISOString(),
+        id_cliente: 'c3',
+        id_estado: 1, 
+        total_productos: 1,
+        total_pagar: 1,
+        clientes: { nombre: 'A', apellido: 'B', telefono: '123', tipos_cliente: { nombre_tipo: 'x' } },
+        estados_orden: { nombre_estado: 'Reservado' },
+        detalle_orden: [
+          {
+            id_detalle: 'd3',
+            cantidad: 1,
+            precio_aplicado: 1,
+            productos: { nombre_producto: 'X' },
+            opciones: { "ZZZ": "Z", "AAA": "A" } 
+          }
+        ]
+      }
+    ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (apiFetch as any).mockResolvedValue({ ok: true, json: () => Promise.resolve(customOrders) });
+    await renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText(/ZZZ: Z/)).toBeInTheDocument();
+      expect(screen.getByText(/AAA: A/)).toBeInTheDocument();
+    });
+  });
+
+  it('cubre el caso de error generico (500) en actualizacion de estado', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (apiFetch as any).mockImplementation((url: string) => {
+      if (url.includes('/ordenes?')) return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockOrders()) });
+      if (url.includes('/estado')) return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ error: 'Falla DB' }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+    await renderComponent();
+
+    const selects = screen.getAllByRole('combobox');
+    const estadoSelect = selects.find(s => s.textContent?.includes('Reservado') || s.textContent?.includes('Estado'));
+    if (estadoSelect) {
+      fireEvent.click(estadoSelect);
+      const consumidoOption = screen.getByRole('option', { name: /Consumido/i });
+      fireEvent.click(consumidoOption);
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Falla DB');
+      });
+    }
+  });
+
+  it('cubre el caso de error de red (throw) en actualizacion de estado', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (apiFetch as any).mockImplementation((url: string) => {
+      if (url.includes('/ordenes?')) return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockOrders()) });
+      if (url.includes('/estado')) return Promise.reject(new Error('Network error'));
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+    await renderComponent();
+
+    const selects = screen.getAllByRole('combobox');
+    const estadoSelect = selects.find(s => s.textContent?.includes('Reservado') || s.textContent?.includes('Estado'));
+    if (estadoSelect) {
+      fireEvent.click(estadoSelect);
+      const consumidoOption = screen.getByRole('option', { name: /Consumido/i });
+      fireEvent.click(consumidoOption);
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Error de conexión');
+      });
+    }
   });
 });

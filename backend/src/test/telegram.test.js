@@ -226,4 +226,20 @@ describe('Telegram Routes (/api/telegram/broadcast-sessions)', () => {
     // Verificamos el mensaje por defecto cuando error.message es indefinido
     expect(res.body.error).toBe('No se pudieron preparar las sesiones de broadcast.');
   });
+
+  it('debe cubrir el fallback en secureEquals con un secreto provided y expected no indefinido pero vacio', async () => {
+    // Para probar el branch l || '' o r || ''
+    const res = await request(app)
+      .post('/api/telegram/broadcast-sessions')
+      .set('X-Ecencia-Webhook-Secret', '')
+      .send({});
+    expect(res.status).toBe(401);
+  });
+
+  it('debe cubrir el fallback en secureEquals enviando nulo (simulado no enviando cabecera) y fallando', async () => {
+    const res = await request(app)
+      .post('/api/telegram/broadcast-sessions')
+      .send({});
+    expect(res.status).toBe(401);
+  });
 });
