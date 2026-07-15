@@ -15,27 +15,7 @@ services:
     volumes:
       - ./convenios:/usr/src/convenios
 
-  n8n-local:
-    image: docker.n8n.io/n8nio/n8n:latest
-    container_name: ecencia-n8n-local
-    restart: unless-stopped
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - NODE_ENV=development
-      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false
-      - NODE_FUNCTION_ALLOW_BUILTIN=fs
-      - NODE_FUNCTION_ALLOW_ENV=*
-      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
-      - WEBHOOK_URL=http://localhost:5678/
-      - GENERIC_TIMEZONE=America/Bogota
-      - TZ=America/Bogota
-    env_file:
-      - ./backend/.env
-    volumes:
-      - ~/.n8n:/home/node/.n8n
+
 
   n8n:
     image: docker.n8n.io/n8nio/n8n

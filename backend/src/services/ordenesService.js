@@ -202,7 +202,7 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
 
   const { data: ordenPrevia, error: errOrdenPrevia } = await adminClient
     .from('ordenes')
-    .select('id_estado, id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_producto, cantidad)')
+    .select('id_estado, id_cliente, metodo_pago, clientes(id_tipo_cliente), detalle_orden(id_detalle, id_producto, cantidad, opciones)')
     .eq('id_orden', id_orden)
     .single();
   
@@ -213,32 +213,35 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
     const isDirectClient = orden.clientes?.id_tipo_cliente === CLIENT_TYPE.DIRECT;
     if (orden.metodo_pago === 'Saldo Prepago' || (isDirectClient && orden.metodo_pago === 'Pendiente')) {
       for (const det of orden.detalle_orden) {
-        const { data: saldoActual } = await adminClient
-          .from('saldos_servicio')
-          .select('cantidad_disponible')
-          .eq('id_cliente', orden.id_cliente)
-          .eq('id_producto', det.id_producto)
-          .maybeSingle();
-          
-        if (saldoActual) {
-          await adminClient
+        const saldosUsados = det.opciones?.saldos_usados || [{ id_producto_saldo: det.id_producto, cantidad: det.cantidad }];
+        for (const saldo of saldosUsados) {
+          const { data: saldoActual } = await adminClient
             .from('saldos_servicio')
-            .update({ 
-              cantidad_disponible: saldoActual.cantidad_disponible + det.cantidad, 
-              updated_by: user.id 
-            })
+            .select('cantidad_disponible')
             .eq('id_cliente', orden.id_cliente)
-            .eq('id_producto', det.id_producto);
-        } else {
-          await adminClient
-            .from('saldos_servicio')
-            .insert({
-              id_cliente: orden.id_cliente,
-              id_producto: det.id_producto,
-              cantidad_disponible: det.cantidad,
-              created_by: user.id,
-              updated_by: user.id
-            });
+            .eq('id_producto', saldo.id_producto_saldo)
+            .maybeSingle();
+            
+          if (saldoActual) {
+            await adminClient
+              .from('saldos_servicio')
+              .update({ 
+                cantidad_disponible: saldoActual.cantidad_disponible + saldo.cantidad, 
+                updated_by: user.id 
+              })
+              .eq('id_cliente', orden.id_cliente)
+              .eq('id_producto', saldo.id_producto_saldo);
+          } else {
+            await adminClient
+              .from('saldos_servicio')
+              .insert({
+                id_cliente: orden.id_cliente,
+                id_producto: saldo.id_producto_saldo,
+                cantidad_disponible: saldo.cantidad,
+                created_by: user.id,
+                updated_by: user.id
+              });
+          }
         }
       }
       devolvioSaldo = true;
@@ -305,6 +308,7 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
         const prodPedido = productosPedidos.find(p => p.id_producto === det.id_producto);
         const precioPedido = prodPedido ? prodPedido.precio_unitario : 0;
         let cantidadRestante = det.cantidad;
+        const deduccionesDetalle = [];
 
         const saldoExacto = saldosDisponibles.find(s => s.id_producto === det.id_producto);
         if (saldoExacto && saldoExacto.cantidad > 0) {
@@ -312,6 +316,7 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
           saldoExacto.cantidad -= descontar;
           cantidadRestante -= descontar;
           deducciones.push({ id_producto_saldo: saldoExacto.id_producto, cantidad: descontar });
+          deduccionesDetalle.push({ id_producto_saldo: saldoExacto.id_producto, cantidad: descontar });
         }
 
         if (cantidadRestante > 0) {
@@ -325,6 +330,7 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
             saldoCaro.cantidad -= descontar;
             cantidadRestante -= descontar;
             deducciones.push({ id_producto_saldo: saldoCaro.id_producto, cantidad: descontar });
+            deduccionesDetalle.push({ id_producto_saldo: saldoCaro.id_producto, cantidad: descontar });
             
             if (saldoCaro.id_producto !== det.id_producto && saldoCaro.precio > precioPedido) {
               fallbackUsed = true;
@@ -335,6 +341,11 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
         if (cantidadRestante > 0) {
           throw createHttpError(400, 'El cliente no tiene saldo suficiente en su monedero. Por favor recargue el saldo.');
         }
+
+        if (!det.opciones) det.opciones = {};
+        det.opciones.saldos_usados = deduccionesDetalle;
+        const { error: detErr } = await adminClient.from('detalle_orden').update({ opciones: det.opciones }).eq('id_detalle', det.id_detalle);
+        if (detErr) throw detErr;
       }
 
       if (fallbackUsed && !forceFallback) {

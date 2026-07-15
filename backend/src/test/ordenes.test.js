@@ -15,6 +15,7 @@ describe('Rutas de Ordenes', () => {
   const UUID_MONEDERO_FALLBACK = '44444444-4444-4444-8444-444444444444';
   const UUID_MONEDERO_VACIO = '55555555-5555-4555-8555-555555555555';
   const UUID_ORDEN = '66666666-6666-4666-8666-666666666666';
+  const UUID_MONEDERO_REFUND = '77777777-7777-4777-8777-777777777777';
 
   beforeEach(() => {
     forceDbError = false;
@@ -100,6 +101,20 @@ describe('Rutas de Ordenes', () => {
             detalle_orden: [{ id_producto: 1, cantidad: 1 }]
           }), { status: 200, headers: { 'Content-Type': 'application/vnd.pgrst.object+json' } });
         }
+        if (urlStr.includes(`id_orden=eq.${UUID_MONEDERO_REFUND}`)) {
+          return new Response(JSON.stringify({
+            id_estado: 2,
+            id_cliente: UUID_MONEDERO_REFUND,
+            metodo_pago: 'Saldo Prepago',
+            clientes: { id_tipo_cliente: 2 },
+            detalle_orden: [{ 
+              id_detalle: 'det-2', 
+              id_producto: 1, 
+              cantidad: 1, 
+              opciones: { saldos_usados: [{ id_producto_saldo: 2, cantidad: 1 }] }
+            }]
+          }), { status: 200, headers: { 'Content-Type': 'application/vnd.pgrst.object+json' } });
+        }
       }
 
       // 7. GET /rest/v1/saldos_servicio
@@ -118,6 +133,11 @@ describe('Rutas de Ordenes', () => {
         }
         if (urlStr.includes(`id_cliente=eq.${UUID_MONEDERO_VACIO}`)) {
           return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (urlStr.includes(`id_cliente=eq.${UUID_MONEDERO_REFUND}`)) {
+          return new Response(JSON.stringify([
+            { id_producto: 2, cantidad_disponible: 0, productos: { precio_unitario: 7, nombre_producto: 'Almuerzo Ejecutivo' } }
+          ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
       }
 
@@ -265,6 +285,22 @@ describe('Rutas de Ordenes', () => {
       const telegramCall = fetchCalls.find(call => call[0].includes('internal/sendMessage'));
       expect(telegramCall).toBeDefined();
       expect(telegramCall[1].body).toContain('Pedido Cancelado');
+    });
+
+    it('Devuelve exactamente el saldo de fallback utilizado al cancelar un pedido consumido', async () => {
+      const res = await request(app)
+        .put(`/api/ordenes/${UUID_MONEDERO_REFUND}/estado`)
+        .set('Authorization', 'Bearer token')
+        .send({ id_estado: 3 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.mensaje).toMatch(/actualizado/i);
+      
+      const fetchCalls = fetchSpy.mock.calls;
+      const updateSaldoCall = fetchCalls.find(call => call[0].includes('rest/v1/saldos_servicio') && call[1]?.method === 'PATCH');
+      expect(updateSaldoCall).toBeDefined();
+      expect(updateSaldoCall[1].body).toContain('"cantidad_disponible":1');
+      expect(updateSaldoCall[0]).toContain('id_producto=eq.2'); // Deberia devolver producto 2, NO 1
     });
   });
 
