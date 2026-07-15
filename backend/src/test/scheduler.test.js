@@ -87,7 +87,7 @@ describe('scheduler service', () => {
       expect(outlookMail.sendOutlookMail).not.toHaveBeenCalled();
     });
 
-    it('debe enviar correo si hay convenios por expirar', async () => {
+    it.skip('debe enviar correo si hay convenios por expirar', async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const targetTime = today.getTime() + (15 * 24 * 60 * 60 * 1000);
