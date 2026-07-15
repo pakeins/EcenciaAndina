@@ -347,7 +347,7 @@ describe('Pedidos', () => {
         ]
       }
     ];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (apiFetch as any).mockResolvedValue({ ok: true, json: () => Promise.resolve(customOrders) });
     await renderComponent();
     await waitFor(() => {
@@ -357,7 +357,7 @@ describe('Pedidos', () => {
   });
 
   it('cubre el caso de error generico (500) en actualizacion de estado', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (apiFetch as any).mockImplementation((url: string) => {
       if (url.includes('/ordenes?')) return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockOrders()) });
       if (url.includes('/estado')) return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ error: 'Falla DB' }) });
@@ -378,7 +378,7 @@ describe('Pedidos', () => {
   });
 
   it('cubre el caso de error de red (throw) en actualizacion de estado', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (apiFetch as any).mockImplementation((url: string) => {
       if (url.includes('/ordenes?')) return Promise.resolve({ ok: true, json: () => Promise.resolve(getMockOrders()) });
       if (url.includes('/estado')) return Promise.reject(new Error('Network error'));

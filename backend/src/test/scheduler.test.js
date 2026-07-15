@@ -135,8 +135,8 @@ describe('scheduler service', () => {
       mockSupabase.from.mockImplementation((table) => {
         if (table === 'convenios') {
           return { 
-             select: () => ({ eq: () => Promise.resolve({ data: [{ id: 1, nombre_empresa: 'Empresa Test', fecha_caducidad: pastDate.toISOString().split('T')[0] }] }) }),
-             update: () => ({ eq: updateMock })
+            select: () => ({ eq: () => Promise.resolve({ data: [{ id: 1, nombre_empresa: 'Empresa Test', fecha_caducidad: pastDate.toISOString().split('T')[0] }] }) }),
+            update: () => ({ eq: updateMock })
           };
         }
         return mockSupabase;
