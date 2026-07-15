@@ -35,7 +35,7 @@ module.exports = [
     },
   },
   {
-    files: ['**/*.test.js'],
+    files: ['**/*.test.js', '**/*.suite.js', 'vitest.config.js'],
     languageOptions: {
       sourceType: 'module',
     },

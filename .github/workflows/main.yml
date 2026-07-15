@@ -51,7 +51,7 @@ jobs:
           exit-code: '1'
 
   ci-backend:
-    name: CI Pipeline (Backend)
+    name: CI Backend (Lint, Audit, Test)
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: "https://example.supabase.co"
@@ -103,7 +103,7 @@ jobs:
           if-no-files-found: warn
 
   ci-frontend:
-    name: CI Pipeline (Frontend)
+    name: CI Frontend (Lint, Audit, Test, Build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -159,7 +159,7 @@ jobs:
           path: frontend/dist
 
   ci-telegram:
-    name: CI Pipeline (Telegram Bot)
+    name: CI Telegram Bot (Test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
