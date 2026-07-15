@@ -131,7 +131,7 @@ jobs:
         run: |
           echo "### 🧪 Backend Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
+          cat test_output.txt >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload coverage artifacts
         if: always()
@@ -162,7 +162,7 @@ jobs:
         run: |
           echo "### 🧪 Frontend Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
+          cat test_output.txt >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload coverage artifacts
         if: always()
@@ -193,7 +193,7 @@ jobs:
         run: |
           echo "### 🤖 Telegram Bot Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat test_output.txt >> $GITHUB_STEP_SUMMARY
+          cat test_output.txt >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload coverage artifacts
         if: always()
