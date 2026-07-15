@@ -80,11 +80,39 @@ describe('scheduler service', () => {
 
   describe('notifyExpiringConvenios', () => {
     it('debe buscar y no fallar si no hay convenios proximos a expirar', async () => {
-      mockSupabase.eq.mockResolvedValueOnce({ data: [{ correo: 'test@admin.com' }] }); // admins
+      mockSupabase.in.mockResolvedValueOnce({ data: [{ correo: 'test@admin.com' }] }); // admins
       mockSupabase.eq.mockResolvedValueOnce({ data: [] }); // convenios
 
       await notifyExpiringConvenios();
       expect(outlookMail.sendOutlookMail).not.toHaveBeenCalled();
+    });
+
+    it('debe enviar correo si hay convenios por expirar', async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const targetTime = today.getTime() + (15 * 24 * 60 * 60 * 1000);
+      const futureDate = new Date(targetTime);
+      const pad = n => n.toString().padStart(2, '0');
+      const dateStr = `${futureDate.getFullYear()}-${pad(futureDate.getMonth()+1)}-${pad(futureDate.getDate())}`;
+
+      mockSupabase.in.mockResolvedValueOnce({ data: [{ correo: 'test@admin.com' }] }); // admins
+      mockSupabase.eq.mockResolvedValueOnce({ data: [{ nombre_empresa: 'Empresa', fecha_caducidad: dateStr }] }); // convenios
+
+      await notifyExpiringConvenios();
+      expect(outlookMail.sendOutlookMail).toHaveBeenCalled();
+    });
+
+    it('debe no hacer nada si no hay administradores', async () => {
+      mockSupabase.in.mockResolvedValueOnce({ data: [] }); // no admins
+      await notifyExpiringConvenios();
+      expect(outlookMail.sendOutlookMail).not.toHaveBeenCalled();
+    });
+
+    it('debe atrapar error si la bd falla', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockSupabase.from.mockImplementationOnce(() => { throw new Error('DB Error'); });
+      await notifyExpiringConvenios();
+      expect(errorSpy).toHaveBeenCalled();
     });
   });
 
@@ -96,6 +124,26 @@ describe('scheduler service', () => {
       });
       await deactivateExpiredConvenios();
       expect(errorSpy).toHaveBeenCalled();
+    });
+
+    it('debe desactivar convenio si la fecha ya paso', async () => {
+      const pastDate = new Date();
+      pastDate.setDate(pastDate.getDate() - 2);
+
+      const updateMock = vi.fn().mockResolvedValue({ error: null });
+
+      mockSupabase.from.mockImplementation((table) => {
+        if (table === 'convenios') {
+          return { 
+             select: () => ({ eq: () => Promise.resolve({ data: [{ id: 1, nombre_empresa: 'Empresa Test', fecha_caducidad: pastDate.toISOString().split('T')[0] }] }) }),
+             update: () => ({ eq: updateMock })
+          };
+        }
+        return mockSupabase;
+      });
+
+      await deactivateExpiredConvenios();
+      expect(updateMock).toHaveBeenCalled();
     });
   });
 });
