@@ -360,7 +360,7 @@ const buildReactivationEmail = ({ nombre, botUsername, env = process.env }) => {
 
 const sendOutlookMail = async ({ to, subject, text, html }, options = {}) => {
   const recipient = String(to || '').trim().toLowerCase();
-  console.log(`[SMTP Mailer] Iniciando envío de correo a: ${recipient}`);
+  console.log('[SMTP Mailer] Iniciando envío de correo (destinatario ofuscado por seguridad)');
   if (!recipient) {
     const error = new Error('El cliente no tiene correo para enviar la invitacion.');
     error.code = 'MAIL_MISSING_RECIPIENT';
