@@ -1,9 +1,9 @@
 name: CI/CD DevSecOps
 
 # ==============================================================================
-# ⚠️ FLUJO GRANULAR Y MODULARIZADO ⚠️
-# Pipeline hiper-segmentado para visualización completa de todas las etapas
-# de pruebas, calidad y seguridad en la pestaña "Actions".
+# ⚠️ FLUJO GRANULAR Y MODULARIZADO (OPTIMIZADO) ⚠️
+# Pipeline optimizado para visualización completa de todas las etapas
+# de pruebas, calidad y seguridad ahorrando tiempos de inicialización (NPM).
 # ==============================================================================
 
 on:
@@ -35,60 +35,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  lint-backend:
-    name: Code Quality (Backend) - ESLint
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - name: Install & Lint Backend
-        working-directory: backend
-        run: |
-          npm ci
-          npm run lint
-
-  lint-frontend:
-    name: Code Quality (Frontend) - ESLint
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install & Lint Frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run lint
-
-  security-npm:
-    name: Security Audit - NPM
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
-      - name: NPM Audit Backend
-        working-directory: backend
-        run: npm audit --audit-level=critical
-      - name: NPM Audit Frontend
-        working-directory: frontend
-        run: npm audit --audit-level=critical
-
   security-trivy:
     name: Security Scan - Trivy
     runs-on: ubuntu-latest
@@ -104,8 +50,8 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
 
-  test-backend:
-    name: Unit Tests (Backend) - Vitest
+  ci-backend:
+    name: CI Pipeline (Backend)
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: "https://example.supabase.co"
@@ -115,10 +61,25 @@ jobs:
       PORT: 3001
     steps:
       - uses: actions/checkout@v4
-      - name: Install & Test Backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install Dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Linting (ESLint)
+        working-directory: backend
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+        run: npm run lint
+      - name: Security Audit (NPM)
+        working-directory: backend
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+        run: npm audit --audit-level=critical
+      - name: Unit Tests (Vitest)
         working-directory: backend
         run: |
-          npm ci
           set +e
           CI=true NO_COLOR=1 npm run test:coverage 2>&1 | tee test_output_raw.txt
           TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -141,15 +102,30 @@ jobs:
           path: backend/coverage
           if-no-files-found: warn
 
-  test-frontend:
-    name: Unit Tests (Frontend) - Vitest
+  ci-frontend:
+    name: CI Pipeline (Frontend)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install & Test Frontend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Linting (ESLint)
+        working-directory: frontend
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+        run: npm run lint
+      - name: Security Audit (NPM)
+        working-directory: frontend
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+        run: npm audit --audit-level=critical
+      - name: Unit Tests (Vitest)
         working-directory: frontend
         run: |
-          npm ci
           set +e
           CI=true NO_COLOR=1 npm run test:coverage 2>&1 | tee test_output_raw.txt
           TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -171,16 +147,33 @@ jobs:
           name: coverage-frontend
           path: frontend/coverage
           if-no-files-found: warn
+      - name: Build Frontend
+        working-directory: frontend
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+        run: npm run build
+      - name: Upload frontend build artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
 
-  test-telegram:
-    name: Unit Tests (Telegram Bot) - Vitest
+  ci-telegram:
+    name: CI Pipeline (Telegram Bot)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install & Test Telegram Bot
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: telegram-bot-function/package-lock.json
+      - name: Install Dependencies
+        working-directory: telegram-bot-function
+        run: npm ci
+      - name: Unit Tests (Vitest)
         working-directory: telegram-bot-function
         run: |
-          npm ci
           set +e
           CI=true NO_COLOR=1 npm run test:coverage -- 2>&1 | tee test_output_raw.txt
           TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -206,7 +199,7 @@ jobs:
   sonarcloud:
     name: Code Analysis - SonarCloud
     runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend, test-telegram]
+    needs: [ci-backend, ci-frontend, ci-telegram]
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
@@ -265,7 +258,7 @@ jobs:
     name: Integration Tests - Supertest
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    needs: [test-backend]
+    needs: [ci-backend]
     env:
       SUPABASE_URL: "https://example.supabase.co"
       SUPABASE_SERVICE_ROLE_KEY: "dummy-key"
@@ -286,34 +279,11 @@ jobs:
         working-directory: backend
         run: npm run test:integration
 
-  build:
-    name: Build Frontend
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Frontend install & build
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
-      - name: Upload frontend build artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist
-
   zap:
     name: OWASP ZAP Baseline Security
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    needs: [build]
+    needs: [ci-backend, ci-frontend]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -387,7 +357,7 @@ jobs:
   release:
     name: Semantic Release
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
+    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-trivy, security-secrets, zap]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
@@ -408,7 +378,7 @@ jobs:
   docker-build:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
+    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-trivy, security-secrets, zap]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
@@ -437,7 +407,7 @@ jobs:
   deploy-bot-azure:
     name: Deploy Bot to Azure Functions
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, test-backend, test-frontend, sonarcloud, integration-tests, security-trivy, security-npm, security-secrets, build, zap]
+    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-trivy, security-secrets, zap]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
