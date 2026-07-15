@@ -1,4 +1,42 @@
-# Manual de Despliegue de Sistema - "Ecencia Andina"
+<div align="center">
+
+# UNIVERSIDAD DE LAS AMÉRICAS (UDLA)
+### FACULTAD DE INGENIERÍA Y CIENCIAS APLICADAS
+### INGENIERÍA EN DESARROLLO DE SOFTWARE
+
+<br><br><br>
+
+# MANUAL DE DESPLIEGUE DE SISTEMA
+## "Ecencia Andina"
+
+<br><br><br>
+
+**Autores:**  
+Esteban Manuel Carvajal Landázuri  
+Alexander Iván Rengifo Mantilla
+
+**Tutor/Director:**  
+Ing. Paulo Guerra Terán
+
+<br><br><br>
+**Quito, Ecuador**  
+**Julio, 2026**
+
+</div>
+
+<div style="page-break-after: always"></div>
+
+## Tabla de Contenidos
+1. [Introducción y Objetivos del Despliegue](#1-introducci%C3%B3n-y-objetivos-del-despliegue)
+2. [Arquitectura de Despliegue](#2-arquitectura-de-despliegue)
+3. [Requerimientos y Prerrequisitos](#3-requerimientos-y-prerrequisitos)
+4. [Gestión de Secretos y Configuración](#4-gesti%C3%B3n-de-secretos-y-configuraci%C3%B3n)
+5. [Pasos Detallados de Instalación y Despliegue](#5-pasos-detallados-de-instalaci%C3%B3n-y-despliegue)
+6. [Plan de Pruebas y Validación Post-Despliegue](#6-plan-de-pruebas-y-validaci%C3%B3n-post-despliegue)
+7. [Plan de Rollback y Contingencia](#7-plan-de-rollback-y-contingencia)
+8. [Mantenimiento y Monitoreo](#8-mantenimiento-y-monitoreo)
+
+<div style="page-break-after: always"></div>
 
 > [!IMPORTANT]
 > **Documento Oficial de Titulación - Universidad de las Américas (UDLA)**
@@ -10,19 +48,20 @@
 
 ### 1.1 Propósito del Documento
 El presente manual establece los lineamientos técnicos, prerrequisitos, pasos de configuración y validaciones necesarios para desplegar de manera exitosa la plataforma integral "Ecencia Andina" en un entorno de producción.
-Gracias a su naturaleza contenerizada, **este sistema puede ser desplegado en cualquier servidor o proveedor de nube (AWS, Google Cloud, DigitalOcean, servidores on-premise)** que soporte Linux y Docker. Adicionalmente, se incluye una guía para automatizar la creación de la infraestructura específicamente en **Microsoft Azure** utilizando **Terraform**.
+
+El sistema fue concebido bajo un enfoque *Cloud-Native* teniendo a **Microsoft Azure** como el proveedor principal (utilizando Azure Functions y Azure Virtual Machines) orquestado vía Terraform. Sin embargo, gracias a su arquitectura basada en contenedores, **el sistema mantiene portabilidad total y puede ser desplegado de forma manual (Agnóstica) en cualquier servidor o proveedor de nube** (AWS, Google Cloud, DigitalOcean) que soporte Linux y Docker, ya que incluso los componentes *Serverless* proveen métodos de ejecución contenerizada como respaldo.
 
 ### 1.2 Alcance
 El alcance de este manual cubre el despliegue de los siguientes componentes:
-*   **Despliegue Agnóstico (Cualquier Nube):**
+*   **Aprovisionamiento Automatizado y Serverless (Microsoft Azure - Primario):**
+    *   **Bot de Telegram:** Microservicio Serverless desplegado nativamente como una **Azure Function App** (independiente de la máquina virtual).
+    *   **Infraestructura:** Creación de red, seguridad y servidores mediante Terraform y GitHub Actions (CI/CD).
+*   **Despliegue Agnóstico (Cualquier Nube - Respaldo):**
     *   **Frontend (Cliente Web):** Despliegue de aplicación React + Vite servida mediante Apache2.
     *   **Backend (API Rest):** Aplicación Node.js/Express empacada en Docker.
     *   **Gestor de Workflows (n8n):** Contenedor Docker para orquestación de procesos y envíos automatizados.
     *   **Proxy Reverso:** Configuración de enrutamiento web con Apache2.
     *   **Base de Datos:** Conexiones hacia Supabase (servicios administrados).
-*   **Aprovisionamiento Automatizado y Serverless (Microsoft Azure):**
-    *   **Bot de Telegram:** Microservicio Serverless desplegado nativamente como una **Azure Function App** (independiente de la máquina virtual).
-    *   **Infraestructura:** Creación de red, seguridad y servidores mediante Terraform y GitHub Actions (CI/CD).
 
 ---
 
@@ -76,7 +115,7 @@ flowchart TD
 
 ### 3.2 Software y Herramientas Locales
 El entorno de desarrollo desde donde se ejecutará el despliegue (Máquina Windows del desarrollador) debe contar con:
-*   **Terraform:** Versión `v4.0` o superior.
+*   **Terraform:** Versión Core `v1.5+` (Se recomienda el uso del provider `azurerm` v3.0 o superior).
 *   **Node.js:** Versión `18.x` o superior (para compilación local).
 *   **Git Bash / PowerShell:** Con cliente SSH y SCP habilitado.
 *   **Azure CLI:** Autenticado con los permisos de propietario/contributor (`az login`).
@@ -84,7 +123,7 @@ El entorno de desarrollo desde donde se ejecutará el despliegue (Máquina Windo
 ### 3.3 Configuración de Red (Puertos de Entrada)
 El Grupo de Seguridad de Red (NSG) en Azure o el firewall del servidor elegido debe permitir estrictamente:
 *   `TCP 80` (HTTP): Para el tráfico público hacia la aplicación web.
-*   `TCP 443` (HTTPS): Para el futuro aprovisionamiento de certificados SSL.
+*   `TCP 443` (HTTPS): Para el aprovisionamiento de certificados SSL.
 *   `TCP 22` (SSH): Limitado a la IP del administrador para gestión remota.
 
 ### 3.4 Prerrequisitos de Servicios de Terceros
@@ -101,9 +140,15 @@ Dado que el sistema no aloja la base de datos localmente para asegurar escalabil
 
 ---
 
-## 4. Variables de Entorno y Configuración
+## 4. Gestión de Secretos y Configuración
 
-Antes del empaquetado del backend, es imperativo configurar el archivo `.env` en la raíz del proyecto backend. 
+El manejo de las credenciales del sistema es estrictamente confidencial. 
+
+### 4.1 Administración de Roles y Secretos de Producción
+*   **Dueño del Proyecto (Supabase):** Las credenciales maestras y la administración de la base de datos Supabase están bajo la responsabilidad exclusiva del administrador o dueño de la infraestructura.
+*   **GitHub Secrets (CI/CD):** En un entorno de producción, las variables de entorno **no deben** ser declaradas explícitamente en el código. El pipeline automatizado inyecta de forma segura los valores desde `GitHub Settings > Secrets and variables > Actions`.
+
+Antes de cualquier despliegue manual o local, es imperativo configurar el archivo `.env` en la raíz del proyecto backend. 
 
 > [!WARNING]  
 > Nunca versione el archivo `.env` en el repositorio. Los valores reales deben inyectarse estrictamente en el entorno local antes de comprimir los artefactos.
@@ -184,6 +229,19 @@ Independientemente del método elegido (A o B), una vez los archivos estén en e
    docker compose up -d --build
    ```
 
+### 5.1 Configuración de SSL con Certbot (Opcional pero Recomendado)
+Para asegurar el tráfico mediante HTTPS (Puerto 443), se recomienda utilizar **Let's Encrypt** sobre el servidor Apache.
+
+1. Instalar Certbot en la Máquina Virtual:
+   ```bash
+   sudo apt install certbot python3-certbot-apache -y
+   ```
+2. Ejecutar el aprovisionamiento (requiere que el dominio DNS ya esté apuntando a la IP pública):
+   ```bash
+   sudo certbot --apache -d tudominio.com
+   ```
+3. Certbot ajustará automáticamente las reglas de VirtualHost de Apache para enrutar el tráfico seguro.
+
 ---
 
 ## 6. Plan de Pruebas y Validación Post-Despliegue
@@ -191,11 +249,22 @@ Independientemente del método elegido (A o B), una vez los archivos estén en e
 Una vez completado el script, se debe realizar un "Smoke Test" para certificar la operación:
 
 1.  **Prueba de Carga del Frontend:** Abrir el navegador e ingresar a `http://[IP_PUBLICA]`. Debe mostrarse el formulario de Login sin errores en la consola (F12).
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUI: Pantalla de Login en Producción]**
+    
 2.  **Prueba de Proxy y API:** En el navegador, acceder a `http://[IP_PUBLICA]/api/health` o consultar mediante Postman. Debe retornar estado 200 OK.
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUI: Respuesta 200 de la API]**
+
 3.  **Validación de Base de Datos y Workflows:** 
     *   Realizar un inicio de sesión en el frontend para validar la conexión con Supabase.
     *   Ingresar a la ruta `/n8n` para verificar que el panel de administración de workflows responda.
+        > [!NOTE] 
+        > **[INSERTAR CAPTURA AQUI: Panel de Workflows de n8n]**
     *   Enviar un comando `/start` al Bot de Telegram para probar la respuesta del backend.
+        > [!NOTE] 
+        > **[INSERTAR CAPTURA AQUI: Chat del Bot respondiendo correctamente]**
+
 4.  **Estado de los Contenedores:** Dentro del servidor por SSH, ejecute `docker ps` y confirme que los estados de los contenedores `ecencia-backend` y `ecencia-n8n` sean "Up".
 
 ---
