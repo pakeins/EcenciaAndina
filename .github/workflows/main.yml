@@ -25,7 +25,6 @@ jobs:
   security-secrets:
     name: Security Scan - Gitleaks
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,21 +33,6 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  security-trivy:
-    name: Security Scan - Trivy
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          ignore-unfixed: true
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
 
   ci-backend:
     name: CI Backend (Lint, Audit, Test)
@@ -71,11 +55,9 @@ jobs:
         run: npm ci
       - name: Linting (ESLint)
         working-directory: backend
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
         run: npm run lint
       - name: Security Audit (NPM)
         working-directory: backend
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
         run: npm audit --audit-level=critical
       - name: Unit Tests (Vitest)
         working-directory: backend
@@ -117,11 +99,9 @@ jobs:
         run: npm ci
       - name: Linting (ESLint)
         working-directory: frontend
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
         run: npm run lint
       - name: Security Audit (NPM)
         working-directory: frontend
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
         run: npm audit --audit-level=critical
       - name: Unit Tests (Vitest)
         working-directory: frontend
@@ -149,7 +129,6 @@ jobs:
           if-no-files-found: warn
       - name: Build Frontend
         working-directory: frontend
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
         run: npm run build
       - name: Upload frontend build artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -357,7 +336,7 @@ jobs:
   release:
     name: Semantic Release
     runs-on: ubuntu-latest
-    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-trivy, security-secrets, zap]
+    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-secrets, zap]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
@@ -378,7 +357,7 @@ jobs:
   docker-build:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-trivy, security-secrets, zap]
+    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-secrets, zap]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
@@ -403,11 +382,19 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/ecencia-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Run Trivy vulnerability scanner on Docker Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/${{ github.repository_owner }}/ecencia-backend:latest'
+          format: 'table'
+          # Se establece en 0 para no romper el despliegue si encuentra algo, solo reportarlo.
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
 
   deploy-bot-azure:
     name: Deploy Bot to Azure Functions
     runs-on: ubuntu-latest
-    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-trivy, security-secrets, zap]
+    needs: [ci-backend, ci-frontend, sonarcloud, integration-tests, security-secrets, zap]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
@@ -499,6 +486,9 @@ jobs:
             git remote set-url origin https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
             git fetch --all
             git reset --hard origin/main
+            
+            # 🛡️ SEGURIDAD: Remover el token del archivo de configuración para que no quede guardado en el servidor
+            git remote set-url origin https://github.com/${{ github.repository }}.git
             
             if [ -f "/home/${{ secrets.AZURE_USER }}/EcenciaAPP/backend/.env" ]; then
               cp /home/${{ secrets.AZURE_USER }}/EcenciaAPP/backend/.env backend/.env

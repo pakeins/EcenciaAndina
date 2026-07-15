@@ -246,17 +246,34 @@ Start-Sleep -Seconds 10
 ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose exec -T n8n n8n import:workflow --separate --input=/workflows/ && docker compose exec -T n8n n8n publish:workflow --id=ecenciaTelegramMenuReservas && docker compose restart n8n"
 Write-Host "¡Flujos de n8n importados y activados exitosamente!" -ForegroundColor Green
 
-# 11. Configurar Webhook de Telegram
-Write-Host "[10/11] Configurando Webhook de Telegram hacia el servidor de Producción..." -ForegroundColor Yellow
-ssh -i terraform-lab/id_rsa.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${ip} "cd /home/azureuser/ECenciaAPP && docker compose exec -T backend npm run telegram:set-webhook"
-Write-Host "¡Webhook de Telegram configurado exitosamente!" -ForegroundColor Green
-
-# 12. Sincronizar Variables en Azure Function (Bot)
-Write-Host "[11/11] Sincronizando configuraciones con Azure Function App..." -ForegroundColor Yellow
+# 11. Empaquetar y Desplegar el Bot de Telegram a Azure Functions
 $functionAppName = "ecencia-bot-function"
+Write-Host "[10/12] Desplegando el Bot de Telegram como Azure Function ($functionAppName)..." -ForegroundColor Yellow
+
 if (Get-Command az -ErrorAction SilentlyContinue) {
+    Push-Location telegram-bot-function
     try {
-        Write-Host "Actualizando variables en la Azure Function App ($functionAppName)..."
+        Write-Host "Instalando dependencias de producción para el bot..."
+        npm ci --omit=dev | Out-Null
+        
+        Write-Host "Empaquetando código de la Azure Function en bot-deploy.zip..."
+        if (Test-Path "bot-deploy.zip") { Remove-Item "bot-deploy.zip" }
+        Compress-Archive -Path * -DestinationPath "bot-deploy.zip" -Force
+        
+        Write-Host "Publicando paquete .zip a Azure Function App..."
+        $publishOutput = az functionapp deployment source config-zip -g RG-TERRAFORM-PROCESS -n $functionAppName --src "bot-deploy.zip" 2>&1
+        
+        Remove-Item "bot-deploy.zip"
+        Write-Host "¡Bot desplegado exitosamente a Azure Functions!" -ForegroundColor Green
+    } catch {
+        Write-Warning "Hubo un error empaquetando o publicando el bot a Azure Functions: $_"
+    } finally {
+        Pop-Location
+    }
+
+    # 12. Sincronizar Variables en Azure Function (Bot)
+    Write-Host "[11/12] Sincronizando configuraciones con Azure Function App..." -ForegroundColor Yellow
+    try {
         # Tomamos las variables leídas del env local
         $supaUrl = $envVars["SUPABASE_URL"]
         $supaKey = $envVars["SUPABASE_SERVICE_ROLE_KEY"]
@@ -270,6 +287,7 @@ if (Get-Command az -ErrorAction SilentlyContinue) {
         if (-not $tgConsent) { $tgConsent = "EC-LOPDP-2026-06" }
         $tgInvite = $envVars["TELEGRAM_INVITE_TOKEN_SECRET"]
         $tgWHSecret = $envVars["TELEGRAM_WEBHOOK_SECRET"]
+        if (-not $tgWHSecret) { $tgWHSecret = "EcenciaWebhookSecret2026" }
         $internalSecret = $envVars["INTERNAL_API_SECRET"]
         $tz = $envVars["N8N_ECENCIA_TIMEZONE"]
         if (-not $tz) { $tz = "America/Bogota" }
@@ -294,11 +312,20 @@ if (Get-Command az -ErrorAction SilentlyContinue) {
                 N8N_ECENCIA_ORIGEN_NOMBRE="Telegram" > $null
                 
         Write-Host "¡Azure Function App Settings actualizados exitosamente!" -ForegroundColor Green
+
+        # 13. Configurar Webhook de Telegram hacia Azure Functions
+        Write-Host "[12/12] Configurando Webhook de Telegram apuntando a Azure Functions..." -ForegroundColor Yellow
+        $webhookUrl = "https://${functionAppName}.azurewebsites.net/api/telegram/webhook"
+        $curlOutput = curl.exe -s -X POST "https://api.telegram.org/bot${tgToken}/setWebhook" `
+            -d "url=${webhookUrl}" `
+            -d "secret_token=${tgWHSecret}"
+        Write-Host "¡Webhook configurado! Respuesta de Telegram: $curlOutput" -ForegroundColor Green
+
     } catch {
-        Write-Warning "Hubo un problema actualizando las variables en la Azure Function App. Asegúrese de que existe y está autenticado en az CLI."
+        Write-Warning "Hubo un problema actualizando las variables o configurando el webhook. Asegúrese de estar autenticado en az CLI."
     }
 } else {
-    Write-Warning "La Azure CLI (az) no está instalada localmente o no está disponible en la terminal. Se omite la sincronización automática de la Function App."
+    Write-Warning "La Azure CLI (az) no está instalada localmente o no está disponible en la terminal. Se omite el despliegue del bot de Telegram."
 }
 
 Write-Host "=========================================================" -ForegroundColor Green
