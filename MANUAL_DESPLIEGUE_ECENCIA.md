@@ -278,22 +278,51 @@ Para que los webhooks funcionen, el tráfico HTTPS (Puerto 443) es indispensable
 
 ---
 
-## 6. Plan de Pruebas y Matriz de Validación
+## 6. Plan de Pruebas y Aceptación Técnica (UAT)
 
-Se debe ejecutar una ronda de Aceptación Técnica (UAT) obligatoria antes de habilitar los Workflows automáticos de n8n para el cliente.
+Se debe ejecutar una ronda de Aceptación Técnica obligatoria antes de habilitar los Workflows automáticos de n8n para el cliente final. A continuación se detallan las pruebas a ejecutar:
 
-| ID Prueba | Descripción de Validación | Criterio de Éxito / Resultado Esperado | Evidencia |
-| :--- | :--- | :--- | :--- |
-| **INF-01** | TLS en Proxy Reverso | El navegador indica conexión segura HTTPS y redirige puerto 80 automáticamente. | Captura de navegador |
-| **APP-01** | Carga del Frontend React | Sin errores CORS o CSP en la consola de herramientas (F12). | Captura de login |
-| **API-01** | Disponibilidad de API | `curl -I https://[dominio]/api/check-db` retorna 200 OK. | Salida de Terminal |
-| **N8N-01** | Acceso a n8n y Persistencia | Al reiniciar el contenedor n8n, el workflow cargado y las credenciales persisten. | Captura del Panel |
-| **TG-01** | Onboarding Telegram | Un usuario interactúa con `/start` y acepta políticas LOPDP. | Registro en Base de Datos |
-| **TG-02** | Reserva Automática | El usuario completa un flujo guiado y la orden se guarda en Supabase con origen "Telegram". | Captura de Chat del Bot |
-| **OPS-01** | Ejecución de Cron Jobs | Las purgas de imágenes y cierre de reservas de n8n se ejecutan a las horas acordadas (Timezone Guayaquil). | Historial de n8n |
+### 6.1 [INF-01] TLS en Proxy Reverso
+*   **Validación:** El navegador indica conexión segura HTTPS y redirige el puerto 80 al 443 automáticamente.
+*   **Evidencia:**
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUÍ: Navegador mostrando el candado HTTPS]**
 
-> [!NOTE] 
-> **[INSERTAR CAPTURAS DE EVIDENCIA DE LAS PRUEBAS AQUÍ]**
+### 6.2 [APP-01] Carga del Frontend React
+*   **Validación:** La interfaz gráfica carga correctamente sin errores de CORS o CSP en la consola de desarrollador (F12).
+*   **Evidencia:**
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUÍ: Pantalla de Login o Inicio del Sistema]**
+
+### 6.3 [API-01] Disponibilidad de API
+*   **Validación:** Ejecutar `curl -I https://[dominio]/api/check-db` o consultar vía navegador/Postman y confirmar que retorna `200 OK`.
+*   **Evidencia:**
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUÍ: Salida de Terminal o Postman con código 200]**
+
+### 6.4 [N8N-01] Acceso a n8n y Persistencia
+*   **Validación:** Ingresar a la URL del panel de n8n. Verificar que los workflows y credenciales existan y persistan al reiniciar el contenedor.
+*   **Evidencia:**
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUÍ: Panel principal de Workflows de n8n]**
+
+### 6.5 [TG-01] Onboarding Telegram
+*   **Validación:** Un usuario de pruebas interactúa con `/start` en el bot y acepta explícitamente las políticas LOPDP.
+*   **Evidencia:**
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUÍ: Chat de Telegram mostrando el inicio y aceptación]**
+
+### 6.6 [TG-02] Reserva Automática
+*   **Validación:** El usuario completa un flujo guiado de menú del día. La orden se debe reflejar exitosamente en Supabase con origen "Telegram".
+*   **Evidencia:**
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUÍ: Registro en la base de datos o tablero mostrando la orden]**
+
+### 6.7 [OPS-01] Ejecución de Cron Jobs
+*   **Validación:** Las tareas programadas de n8n (purgas de imágenes y cierre de reservas) se ejecutan a las horas acordadas bajo la zona horaria (Timezone) de Guayaquil.
+*   **Evidencia:**
+    > [!NOTE] 
+    > **[INSERTAR CAPTURA AQUÍ: Historial de ejecuciones automáticas en n8n]**
 
 ---
 
