@@ -234,11 +234,17 @@ CONVENIOS_UPLOAD_DIR=/usr/src/convenios
    terraform apply -auto-approve
    ```
 
-**Paso 2: Ejecución del Pipeline CI/CD**
-Al hacer *Push* a la rama `main`, GitHub Actions orquestará el `docker-compose` en la VM, evaluará la seguridad (Gitleaks, Trivy) y desplegará la función *Serverless* en Azure Functions, inyectando todas las configuraciones.
+**Paso 2: Ejecución del Script de Despliegue Central (`deploy.ps1`)**
+Para simplificar la operación técnica y evitar errores manuales, el sistema cuenta con un script maestro de PowerShell que automatiza el pase a producción.
+1. Abra una terminal de PowerShell en la raíz del proyecto.
+2. Ejecute el script de despliegue:
+   ```powershell
+   .\deploy.ps1
+   ```
+3. El script automáticamente empaquetará los cambios, hará un push a GitHub y disparará el Pipeline CI/CD configurado en `.github/workflows/main.yml`, el cual desplegará la infraestructura Serverless y los contenedores en la nube.
 
 **Paso 3: Webhook Automatizado**
-El pipeline configura mediante `curl` la conexión bidireccional entre la API de Telegram y Azure Functions de forma invisible.
+Durante el flujo del pipeline disparado por el script, se configura mediante `curl` la conexión bidireccional entre la API de Telegram y Azure Functions de forma invisible.
 
 ### Opción B: Despliegue Manual (VPS Linux / AGNÓSTICO)
 Si no utiliza Azure Functions, la carpeta `telegram-bot-function/` incluye un `Dockerfile` compatible para empaquetarlo localmente junto a la API.
@@ -265,7 +271,7 @@ Para que los webhooks funcionen, el tráfico HTTPS (Puerto 443) es indispensable
    ```bash
    sudo apt install certbot python3-certbot-apache -y
    ```
-2. Ejecutar y autorizar (Requiere dominio apuntado a la IP):
+2. Ejecutar y autorizar:
    ```bash
    sudo certbot --apache -d tudominio.com
    ```
@@ -280,7 +286,7 @@ Se debe ejecutar una ronda de Aceptación Técnica (UAT) obligatoria antes de ha
 | :--- | :--- | :--- | :--- |
 | **INF-01** | TLS en Proxy Reverso | El navegador indica conexión segura HTTPS y redirige puerto 80 automáticamente. | Captura de navegador |
 | **APP-01** | Carga del Frontend React | Sin errores CORS o CSP en la consola de herramientas (F12). | Captura de login |
-| **API-01** | Disponibilidad de API | `curl -I https://[dominio]/api/health` retorna 200 OK. | Salida de Terminal |
+| **API-01** | Disponibilidad de API | `curl -I https://[dominio]/api/check-db` retorna 200 OK. | Salida de Terminal |
 | **N8N-01** | Acceso a n8n y Persistencia | Al reiniciar el contenedor n8n, el workflow cargado y las credenciales persisten. | Captura del Panel |
 | **TG-01** | Onboarding Telegram | Un usuario interactúa con `/start` y acepta políticas LOPDP. | Registro en Base de Datos |
 | **TG-02** | Reserva Automática | El usuario completa un flujo guiado y la orden se guarda en Supabase con origen "Telegram". | Captura de Chat del Bot |
