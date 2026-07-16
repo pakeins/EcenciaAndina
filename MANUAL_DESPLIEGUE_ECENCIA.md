@@ -6,7 +6,7 @@
 
 <br><br><br>
 
-# MANUAL DE DESPLIEGUE DE SISTEMA
+# MANUAL DE DESPLIEGUE Y OPERACIÓN DE SISTEMA
 ## "Ecencia Andina"
 
 <br><br><br>
@@ -29,18 +29,18 @@ Ing. Paulo Guerra Terán
 ## Tabla de Contenidos
 1. [Introducción y Objetivos del Despliegue](#1-introducci%C3%B3n-y-objetivos-del-despliegue)
 2. [Arquitectura de Despliegue](#2-arquitectura-de-despliegue)
-3. [Requerimientos y Prerrequisitos](#3-requerimientos-y-prerrequisitos)
-4. [Gestión de Secretos y Configuración](#4-gesti%C3%B3n-de-secretos-y-configuraci%C3%B3n)
+3. [Requerimientos, Dimensionamiento y Prerrequisitos](#3-requerimientos-dimensionamiento-y-prerrequisitos)
+4. [Gestión de Secretos y Responsabilidades](#4-gesti%C3%B3n-de-secretos-y-responsabilidades)
 5. [Pasos Detallados de Instalación y Despliegue](#5-pasos-detallados-de-instalaci%C3%B3n-y-despliegue)
-6. [Plan de Pruebas y Validación Post-Despliegue](#6-plan-de-pruebas-y-validaci%C3%B3n-post-despliegue)
+6. [Plan de Pruebas y Matriz de Validación](#6-plan-de-pruebas-y-matriz-de-validaci%C3%B3n)
 7. [Plan de Rollback y Contingencia](#7-plan-de-rollback-y-contingencia)
-8. [Mantenimiento y Monitoreo](#8-mantenimiento-y-monitoreo)
+8. [Endurecimiento, Mantenimiento y Monitoreo](#8-endurecimiento-mantenimiento-y-monitoreo)
 
 <div style="page-break-after: always"></div>
 
 > [!IMPORTANT]
 > **Documento Oficial de Titulación - Universidad de las Américas (UDLA)**
-> Este documento describe de forma exhaustiva los procedimientos técnicos para el aprovisionamiento de infraestructura, instalación, configuración y monitoreo del sistema "Ecencia Andina" en entornos productivos.
+> Este documento describe de forma exhaustiva los procedimientos técnicos para el aprovisionamiento de infraestructura, dimensionamiento, configuración, endurecimiento y monitoreo del sistema "Ecencia Andina" en entornos productivos.
 
 ---
 
@@ -49,19 +49,18 @@ Ing. Paulo Guerra Terán
 ### 1.1 Propósito del Documento
 El presente manual establece los lineamientos técnicos, prerrequisitos, pasos de configuración y validaciones necesarios para desplegar de manera exitosa la plataforma integral "Ecencia Andina" en un entorno de producción.
 
-El sistema fue concebido bajo un enfoque *Cloud-Native* teniendo a **Microsoft Azure** como el proveedor principal (utilizando Azure Functions y Azure Virtual Machines) orquestado vía Terraform. Sin embargo, gracias a su arquitectura basada en contenedores, **el sistema mantiene portabilidad total y puede ser desplegado de forma manual (Agnóstica) en cualquier servidor o proveedor de nube** (AWS, Google Cloud, DigitalOcean) que soporte Linux y Docker, ya que incluso los componentes *Serverless* proveen métodos de ejecución contenerizada como respaldo.
+El sistema fue concebido bajo un enfoque *Cloud-Native* teniendo a **Microsoft Azure** como el proveedor principal (utilizando Azure Functions y Azure Virtual Machines) orquestado vía Terraform. Sin embargo, gracias a su arquitectura basada en contenedores, **el sistema mantiene portabilidad total y puede ser desplegado de forma manual (Agnóstica) en cualquier servidor o proveedor de nube** (AWS, Google Cloud, Hostinger VPS) que soporte Linux y Docker, ya que incluso los componentes *Serverless* proveen métodos de ejecución contenerizada como respaldo.
 
 ### 1.2 Alcance
 El alcance de este manual cubre el despliegue de los siguientes componentes:
 *   **Aprovisionamiento Automatizado y Serverless (Microsoft Azure - Primario):**
     *   **Bot de Telegram:** Microservicio Serverless desplegado nativamente como una **Azure Function App** (independiente de la máquina virtual).
     *   **Infraestructura:** Creación de red, seguridad y servidores mediante Terraform y GitHub Actions (CI/CD).
-*   **Despliegue Agnóstico (Cualquier Nube - Respaldo):**
-    *   **Frontend (Cliente Web):** Despliegue de aplicación React + Vite servida mediante Apache2.
+*   **Despliegue Agnóstico (Cualquier Nube / VPS - Respaldo):**
+    *   **Frontend (Cliente Web):** Despliegue de aplicación React + Vite servida mediante Apache2 (o proxy reverso).
     *   **Backend (API Rest):** Aplicación Node.js/Express empacada en Docker.
     *   **Gestor de Workflows (n8n):** Contenedor Docker para orquestación de procesos y envíos automatizados.
-    *   **Proxy Reverso:** Configuración de enrutamiento web con Apache2.
-    *   **Base de Datos:** Conexiones hacia Supabase (servicios administrados).
+    *   **Base de Datos:** Conexiones externas hacia Supabase (Plan Pro recomendado para evitar suspensión).
 
 ---
 
@@ -71,9 +70,9 @@ El alcance de este manual cubre el despliegue de los siguientes componentes:
 
 ```mermaid
 flowchart TD
-    User([Navegador del Usuario]) -- Puerto 80 HTTP / 443 HTTPS --> VM[Cualquier Servidor Linux / VM]
+    User([Navegador del Usuario]) -- Puerto 80 HTTP / 443 HTTPS --> VM[Azure VM / Servidor Linux]
     
-    subgraph VM [Servidor Linux Ubuntu 22.04 LTS]
+    subgraph VM [Servidor Linux Ubuntu 22.04 / 24.04 LTS]
         Apache[Apache2 Web Server / Proxy Reverso]
         FE[Archivos Estáticos Frontend\n/var/www/html]
         
@@ -98,206 +97,245 @@ flowchart TD
 ```
 
 ### 2.2 Justificación de Decisiones Arquitectónicas
-*   **Portabilidad Parcial (Docker y Serverless):** El uso de Docker Compose encapsula todas las dependencias del backend y n8n, garantizando que el sistema base funcione idénticamente en cualquier servidor físico o de nube. Sin embargo, el **Bot de Telegram** se abstrajo como una Azure Function (Serverless) para garantizar una respuesta instantánea de microsegundos ante los webhooks de Telegram, independizando su carga de trabajo del servidor principal.
-*   **Proxy Reverso (Apache2):** Permite aislar los puertos y resolver el enrutamiento de la SPA de React sin problemas de CORS, dirigiendo transparentemente `/api` al entorno interno Docker en el puerto `3001`, y `/n8n` al puerto `5678`.
-*   **Contenedorización del Backend:** Se consolidan el backend y n8n bajo el mismo `docker-compose.yml`, compartiendo recursos, red interna y variables de entorno.
-*   **Integración y Despliegue Continuo (CI/CD):** La carga principal del despliegue del bot de Telegram hacia Azure Functions se realiza de forma automatizada mediante un pipeline de GitHub Actions (`main.yml`), el cual sincroniza las variables de entorno de Azure y publica la función.
+*   **Portabilidad Parcial (Docker y Serverless):** El uso de Docker Compose encapsula todas las dependencias del backend y n8n, garantizando que el sistema base funcione idénticamente en cualquier servidor físico o de nube. El **Bot de Telegram** se abstrajo como una Azure Function para garantizar una respuesta instantánea y elástica, independizando su carga de trabajo del servidor principal.
+*   **Proxy Reverso (Apache2 / Nginx / Caddy):** Permite aislar los puertos y resolver el enrutamiento de la SPA de React sin problemas de CORS, dirigiendo transparentemente `/api` al backend y `/n8n` al gestor de workflows.
+*   **Integración y Despliegue Continuo (CI/CD):** Se implementó un pipeline en GitHub Actions (`main.yml`) con validación de calidad, escaneo de vulnerabilidades en contenedores (Trivy), detección de secretos (Gitleaks) y despliegue automatizado.
 
 ---
 
-## 3. Requerimientos y Prerrequisitos
+## 3. Requerimientos, Dimensionamiento y Prerrequisitos
 
 ### 3.1 Hardware / Recursos de Nube Mínimos
-*   **Servidor:** Máquina Virtual Linux.
-*   **Sistema Operativo:** Ubuntu Server 22.04 LTS.
-*   **Recursos:** Mínimo 2 vCPUs, 8 GB de Memoria RAM.
-*   **Almacenamiento:** Disco de Estado Sólido (SSD) de 30 GB Mínimo.
+Para garantizar la fluidez de todos los contenedores y el sistema operativo, se requiere:
+*   **Servidor:** Azure Virtual Machine o Servidor VPS KVM equivalente.
+*   **Sistema Operativo:** Ubuntu Server 22.04 LTS o 24.04 LTS.
+*   **Recursos (Recomendado):** Mínimo 2 vCPUs, 8 GB de Memoria RAM.
+*   **Almacenamiento:** Disco de Estado Sólido (NVMe o SSD) de 30 GB a 100 GB.
 
-### 3.2 Software y Herramientas Locales
-El entorno de desarrollo desde donde se ejecutará el despliegue (Máquina Windows del desarrollador) debe contar con:
-*   **Terraform:** Versión Core `v1.5+` (Se recomienda el uso del provider `azurerm` v3.0 o superior).
-*   **Node.js:** Versión `18.x` o superior (para compilación local).
+### 3.2 Presupuesto de Memoria RAM Estimado
+La elección de un servidor con 8 GB de RAM (o superior) se justifica operativamente bajo el siguiente presupuesto aproximado:
+
+| Componente | Uso Operativo Inicial | Límite Recomendado | Observaciones |
+| :--- | :--- | :--- | :--- |
+| **Ubuntu + Docker** | 600 – 900 MiB | N/A | Incluye demonios, SSH, FW y base OS. |
+| **Proxy (Apache/Caddy)** | 30 – 100 MiB | 128 MiB | Enrutamiento TLS de baja carga. |
+| **Frontend** | 50 – 120 MiB | 256 MiB | Servido estáticamente. |
+| **Backend Node.js** | 150 – 350 MiB | 512 MiB | Puede escalar por uso de la API REST. |
+| **Gestor n8n** | 500 MiB – 1.2 GiB | 1.5 GiB | Consumidor principal de RAM (Java/Node) al ejecutar workflows complejos. |
+| **Margen Libre** | 2 – 4 GiB | N/A | Absorbente de picos, builds (NPM Install) y actualizaciones del SO. |
+
+### 3.3 Software y Herramientas Locales
+El entorno de desarrollo para aprovisionar el despliegue requiere:
+*   **Terraform:** Versión Core `v1.5+` (Provider `azurerm` v3.0 o superior).
 *   **Git Bash / PowerShell:** Con cliente SSH y SCP habilitado.
-*   **Azure CLI:** Autenticado con los permisos de propietario/contributor (`az login`).
-
-### 3.3 Configuración de Red (Puertos de Entrada)
-El Grupo de Seguridad de Red (NSG) en Azure o el firewall del servidor elegido debe permitir estrictamente:
-*   `TCP 80` (HTTP): Para el tráfico público hacia la aplicación web.
-*   `TCP 443` (HTTPS): Para el aprovisionamiento de certificados SSL.
-*   `TCP 22` (SSH): Limitado a la IP del administrador para gestión remota.
+*   **Azure CLI:** Autenticado con los permisos de propietario (`az login`).
 
 ### 3.4 Prerrequisitos de Servicios de Terceros
-Dado que el sistema no aloja la base de datos localmente para asegurar escalabilidad y persistencia, se debe contar con lo siguiente configurado previo al despliegue:
-*   **Supabase (Base de Datos Administrada):**
-    *   **Proyecto Activo:** Un proyecto de Supabase inicializado con el esquema SQL del sistema Ecencia Andina aplicado.
-    *   **Tier / Plan Sugerido:** Para entornos de producción se sugiere contar con el **Plan Pro (Pago)**, ya que el plan gratuito entra en modo de pausa (Sleep) tras días de inactividad, lo que provocaría que el backend y el bot fallen al intentar consultar datos.
-*   **Telegram Bot API:**
-    *   Un bot registrado en `@BotFather` en Telegram. Se debe tener el **Token del Bot**.
-*   **Azure Function App (Para el Bot):**
-    *   Una Function App activa en Azure (ej. `ecencia-bot-function`) configurada con entorno Node.js, donde se publicará el código del bot de Telegram.
-*   **n8n (Workflows Automáticos):**
-    *   No requiere cuenta externa ya que se hospeda en el contenedor Docker local (Self-hosted).
+*   **Supabase:** Proyecto activo con esquema SQL cargado. Se recomienda obligatoriamente el **Plan Pro ($25/mes)** para evitar la pausa (sleep) del servicio por inactividad y para obtener respaldos automáticos diarios.
+*   **Telegram Bot API:** Token generado desde `@BotFather`.
+*   **n8n:** Contenedor hospedado localmente (auto-gestionado) sin necesidad de cuenta externa de nube.
 
 ---
 
-## 4. Gestión de Secretos y Configuración
+## 4. Gestión de Secretos y Responsabilidades
 
-El manejo de las credenciales del sistema es estrictamente confidencial. 
-
-### 4.1 Administración de Roles y Secretos de Producción
-*   **Dueño del Proyecto (Supabase):** Las credenciales maestras y la administración de la base de datos Supabase están bajo la responsabilidad exclusiva del administrador o dueño de la infraestructura.
-*   **GitHub Secrets (CI/CD):** En un entorno de producción, las variables de entorno **no deben** ser declaradas explícitamente en el código. El pipeline automatizado inyecta de forma segura los valores desde `GitHub Settings > Secrets and variables > Actions`.
-
-Antes de cualquier despliegue manual o local, es imperativo configurar el archivo `.env` en la raíz del proyecto backend. 
+### 4.1 Administración de Secretos de Producción
+*   **GitHub Secrets (CI/CD):** En producción, las variables **no deben** declararse en el código fuente. El pipeline inyecta de forma segura los valores desde `GitHub Settings > Secrets and variables > Actions`.
+*   **Clave de Cifrado n8n (`N8N_ENCRYPTION_KEY`):** Es un secreto crítico. Una pérdida o rotación accidental de este secreto dejará ilegibles todas las credenciales integradas en los workflows de n8n.
+*   **Archivo `.env`:** Si se despliega localmente o sin GitHub Actions, es obligatorio generar el archivo `.env` en la raíz del backend asignándole permisos restrictivos (`chmod 600 .env.production`).
 
 > [!WARNING]  
 > Nunca versione el archivo `.env` en el repositorio. Los valores reales deben inyectarse estrictamente en el entorno local antes de comprimir los artefactos.
 
-**Plantilla Base `.env` requerida:**
+**Plantilla Exhaustiva `.env` requerida para Producción:**
 ```env
-# Puerto interno de escucha del contenedor
+# ==========================================
+# CONFIGURACIÓN DEL SERVIDOR Y ENTORNO
+# ==========================================
+NODE_ENV=production
 PORT=3001
+AZURE_DOMAIN=ecenciaapp.eastus2.cloudapp.azure.com
+PUBLIC_BACKEND_URL=https://ecenciaapp.eastus2.cloudapp.azure.com/api
+PUBLIC_FRONTEND_URL=https://ecenciaapp.eastus2.cloudapp.azure.com
+FRONTEND_URL=https://ecenciaapp.eastus2.cloudapp.azure.com
+CORS_ORIGINS=https://ecenciaapp.eastus2.cloudapp.azure.com,http://127.0.0.1:3000
 
-# Credenciales de Base de Datos Supabase
-SUPABASE_URL=https://[ID_PROYECTO].supabase.co
-SUPABASE_KEY=[API_KEY_ANON_O_SERVICE]
-
-# Configuración Telegram
-TELEGRAM_BOT_TOKEN=[TOKEN_PROPORCIONADO_POR_BOTFATHER]
-
-# Configuración N8N
-N8N_WEBHOOK_URL=[URL_DEL_WORKFLOW_N8N]
-AZURE_DOMAIN=[dominio_o_ip_del_servidor]
-
-# Otros Servicios
+# ==========================================
+# SEGURIDAD Y AUTENTICACIÓN
+# ==========================================
 JWT_SECRET=[CADENA_SEGURA_GENERADA]
+INTERNAL_API_SECRET=[SECRETO_PARA_COMUNICACION_INTERNA]
+COOKIE_SECURE=false
+COOKIE_SAME_SITE=lax
+
+# ==========================================
+# BASE DE DATOS (SUPABASE)
+# ==========================================
+SUPABASE_URL=https://[ID_PROYECTO].supabase.co
+SUPABASE_ANON_KEY=[API_KEY_PUBLICA]
+SUPABASE_SERVICE_ROLE_KEY=[API_KEY_PRIVADA_ADMIN]
+
+# ==========================================
+# BOT DE TELEGRAM
+# ==========================================
+TELEGRAM_BOT_TOKEN=[TOKEN_DE_BOTFATHER]
+TELEGRAM_BOT_USERNAME=EcenciaBot
+TELEGRAM_WEBHOOK_SECRET=[SECRETO_PARA_VALIDAR_WEBHOOKS]
+TELEGRAM_INVITE_TOKEN_SECRET=[SECRETO_PARA_ENLACES_DE_INVITACION]
+TELEGRAM_PRIVACY_CONTACT=ecenciaconvenios@outlook.com
+TELEGRAM_CONSENT_VERSION=EC-LOPDP-2026-06
+TELEGRAM_MICROSERVICE_URL=https://[NOMBRE_AZURE_FUNCTION].azurewebsites.net/api
+
+# ==========================================
+# GESTOR DE WORKFLOWS (n8n)
+# ==========================================
+N8N_ECENCIA_BACKEND_URL=http://backend:3001
+N8N_ECENCIA_TIMEZONE=America/Bogota
+N8N_ECENCIA_ORIGEN_NOMBRE=Telegram
+N8N_ECENCIA_ESTADO_RESERVADO_NOMBRE=Reservado
+N8N_MENU_WEBHOOK_URL=http://n8n:5678/webhook/ecencia-enviar-menu-manual
+N8N_MENU_WEBHOOK_SECRET=[SECRETO_COMPARTIDO_CON_BACKEND]
+
+# ==========================================
+# NOTIFICACIONES (EMAIL)
+# ==========================================
+GMAIL_USER=ecencia.andina.notificaciones@gmail.com
+GMAIL_APP_PASSWORD=[PASSWORD_DE_APLICACION_GMAIL]
+
+# ==========================================
+# ALMACENAMIENTO DE ARCHIVOS
+# ==========================================
+CONVENIOS_UPLOAD_DIR=/usr/src/convenios
 ```
+### 4.2 Matriz de Responsabilidades (RACI) Simplificada
+
+| Actividad | Cliente/Negocio | DevOps | Desarrollo |
+| :--- | :--- | :--- | :--- |
+| **Aprobar Costos (Azure/Hostinger + Supabase)** | **A / R** | C | I |
+| **Aprovisionar Servidores, DNS y Firewall** | A | **R** | C |
+| **Preparar Variables de Entorno y Secretos** | A | **R** | C |
+| **Ajustar / Exportar Workflow de Producción** | I | C | **A / R** |
+| **Ejecutar Despliegue Automatizado** | I | **A / R** | C |
+| **Aprobar Lanzamiento a Producción (Go-live)** | **A** | C | R |
+
+> *A=Accountable (Aprobador final), R=Responsible (Ejecutor), C=Consulted (Consultado), I=Informed (Informado).*
 
 ---
 
 ## 5. Pasos Detallados de Instalación y Despliegue
 
-El sistema puede ser desplegado de manera manual en cualquier servidor, o utilizando el pipeline automatizado `deploy.ps1` si se opta por la implementación de referencia en Azure.
-
 ### Opción A: Despliegue Automatizado Completo (Azure + GitHub Actions)
-Este proyecto cuenta con un flujo CI/CD avanzado en `.github/workflows/main.yml` que orquesta todo el proceso en Azure.
 
 **Paso 1: Aprovisionamiento de la Nube (Terraform)**
-1. Abra su consola PowerShell como Administrador.
-2. Autentíquese en su cuenta de Azure mediante Azure CLI: `az login`.
-3. Ubíquese en la carpeta `terraform-lab/` y aplique la configuración de infraestructura:
+1. Abra su consola PowerShell como Administrador y autentíquese: `az login`.
+2. Ubíquese en la carpeta `terraform-lab/` y ejecute:
    ```bash
    terraform init
    terraform apply -auto-approve
    ```
 
-**Paso 2: Ejecución del Pipeline CI/CD o Script de Respaldo**
-El repositorio cuenta con dos métodos de empuje de código:
-*   **GitHub Actions (Pipeline Principal):** Al hacer *Push* a la rama `main`, el pipeline de GitHub automáticamente testeará el código, publicará el Bot de Telegram a la **Azure Function App**, subirá el Frontend vía SCP y orquestará el `docker-compose` en la máquina virtual.
-*   **Script `deploy.ps1` (Alternativa Local):** Si necesita desplegar sin pasar por GitHub Actions, puede ejecutar `./deploy.ps1`. Este script empaquetará el frontend y backend localmente, los transferirá a la VM de Azure por SSH y sincronizará remotamente las variables de entorno (`az functionapp config appsettings set`) para la aplicación Serverless del Bot.
+**Paso 2: Ejecución del Pipeline CI/CD**
+Al hacer *Push* a la rama `main`, GitHub Actions orquestará el `docker-compose` en la VM, evaluará la seguridad (Gitleaks, Trivy) y desplegará la función *Serverless* en Azure Functions, inyectando todas las configuraciones.
 
-**Paso 3: Configuración del Webhook del Bot**
-Para conectar Telegram con su Azure Function, la tubería CI/CD ejecuta internamente un comando `curl` a la API de Telegram para enlazar la URL de la Function App: `https://api.telegram.org/bot<TOKEN>/setWebhook?url=<AZURE_FUNCTION_URL>`.
+**Paso 3: Webhook Automatizado**
+El pipeline configura mediante `curl` la conexión bidireccional entre la API de Telegram y Azure Functions de forma invisible.
 
-### Opción B: Despliegue Manual (Agnóstico a la Nube)
-Si no utiliza las herramientas Serverless de Azure (AWS, Google Cloud, Servidor Físico), **no es necesario reescribir el código del bot**. El proyecto incluye un `Dockerfile` nativo dentro de `telegram-bot-function` que emula el entorno de Azure Functions en cualquier contenedor Docker estándar.
+### Opción B: Despliegue Manual (VPS Linux / AGNÓSTICO)
+Si no utiliza Azure Functions, la carpeta `telegram-bot-function/` incluye un `Dockerfile` compatible para empaquetarlo localmente junto a la API.
 
 **Paso 1: Preparación del Servidor**
-1. Instale los demonios necesarios: `sudo apt update && sudo apt install apache2 docker.io docker-compose -y`.
-2. Habilite los módulos de Proxy en Apache: `sudo a2enmod proxy proxy_http rewrite`.
+1. Instale los demonios: `sudo apt update && sudo apt install apache2 docker.io docker-compose -y`.
+2. Habilite el proxy reverso: `sudo a2enmod proxy proxy_http rewrite`.
 
-**Paso 2: Transferencia y Configuración Frontend**
-1. En su máquina local, compile el frontend: `cd frontend && npm run build`.
-2. Utilice SCP o un cliente FTP (como FileZilla) para subir la carpeta `dist/` a `/var/www/html/` en el servidor y ajuste permisos (`sudo chown -R www-data:www-data /var/www/html`).
+**Paso 2: Transferencia Segura**
+Utilice SCP para transferir la carpeta compilada `dist/` a `/var/www/html/` en el servidor, y luego suba las carpetas del `backend/` y `telegram-bot-function/` junto a su archivo `.env` configurado en producción.
 
-**Paso 3: Transferencia del Backend y Bot**
-1. Copie la carpeta del `backend/` y el archivo `docker-compose.yml` al servidor.
-2. Copie la carpeta `telegram-bot-function/` (junto a su `Dockerfile` incluido) al servidor.
-3. Recuerde transferir los archivos `.env` configurados a sus respectivas carpetas.
-
-### Paso Final Común: Levantar los Contenedores Docker
-Independientemente del método elegido (A o B), una vez los archivos estén en el servidor, ingrese por SSH para orquestar los contenedores:
-1. Acceder por SSH:
+**Paso 3: Levantar los Contenedores**
+1. Ingrese por SSH: `ssh usuario_servidor@[IP_PUBLICA]`
+2. Ejecute los servicios:
    ```bash
-   ssh -i ruta/a/llave.pem usuario_servidor@[IP_PUBLICA]
-   ```
-2. Ubicarse en el directorio del backend y levantar el motor de la aplicación:
-   ```bash
-   cd ~/backend  # o la ruta correspondiente
-   docker compose down
-   # El flag --build asegura que se construya la imagen Node.js con los archivos más recientes.
+   cd ~/backend
    docker compose up -d --build
    ```
 
-### 5.1 Configuración de SSL con Certbot (Opcional pero Recomendado)
-Para asegurar el tráfico mediante HTTPS (Puerto 443), se recomienda utilizar **Let's Encrypt** sobre el servidor Apache.
+### 5.1 Configuración de SSL con Certbot (Opcional pero Crítico)
+Para que los webhooks funcionen, el tráfico HTTPS (Puerto 443) es indispensable.
 
-1. Instalar Certbot en la Máquina Virtual:
+1. Instalar Certbot:
    ```bash
    sudo apt install certbot python3-certbot-apache -y
    ```
-2. Ejecutar el aprovisionamiento (requiere que el dominio DNS ya esté apuntando a la IP pública):
+2. Ejecutar y autorizar (Requiere dominio apuntado a la IP):
    ```bash
    sudo certbot --apache -d tudominio.com
    ```
-3. Certbot ajustará automáticamente las reglas de VirtualHost de Apache para enrutar el tráfico seguro.
 
 ---
 
-## 6. Plan de Pruebas y Validación Post-Despliegue
+## 6. Plan de Pruebas y Matriz de Validación
 
-Una vez completado el script, se debe realizar un "Smoke Test" para certificar la operación:
+Se debe ejecutar una ronda de Aceptación Técnica (UAT) obligatoria antes de habilitar los Workflows automáticos de n8n para el cliente.
 
-1.  **Prueba de Carga del Frontend:** Abrir el navegador e ingresar a `http://[IP_PUBLICA]`. Debe mostrarse el formulario de Login sin errores en la consola (F12).
-    > [!NOTE] 
-    > **[INSERTAR CAPTURA AQUI: Pantalla de Login en Producción]**
-    
-2.  **Prueba de Proxy y API:** En el navegador, acceder a `http://[IP_PUBLICA]/api/health` o consultar mediante Postman. Debe retornar estado 200 OK.
-    > [!NOTE] 
-    > **[INSERTAR CAPTURA AQUI: Respuesta 200 de la API]**
+| ID Prueba | Descripción de Validación | Criterio de Éxito / Resultado Esperado | Evidencia |
+| :--- | :--- | :--- | :--- |
+| **INF-01** | TLS en Proxy Reverso | El navegador indica conexión segura HTTPS y redirige puerto 80 automáticamente. | Captura de navegador |
+| **APP-01** | Carga del Frontend React | Sin errores CORS o CSP en la consola de herramientas (F12). | Captura de login |
+| **API-01** | Disponibilidad de API | `curl -I https://[dominio]/api/health` retorna 200 OK. | Salida de Terminal |
+| **N8N-01** | Acceso a n8n y Persistencia | Al reiniciar el contenedor n8n, el workflow cargado y las credenciales persisten. | Captura del Panel |
+| **TG-01** | Onboarding Telegram | Un usuario interactúa con `/start` y acepta políticas LOPDP. | Registro en Base de Datos |
+| **TG-02** | Reserva Automática | El usuario completa un flujo guiado y la orden se guarda en Supabase con origen "Telegram". | Captura de Chat del Bot |
+| **OPS-01** | Ejecución de Cron Jobs | Las purgas de imágenes y cierre de reservas de n8n se ejecutan a las horas acordadas (Timezone Guayaquil). | Historial de n8n |
 
-3.  **Validación de Base de Datos y Workflows:** 
-    *   Realizar un inicio de sesión en el frontend para validar la conexión con Supabase.
-    *   Ingresar a la ruta `/n8n` para verificar que el panel de administración de workflows responda.
-        > [!NOTE] 
-        > **[INSERTAR CAPTURA AQUI: Panel de Workflows de n8n]**
-    *   Enviar un comando `/start` al Bot de Telegram para probar la respuesta del backend.
-        > [!NOTE] 
-        > **[INSERTAR CAPTURA AQUI: Chat del Bot respondiendo correctamente]**
-
-4.  **Estado de los Contenedores:** Dentro del servidor por SSH, ejecute `docker ps` y confirme que los estados de los contenedores `ecencia-backend` y `ecencia-n8n` sean "Up".
+> [!NOTE] 
+> **[INSERTAR CAPTURAS DE EVIDENCIA DE LAS PRUEBAS AQUÍ]**
 
 ---
 
 ## 7. Plan de Rollback y Contingencia
 
-Si el paso de despliegue presenta anomalías críticas que impiden la operación, se debe ejecutar un rollback:
+Si el paso de despliegue presenta anomalías críticas que impiden la operación, se ejecuta el siguiente plan considerando las métricas de recuperación:
 
-*   **Fallo en la actualización de código (Backend):** 
-    En caso de un "crash loop" del contenedor Docker, revertir rápidamente ejecutando el contenedor con la imagen del commit anterior.
-*   **Fallo estructural de la máquina o red:**
-    Destruir la infraestructura corrompida para evitar costes muertos e iniciar de cero:
+*   **RPO (Recovery Point Objective):** $\le$ 24 horas (Dependiente directamente de los respaldos automáticos diarios ofrecidos por el plan Supabase Pro).
+*   **RTO (Recovery Time Objective):** 30 – 120 minutos (Tiempo que tarda Terraform en redesplegar la nube + el pipeline en reinyectar el código).
+
+**Procedimientos:**
+*   **Fallo de actualización de código (Crash Loop):** Revertir rápidamente ejecutando el contenedor con la etiqueta de la imagen del commit anterior (ej. `docker compose pull backend:version-anterior`).
+*   **Fallo estructural o corrupción de Máquina Virtual:**
     ```bash
     cd terraform-lab/
     terraform destroy -auto-approve
+    terraform apply -auto-approve
     ```
-    *(Nota: Como la base de datos es Supabase administrado y externo a Azure, los datos críticos están seguros contra una destrucción de la VM).*
+    *(Nota: La base de datos, Auth y almacenamiento de imágenes residen externamente en Supabase, por lo que están a salvo de destrucción física de la VM).*
 
 ---
 
-## 8. Mantenimiento y Monitoreo
+## 8. Endurecimiento, Mantenimiento y Monitoreo
 
-Para garantizar la fiabilidad del servicio a lo largo del tiempo:
+### 8.1 Endurecimiento de Seguridad (Security Hardening)
+Para servidores de producción en Azure o Hostinger, aplique obligatoriamente:
+1.  **Deshabilitar contraseñas SSH:** Forzar autenticación exclusiva por llaves (`PubkeyAuthentication yes` y `PasswordAuthentication no` en `/etc/ssh/sshd_config`).
+2.  **Protección Anti-Bruteforce:** Habilitar e instalar `fail2ban` para bloquear IPs maliciosas después de 3 intentos fallidos.
+3.  **Firewall por Defecto (UFW):**
+    ```bash
+    sudo ufw default deny incoming
+    sudo ufw default allow outgoing
+    sudo ufw allow OpenSSH
+    sudo ufw allow 80/tcp
+    sudo ufw allow 443/tcp
+    sudo ufw enable
+    ```
 
+### 8.2 Monitoreo Rutinario
 *   **Logs del Proxy Web (Apache):**
-    Útil para diagnosticar ataques o errores `502 Bad Gateway` al comunicarse con el backend.
+    Esencial para diagnosticar ataques o errores `502 Bad Gateway` entre Apache y Docker.
     ```bash
     tail -f /var/log/apache2/error.log
     ```
-*   **Logs de Aplicación (Docker Backend):**
-    Esencial para encontrar errores a nivel de código Node.js:
+*   **Logs de Aplicación (Docker Backend/n8n):**
     ```bash
     docker logs -f ecencia-backend
+    docker logs -f ecencia-n8n
     ```
-*   **Mantenimiento del Sistema Operativo:** 
-    Es responsabilidad del administrador aplicar parches de seguridad trimestralmente (`sudo apt update && sudo apt upgrade -y`).
+*   **Mantenimiento OS:** 
+    Es responsabilidad del administrador aplicar parches trimestralmente (`sudo apt update && sudo apt full-upgrade -y`) y verificar el consumo de disco (`df -h`).
