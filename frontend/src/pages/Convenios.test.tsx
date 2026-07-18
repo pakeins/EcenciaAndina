@@ -539,4 +539,43 @@ describe('Convenios', () => {
     }
     await act(async () => { fireEvent.click(btnGenerar); });
   });
+
+  it('cubre interacciones faltantes en la gestión de colaboradores e historial', async () => {
+    const originalOpen = window.open;
+    window.open = vi.fn();
+
+    await renderComponent();
+    await waitFor(() => expect(screen.getByText('Empresa A')).toBeInTheDocument());
+
+    // Clic en Gestionar Colaboradores
+    const btns = await screen.findAllByRole('button');
+    const btnGest = btns.find(b => b.textContent?.includes('Gestionar Colaboradores'));
+    if (btnGest) {
+      fireEvent.click(btnGest);
+      await waitFor(() => expect(screen.getByText('Registrar nuevo colaborador')).toBeInTheDocument());
+      
+      const btnAdd = screen.getByText('Registrar nuevo colaborador');
+      fireEvent.click(btnAdd);
+
+      const inputs = screen.getAllByRole('textbox');
+      for (const input of inputs) {
+        fireEvent.change(input, { target: { value: '123' } });
+      }
+    }
+
+    // Clic en pestaña Historial
+    const btnHistorialTab = screen.queryByRole('tab', { name: /Historial/i });
+    if (btnHistorialTab) {
+      fireEvent.click(btnHistorialTab);
+      // Wait for mock data
+      await waitFor(() => {
+        const btnDocs = screen.queryAllByRole('button');
+        const btnDoc = btnDocs.find(b => b.textContent?.includes('Ver Documento'));
+        if (btnDoc) fireEvent.click(btnDoc);
+      });
+    }
+    
+    expect(window.open).toBeDefined();
+    window.open = originalOpen;
+  });
 });

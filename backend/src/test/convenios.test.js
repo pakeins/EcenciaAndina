@@ -205,6 +205,20 @@ describe('Rutas de Convenios', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/cupo máximo/);
     });
+
+    it('Rechaza creación si existe un RUC duplicado', async () => {
+      fetchSpy.mockImplementation((url, opts) => {
+        if (url.includes('/rest/v1/convenios')) {
+          return Promise.resolve({ ok: false, json: async () => ({ code: '23505', message: 'duplicate key value violates unique constraint "convenios_ruc_key"' }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) }); // Auth and others
+      });
+      const payload = { ruc: '1790000000001', nombre_empresa: 'Empresa Nueva' };
+      const res = await request(app).post('/api/convenios').set('Authorization', 'Bearer token').send(payload);
+      
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Ya existe un convenio registrado con este RUC/);
+    });
   });
 
   describe('PUT /api/convenios/:id', () => {
@@ -227,6 +241,22 @@ describe('Rutas de Convenios', () => {
       const payload = { cupo_maximo: -1 };
       const res = await request(app).put('/api/convenios/conv-1').set('Authorization', 'Bearer token').send(payload);
       expect(res.status).toBe(400);
+    });
+
+    it('Rechaza actualizar si el RUC es duplicado', async () => {
+      fetchSpy.mockImplementation((url, opts) => {
+        if (url.includes('/rest/v1/convenios') && opts && opts.method === 'PATCH') {
+          return Promise.resolve({ ok: false, json: async () => ({ code: '23505', message: 'duplicate key value violates unique constraint "convenios_ruc_key"' }) });
+        }
+        if (url.includes('/rest/v1/convenios')) {
+          return Promise.resolve({ ok: true, json: async () => ([{ id_convenio: 'conv-1', ruc: '1790000000001' }]) }); // GET actual
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) }); // Auth
+      });
+      const payload = { ruc: '1790000000001' };
+      const res = await request(app).put('/api/convenios/conv-1').set('Authorization', 'Bearer token').send(payload);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Ya existe un convenio registrado con este RUC/);
     });
 
     it('Guarda historial si las fechas cambian (renovación)', async () => {
@@ -426,6 +456,16 @@ describe('Rutas de Convenios', () => {
         .attach('archivo', Buffer.from('fake text data'), 'documento.txt');
         
       expect(res.status).toBe(500); // Express multer error middleware returns 500 by default unless handled specifically
+    });
+
+    it('POST /api/convenios/:id/upload rechaza archivo corrupto con extension correcta', async () => {
+      const res = await request(app)
+        .post('/api/convenios/conv-1/upload')
+        .set('Authorization', 'Bearer token')
+        .attach('archivo', Buffer.from('fake corrupt data'), { filename: 'convenio.pdf', contentType: 'application/x-pdf' });
+        
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Formato de archivo no permitido o archivo corrupto/);
     });
 
     it('POST /api/convenios/:id/upload sube el archivo con éxito', async () => {

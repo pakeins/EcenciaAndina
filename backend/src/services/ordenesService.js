@@ -362,6 +362,7 @@ const actualizarEstadoOrden = async (adminClient, id_orden, payload, user) => {
           .from('saldos_servicio')
           .select('cantidad_disponible')
           .eq('id_cliente', orden.id_cliente)
+          .eq('id_producto', id_producto_saldo)
           .single();
 
         await adminClient
