@@ -208,10 +208,13 @@ describe('Rutas de Convenios', () => {
 
     it('Rechaza creación si existe un RUC duplicado', async () => {
       fetchSpy.mockImplementation((url, opts) => {
-        if (url.includes('/rest/v1/convenios')) {
-          return Promise.resolve({ ok: false, json: async () => ({ code: '23505', message: 'duplicate key value violates unique constraint "convenios_ruc_key"' }) });
+        const urlStr = url.toString();
+        if (urlStr.includes('/rest/v1/convenios')) {
+          return Promise.resolve(new Response(JSON.stringify({ code: '23505', message: 'duplicate key value violates unique constraint "convenios_ruc_key"' }), { status: 409, headers: { 'Content-Type': 'application/json' } }));
         }
-        return Promise.resolve({ ok: true, json: async () => ({}) }); // Auth and others
+        if (urlStr.includes('/auth/v1/user')) return Promise.resolve(new Response(JSON.stringify({ id: 'user-admin' }), { status: 200 }));
+        if (urlStr.includes('/rest/v1/empleados') || urlStr.includes('/rest/v1/usuarios')) return Promise.resolve(new Response(JSON.stringify([{ rol: 'administrador', roles: { nombre_rol: 'administrador' } }]), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
       });
       const payload = { ruc: '1790000000001', nombre_empresa: 'Empresa Nueva' };
       const res = await request(app).post('/api/convenios').set('Authorization', 'Bearer token').send(payload);
@@ -245,13 +248,14 @@ describe('Rutas de Convenios', () => {
 
     it('Rechaza actualizar si el RUC es duplicado', async () => {
       fetchSpy.mockImplementation((url, opts) => {
-        if (url.includes('/rest/v1/convenios') && opts && opts.method === 'PATCH') {
-          return Promise.resolve({ ok: false, json: async () => ({ code: '23505', message: 'duplicate key value violates unique constraint "convenios_ruc_key"' }) });
+        const urlStr = url.toString();
+        if (urlStr.includes('/rest/v1/convenios') && opts && opts.method === 'PATCH') {
+          return Promise.resolve(new Response(JSON.stringify({ code: '23505', message: 'duplicate key value violates unique constraint "convenios_ruc_key"' }), { status: 409, headers: { 'Content-Type': 'application/json' } }));
         }
-        if (url.includes('/rest/v1/convenios')) {
-          return Promise.resolve({ ok: true, json: async () => ([{ id_convenio: 'conv-1', ruc: '1790000000001' }]) }); // GET actual
-        }
-        return Promise.resolve({ ok: true, json: async () => ({}) }); // Auth
+        if (urlStr.includes('/rest/v1/convenios')) return Promise.resolve(new Response(JSON.stringify([{ id_convenio: 'conv-1', ruc: '1790000000001' }]), { status: 200 }));
+        if (urlStr.includes('/auth/v1/user')) return Promise.resolve(new Response(JSON.stringify({ id: 'user-admin' }), { status: 200 }));
+        if (urlStr.includes('/rest/v1/empleados') || urlStr.includes('/rest/v1/usuarios')) return Promise.resolve(new Response(JSON.stringify([{ rol: 'administrador', roles: { nombre_rol: 'administrador' } }]), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
       });
       const payload = { ruc: '1790000000001' };
       const res = await request(app).put('/api/convenios/conv-1').set('Authorization', 'Bearer token').send(payload);
