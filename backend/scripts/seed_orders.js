@@ -13,7 +13,7 @@ async function run() {
     .eq('esta_activo', true);
     
   if (errClients) {
-    console.error("Error fetching clients:", errClients);
+    console.error('Error fetching clients:', errClients);
     return;
   }
   
@@ -30,14 +30,14 @@ async function run() {
     .limit(5);
     
   if (errProducts) {
-    console.error("Error fetching products:", errProducts);
+    console.error('Error fetching products:', errProducts);
     return;
   }
   
   console.log(`Found ${products.length} products`);
   
   if (convenioClients.length === 0 || products.length === 0) {
-    console.log("Not enough data to seed");
+    console.log('Not enough data to seed');
     return;
   }
 
@@ -71,7 +71,7 @@ async function run() {
       .single();
       
     if (errOrder) {
-      console.error("Error inserting order:", errOrder);
+      console.error('Error inserting order:', errOrder);
       continue;
     }
     
@@ -86,7 +86,7 @@ async function run() {
       });
       
     if (errDetail) {
-      console.error("Error inserting order detail:", errDetail);
+      console.error('Error inserting order detail:', errDetail);
     } else {
       insertedCount++;
     }

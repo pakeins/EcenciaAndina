@@ -169,7 +169,7 @@ describe('Dashboard', () => {
         metrics: { consumidosHoy: 0, almuerzosMes: 0, conveniosHoy: 0, ingresosMes: 0, normalSimple: 0, ejecutivoSimple: 0, almuerzoDia: 0, almuerzoDiaSimple: 0 },
         consumosPorDia: [],
       })
-    } as any);
+    } as unknown as Response);
     const { container } = renderDashboard();
     
     // Check missing sales message
