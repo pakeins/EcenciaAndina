@@ -130,9 +130,18 @@ const makeSquareWithBlurredBackground = async (buffer) => {
     const height = metadata.height;
 
     if (!width || !height) return buffer;
-    if (width === height) return buffer;
 
-    const size = Math.max(width, height);
+    let size = Math.max(width, height);
+    if (size > 1080) {
+      size = 1080;
+    }
+
+    if (width === height) {
+      return await sharp(buffer)
+        .resize(size, size, { fit: 'cover' })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+    }
 
     // 1. Create a blurred background of size x size
     const background = await sharp(buffer)
@@ -149,9 +158,10 @@ const makeSquareWithBlurredBackground = async (buffer) => {
       .png()
       .toBuffer();
 
-    // 3. Composite foreground over blurred background
+    // 3. Composite foreground over blurred background and enforce JPEG format
     return await sharp(background)
       .composite([{ input: foreground, blend: 'over' }])
+      .jpeg({ quality: 85 })
       .toBuffer();
   } catch (err) {
     console.error('Error al procesar la imagen con sharp:', err);
@@ -176,17 +186,18 @@ const uploadMenuImage = async (image) => {
   }
 
   const [, rawMimeType, base64Data] = match;
-  const mimeType = rawMimeType.toLowerCase() === 'image/jpg' ? 'image/jpeg' : rawMimeType.toLowerCase();
+  const mimeTypeOriginal = rawMimeType.toLowerCase() === 'image/jpg' ? 'image/jpeg' : rawMimeType.toLowerCase();
   const buffer = Buffer.from(base64Data, 'base64');
-  if (buffer.length > MAX_MENU_IMAGE_BYTES || !hasAllowedImageSignature(buffer, mimeType)) {
+  if (buffer.length > MAX_MENU_IMAGE_BYTES || !hasAllowedImageSignature(buffer, mimeTypeOriginal)) {
     const error = new Error('La imagen del menu debe ser JPG, PNG o WebP valida y pesar maximo 5 MB.');
     error.status = 400;
     throw error;
   }
-  const fileName = `telegram/menu-dashboard-${Date.now()}.${mimeToExtension(mimeType.toLowerCase())}`;
-  const adminClient = getAdminClient();
-
   const processedBuffer = await makeSquareWithBlurredBackground(buffer);
+
+  const mimeType = 'image/jpeg';
+  const fileName = `telegram/menu-dashboard-${Date.now()}.jpg`;
+  const adminClient = getAdminClient();
 
   const { error } = await adminClient.storage.from(MENU_ASSETS_BUCKET).upload(fileName, processedBuffer, {
     contentType: mimeType,

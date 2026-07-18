@@ -94,7 +94,7 @@ export function ProductManager({ onProductsChanged }: { onProductsChanged: () =>
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" className="border-primary text-primary hover:bg-primary/10">Gestionar Platos</Button>
+          <Button variant="outline" className="border-primary text-primary hover:bg-primary/10 w-full sm:w-auto">Gestionar Platos</Button>
         </DialogTrigger>
         <DialogContent className="max-w-md">
           <DialogHeader>

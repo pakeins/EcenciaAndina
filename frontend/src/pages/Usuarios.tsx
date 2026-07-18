@@ -328,8 +328,8 @@ export default function Usuarios() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-200 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
             Gestión de Empleados
@@ -459,7 +459,7 @@ export default function Usuarios() {
           <CardTitle>Empleados ECencia Andina</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-border">
+          <div className="rounded-lg border border-border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/10 hover:bg-secondary/10">

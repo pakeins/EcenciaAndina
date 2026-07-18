@@ -221,17 +221,17 @@ export default function Dashboard() {
           </div>
 
           {periodo === 'personalizado' && (
-            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="flex flex-wrap items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
               <Input
                 type="date"
-                className="w-[155px] h-9 border-border bg-background px-3"
+                className="w-full sm:w-[155px] h-9 border-border bg-background px-3"
                 value={fechaInicio}
                 onChange={(e) => setFechaInicio(e.target.value)}
               />
               <span className="text-muted-foreground text-xs font-extrabold">a</span>
               <Input
                 type="date"
-                className="w-[155px] h-9 border-border bg-background px-3"
+                className="w-full sm:w-[155px] h-9 border-border bg-background px-3"
                 value={fechaFin}
                 onChange={(e) => setFechaFin(e.target.value)}
               />
@@ -373,7 +373,7 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-6 pt-2">
                 <div className="flex flex-col space-y-4 pt-2">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex flex-wrap justify-between gap-2 text-sm">
                     <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-primary"></span> Consumidos ({metricsData?.consumidosHoy || 0})</span>
                     <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-oro"></span> Pendientes ({metricsData?.pendientesHoy || 0})</span>
                     <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-terracota"></span> Cancelados ({metricsData?.canceladosHoy || 0})</span>

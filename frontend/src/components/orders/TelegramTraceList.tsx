@@ -92,7 +92,7 @@ export function TelegramTraceList({ traces, isLoading, error }: TelegramTraceLis
   }
 
   return (
-    <div className="rounded-md border bg-card overflow-hidden">
+    <div className="rounded-md border bg-card overflow-x-auto">
       <Table>
         <TableHeader className="bg-muted/50">
           <TableRow>

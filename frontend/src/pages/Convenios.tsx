@@ -868,8 +868,8 @@ export default function Convenios() {
                     <div className="flex items-center gap-2">
                       {getDaysUntilExpiry(convenio.fecha_caducidad) !== null && getDaysUntilExpiry(convenio.fecha_caducidad)! >= 0 && getDaysUntilExpiry(convenio.fecha_caducidad)! <= 15 && convenio.activo && (
                         <div title={`Próximo a vencer en ${getDaysUntilExpiry(convenio.fecha_caducidad)} día(s)`} className="animate-pulse bg-amber-100 text-amber-700 px-2 py-1 rounded-full shadow-sm flex items-center gap-1 border border-amber-300">
-                          <AlertTriangle className="h-4 w-4" />
-                          <span className="text-[11px] font-extrabold">Vence en {getDaysUntilExpiry(convenio.fecha_caducidad)} d</span>
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
+                          <span className="text-[11px] font-extrabold whitespace-nowrap">Vence en {getDaysUntilExpiry(convenio.fecha_caducidad)} d</span>
                         </div>
                       )}
                       <Badge variant={isExpired(convenio.fecha_caducidad) ? 'destructive' : (convenio.activo ? 'default' : 'secondary')}>

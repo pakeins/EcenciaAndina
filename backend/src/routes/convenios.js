@@ -188,6 +188,9 @@ router.post('/', adminOnly, async (req, res) => {
     if (error) throw error;
     res.status(201).json(formatConvenio(data));
   } catch (error) {
+    if (error.code === '23505' || (error.message && error.message.includes('ruc'))) {
+      return res.status(400).json({ error: 'Ya existe un convenio registrado con este RUC.' });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -262,6 +265,9 @@ router.put('/:id', adminOnly, async (req, res) => {
     if (error) throw error;
     res.json(formatConvenio(data));
   } catch (error) {
+    if (error.code === '23505' || (error.message && error.message.includes('ruc'))) {
+      return res.status(400).json({ error: 'Ya existe un convenio registrado con este RUC.' });
+    }
     res.status(500).json({ error: error.message });
   }
 });

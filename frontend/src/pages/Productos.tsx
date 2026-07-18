@@ -446,7 +446,7 @@ export default function Productos() {
 
           <Card>
             <CardContent className="p-0">
-              <div className="rounded-lg border border-border">
+              <div className="rounded-lg border border-border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-secondary/10 hover:bg-secondary/10">

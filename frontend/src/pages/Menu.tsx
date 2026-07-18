@@ -475,12 +475,12 @@ export default function Menu() {
         </div>
       )}
 
-      <div className="flex flex-wrap justify-end gap-2 mb-4">
+      <div className="flex flex-col sm:flex-row flex-wrap justify-end gap-3 mb-4 w-full md:w-auto">
         <CategoryManager onCategoriesChanged={() => queryClient.invalidateQueries({ queryKey: ['categorias_menu'] })} />
         <ProductManager onProductsChanged={() => queryClient.invalidateQueries({ queryKey: ['alimentos'] })} />
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" className="border-cafe text-cafe hover:bg-cafe/10 font-semibold shadow-sm">
+            <Button variant="outline" className="border-cafe text-cafe hover:bg-cafe/10 font-semibold shadow-sm w-full sm:w-auto">
               <CalendarDays className="h-4 w-4 mr-2" />
               Ver Historial de Menús
             </Button>
@@ -538,7 +538,7 @@ export default function Menu() {
                 className="border-border shadow-md border-l-4 overflow-hidden bg-muted/5 border-l-secondary"
                 style={{ borderLeftColor: getImageAccent(cat.nombre_categoria) }}
               >
-                <CardHeader className="pb-4 flex flex-row items-center justify-between">
+                <CardHeader className="pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
                     <CardTitle className="text-2xl flex items-center gap-3 text-cafe">
                       <div
@@ -636,7 +636,7 @@ export default function Menu() {
           </Button>
 
           <div className="space-y-3">
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 variant="outline"
                 className="flex-[0.4] h-12 font-bold gap-2 border-red-500 text-red-500 hover:bg-red-50"

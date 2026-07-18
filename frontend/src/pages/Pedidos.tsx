@@ -180,24 +180,24 @@ export default function Pedidos() {
   const reservedCount = orders.filter((o) => o.estados_orden?.nombre_estado?.toLowerCase() === 'reservado').length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
             Pedidos
           </h1>
           <p className="text-muted-foreground text-lg">Gestión de pedidos diarios</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 shadow-lg shadow-primary/20 animate-pulse-subtle">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 shadow-lg shadow-primary/20 animate-pulse-subtle w-full sm:w-auto justify-center">
             <MessageCircle className="h-5 w-5 text-white" />
             <span className="font-bold text-white text-sm">{reservedCount} pedidos pendientes</span>
           </div>
-          <Button onClick={() => navigate('/historial-pedidos')} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 h-11 px-4 rounded-xl font-bold shadow-lg shadow-cafe/5 transition-all">
+          <Button onClick={() => navigate('/historial-pedidos')} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 h-11 px-4 rounded-xl font-bold shadow-lg shadow-cafe/5 transition-all w-full sm:w-auto justify-center">
             <Search className="h-5 w-5" />
             Historial
           </Button>
-          <Button onClick={() => setNewOrderOpen(true)} className="gap-2 bg-cafe hover:bg-cafe/90 h-11 px-6 rounded-xl font-bold shadow-lg shadow-cafe/20 transition-all hover:scale-[1.02]">
+          <Button onClick={() => setNewOrderOpen(true)} className="gap-2 bg-cafe hover:bg-cafe/90 h-11 px-6 rounded-xl font-bold shadow-lg shadow-cafe/20 transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
             <Plus className="h-5 w-5" />
             Nuevo Pedido
           </Button>
@@ -211,8 +211,8 @@ export default function Pedidos() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="mb-6 flex flex-wrap gap-4">
-            <div className="min-w-[200px] flex-1">
+          <div className="mb-6 flex flex-col sm:flex-row flex-wrap gap-4">
+            <div className="min-w-[200px] w-full sm:w-auto sm:flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -223,31 +223,35 @@ export default function Pedidos() {
                 />
               </div>
             </div>
-            <Select value={filterEstado} onValueChange={setFilterEstado}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent className="bg-white">
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="reservado">Reservado</SelectItem>
-                <SelectItem value="consumido">Consumido</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterTipo} onValueChange={setFilterTipo}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent className="bg-white">
-                <SelectItem value="all">Todos los tipos</SelectItem>
-                <SelectItem value="convenio">Convenio</SelectItem>
-                <SelectItem value="cliente">Cliente</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="w-full sm:w-[160px]">
+              <Select value={filterEstado} onValueChange={setFilterEstado}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="reservado">Reservado</SelectItem>
+                  <SelectItem value="consumido">Consumido</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-[160px]">
+              <Select value={filterTipo} onValueChange={setFilterTipo}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="all">Todos los tipos</SelectItem>
+                  <SelectItem value="convenio">Convenio</SelectItem>
+                  <SelectItem value="cliente">Cliente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Orders Table */}
-          <div className="rounded-lg border border-border">
+          <div className="rounded-lg border border-border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/10 hover:bg-secondary/10">

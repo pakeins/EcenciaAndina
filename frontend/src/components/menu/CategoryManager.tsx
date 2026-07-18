@@ -95,7 +95,7 @@ export function CategoryManager({ onCategoriesChanged }: { onCategoriesChanged: 
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" className="border-cafe text-cafe hover:bg-cafe/10">Gestionar Categorías</Button>
+          <Button variant="outline" className="border-cafe text-cafe hover:bg-cafe/10 w-full sm:w-auto">Gestionar Categorías</Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>

@@ -12,14 +12,11 @@ import {
   UtensilsCrossed,
   UserCog,
   ChefHat,
-  KeyRound,
   Package,
-  Send,
+  Menu
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 interface NavItem {
   label: string;
@@ -79,32 +76,33 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const filteredNavItems = navItems.filter((item) => user && item.roles.includes(user.rol));
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-border bg-background">
+    <div className="flex h-full flex-col bg-background">
       {/* Logo */}
       <div className="flex items-center gap-3 border-b border-border px-6 py-5 bg-accent/20">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary shadow-lg shadow-primary/20">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary shadow-lg shadow-primary/20">
           <UtensilsCrossed className="h-6 w-6 text-white" />
         </div>
-        <div>
-          <h1 className="font-bold text-cafe tracking-tight">ECencia Andina</h1>
-          <p className="text-[10px] uppercase tracking-widest text-secondary font-bold">Tradición Natural</p>
+        <div className="truncate">
+          <h1 className="font-bold text-cafe tracking-tight truncate">ECencia Andina</h1>
+          <p className="text-[10px] uppercase tracking-widest text-secondary font-bold truncate">Tradición Natural</p>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {filteredNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <Link
               key={item.path}
               to={item.path}
+              onClick={onNavigate}
               className={cn(
                 'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                 isActive
@@ -113,7 +111,7 @@ export function Sidebar() {
               )}
             >
               <div className={cn(
-                "transition-colors duration-200",
+                "transition-colors duration-200 shrink-0",
                 isActive ? "text-white" : "group-hover:text-white",
                 !isActive && (
                   item.label === 'Dashboard' ? 'text-primary' :
@@ -128,35 +126,60 @@ export function Sidebar() {
               )}>
                 {item.icon}
               </div>
-              {item.label}
+              <span className="truncate">{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
       {/* User Info & Logout */}
-      <div className="border-t border-border p-4">
-        <div className="mb-3 rounded-lg bg-accent px-3 py-2">
-          <p className="text-sm font-medium text-foreground">{user?.nombre}</p>
-          <p className="text-xs capitalize text-muted-foreground">{user?.rol}</p>
+      <div className="border-t border-border p-4 shrink-0">
+        <div className="mb-3 rounded-lg bg-accent px-3 py-2 truncate">
+          <p className="text-sm font-medium text-foreground truncate">{user?.nombre}</p>
+          <p className="text-xs capitalize text-muted-foreground truncate">{user?.rol}</p>
         </div>
 
-        <Link to="/perfil">
+        <Link to="/perfil" onClick={onNavigate}>
           <Button
             variant="ghost"
             size="sm"
             className="mb-2 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
           >
-            <UserCog className="h-4 w-4" />
-            Mi Perfil
+            <UserCog className="h-4 w-4 shrink-0" />
+            <span className="truncate">Mi Perfil</span>
           </Button>
         </Link>
 
-        <Button variant="outline" className="w-full justify-start gap-2" onClick={logout}>
-          <LogOut className="h-4 w-4" />
-          Cerrar Sesión
+        <Button variant="outline" className="w-full justify-start gap-2" onClick={() => { onNavigate?.(); logout(); }}>
+          <LogOut className="h-4 w-4 shrink-0" />
+          <span className="truncate">Cerrar Sesión</span>
         </Button>
       </div>
+    </div>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <aside className="hidden md:flex h-screen w-60 flex-col border-r border-border bg-background">
+      <SidebarContent />
     </aside>
+  );
+}
+
+export function MobileSidebar() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="md:hidden text-cafe">
+          <Menu className="h-6 w-6" />
+          <span className="sr-only">Toggle Menu</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-[280px] p-0">
+        <SidebarContent onNavigate={() => setOpen(false)} />
+      </SheetContent>
+    </Sheet>
   );
 }

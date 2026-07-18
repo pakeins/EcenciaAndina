@@ -339,21 +339,21 @@ export default function Clientes() {
   const activeCount = clients.filter((c) => c.activo).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-[85rem] mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-200 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
             Clientes
           </h1>
           <p className="text-muted-foreground text-lg">Administración de clientes y colaboradores de Ecencia Andina</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full md:w-auto">
           {isAdmin && (
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Button
                 onClick={() => setPrivacyRequestsOpen(true)}
                 variant="outline"
-                className="gap-2 border-terracota text-terracota hover:bg-terracota/10 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]"
+                className="gap-2 border-terracota text-terracota hover:bg-terracota/10 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center"
               >
                 <ShieldCheck className="h-5 w-5" />
                 Gestion de Privacidad
@@ -366,18 +366,18 @@ export default function Clientes() {
             </div>
           )}
           {isAdmin && (
-            <Link to="/trazabilidad">
-              <Button variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/10 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+            <Link to="/trazabilidad" className="w-full sm:w-auto">
+              <Button variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/10 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
                 <Activity className="h-5 w-5" />
                 Trazabilidad
               </Button>
             </Link>
           )}
-          <Button onClick={() => setRechargeOpen(true)} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 shadow-lg shadow-cafe/5 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+          <Button onClick={() => setRechargeOpen(true)} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 shadow-lg shadow-cafe/5 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
             <Banknote className="h-5 w-5" />
             Recargar Saldo
           </Button>
-          <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02]">
+          <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
             <Plus className="h-5 w-5" />
             Nuevo Cliente
           </Button>
@@ -430,15 +430,15 @@ export default function Clientes() {
       {/* Clients Table */}
       <Card className="border-border">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <CardTitle className="text-foreground">Lista de Clientes</CardTitle>
               <CardDescription>Administre los clientes y su información</CardDescription>
             </div>
             <div className="flex flex-wrap items-end gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 w-full sm:w-auto">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Búsqueda</span>
-                <div className="relative w-72">
+                <div className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Nombre, cédula, teléfono o correo..."
@@ -449,10 +449,10 @@ export default function Clientes() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 w-full sm:w-auto">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Tipo de Cliente</span>
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-[180px] bg-muted/30">
+                  <SelectTrigger className="w-full sm:w-[180px] bg-muted/30">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Users className="h-4 w-4" />
                       <SelectValue placeholder="Todos" />
@@ -467,10 +467,10 @@ export default function Clientes() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 w-full sm:w-auto">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Estado</span>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-[180px] bg-muted/30">
+                  <SelectTrigger className="w-full sm:w-[180px] bg-muted/30">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Activity className="h-4 w-4" />
                       <SelectValue placeholder="Todos" />
@@ -487,7 +487,7 @@ export default function Clientes() {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="mb-1 text-muted-foreground hover:text-foreground h-9"
+                className="mb-1 text-muted-foreground hover:text-foreground h-9 w-full sm:w-auto"
                 onClick={() => { setSearchTerm(''); setFilterType('all'); setFilterStatus('all'); }}
               >
                 Limpiar
@@ -495,23 +495,24 @@ export default function Clientes() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-border">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-secondary/10 hover:bg-secondary/10">
-                  <TableHead className="text-cafe font-bold">Nombre de Cliente</TableHead>
-                  <TableHead className="text-cafe font-bold">Tipo de Cliente</TableHead>
-                  <TableHead className="text-cafe font-bold">Cédula</TableHead>
-                  <TableHead className="text-cafe font-bold">Teléfono</TableHead>
-                  <TableHead className="text-cafe font-bold">Correo</TableHead>
-                  <TableHead className="text-cafe font-bold">Telegram</TableHead>
-                  <TableHead className="text-cafe font-bold">Estado</TableHead>
-                  <TableHead className="text-right text-cafe font-bold">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
+          <CardContent>
+            <div className="rounded-lg border border-border">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-secondary/10 hover:bg-secondary/10">
+                      <TableHead className="text-cafe font-bold px-2 py-3">Nombre de Cliente</TableHead>
+                      <TableHead className="text-cafe font-bold px-2 py-3">Tipo de Cliente</TableHead>
+                      <TableHead className="text-cafe font-bold px-2 py-3">Cédula</TableHead>
+                      <TableHead className="text-cafe font-bold px-2 py-3">Teléfono</TableHead>
+                      <TableHead className="text-cafe font-bold px-2 py-3">Correo</TableHead>
+                      <TableHead className="text-cafe font-bold px-2 py-3">Telegram</TableHead>
+                      <TableHead className="text-cafe font-bold px-2 py-3">Estado</TableHead>
+                      <TableHead className="text-right text-cafe font-bold px-2 py-3 whitespace-nowrap">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={8} className="py-8 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -548,7 +549,7 @@ export default function Clientes() {
                 ) : (
                   filteredClients.map((client) => (
                     <TableRow key={client.id}>
-                      <TableCell>
+                      <TableCell className="px-2 py-3">
                         <div className="flex items-center gap-3">
                           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
                             <User className="h-4 w-4 text-foreground" />
@@ -558,7 +559,7 @@ export default function Clientes() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-3">
                         <div className="flex flex-col gap-1">
                           <Badge variant="outline" className="w-fit bg-primary/5">
                             {client.tipo_nombre || 'Frecuente'}
@@ -571,19 +572,19 @@ export default function Clientes() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-3">
                         <div className="flex items-center gap-1.5 text-foreground">
                           <IdCard className="h-3.5 w-3.5 text-muted-foreground" />
                           {client.cedula}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-3">
                         <div className="flex items-center gap-1.5 text-foreground">
                           <Phone className="h-3.5 w-3.5 text-muted-foreground" />
                           {client.telefono || '—'}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-3">
                         <div className="flex items-center gap-1.5 text-foreground">
                           <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="max-w-[220px] truncate" title={client.correo}>
@@ -591,7 +592,7 @@ export default function Clientes() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-3">
                         <div className="flex flex-col gap-1">
                           <Badge
                             variant="outline"
@@ -622,12 +623,12 @@ export default function Clientes() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-3">
                         <Badge variant={client.activo ? 'default' : 'secondary'}>
                           {client.activo ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-3 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2">
                           {(!client.convenio && client.id_tipo_cliente === CLIENT_TYPE.DIRECT) && (
                             <Button variant="ghost" size="icon" onClick={() => handleOpenWallet(client)} title="Monedero Virtual">
@@ -673,6 +674,7 @@ export default function Clientes() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </div>
         </CardContent>
       </Card>
