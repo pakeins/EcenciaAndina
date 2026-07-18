@@ -122,6 +122,10 @@ export default function Dashboard() {
   const consumosPorConvenio = data?.consumosPorConvenio || [];
   const actividadReciente = data?.actividadReciente || [];
 
+  const consumosValues = consumosPorDia.map((d: { value: number }) => d.value).sort((a: number, b: number) => a - b);
+  const midIndex = Math.floor(consumosValues.length / 2);
+  const medianaConsumos = consumosValues.length === 0 ? 0 : (consumosValues.length % 2 !== 0 ? consumosValues[midIndex] : (consumosValues[midIndex - 1] + consumosValues[midIndex]) / 2);
+
   const handlePeriodoChange = (newPeriodo: string) => {
     setPeriodo(newPeriodo);
     if (newPeriodo === 'general') {
@@ -304,7 +308,11 @@ export default function Dashboard() {
                       borderRadius: '8px',
                     }}
                   />
-                  <Bar dataKey="value" fill="#BF5D30" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {consumosPorDia.map((entry: { value: number }, index: number) => (
+                      <Cell key={`cell-${index}`} fill={entry.value > medianaConsumos ? '#2F4D49' : '#BF5D30'} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -333,6 +341,7 @@ export default function Dashboard() {
                     outerRadius={100}
                     paddingAngle={5}
                     dataKey="value"
+                    label
                   >
                     {consumosPorConvenio.map((entry, index) => (
                       <Cell

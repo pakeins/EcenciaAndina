@@ -44,6 +44,10 @@ const renderDashboard = () => {
 };
 
 describe('Dashboard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   const mockMetrics = {
     metrics: {
       almuerzosHoy: 12,
@@ -59,6 +63,8 @@ describe('Dashboard', () => {
       consumidosHoy: 12,
       conveniosHoy: 8,
       frecuentesHoy: 4,
+      normalSimple: 15,
+      almuerzoDia: 5,
     },
     consumosPorDia: [{ name: 'Lunes', value: 10 }],
     consumosPorConvenio: [{ name: 'Empresa A', value: 20 }],
@@ -153,5 +159,45 @@ describe('Dashboard', () => {
     fireEvent.click(refreshBtn);
 
     expect(apiFetch).toHaveBeenCalled();
+  });
+
+  it('muestra mensaje de no ventas y maneja fechas de periodo personalizado', async () => {
+    vi.mocked(apiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockMetrics,
+        metrics: { consumidosHoy: 0, almuerzosMes: 0, conveniosHoy: 0, ingresosMes: 0, normalSimple: 0, ejecutivoSimple: 0, almuerzoDia: 0, almuerzoDiaSimple: 0 },
+        consumosPorDia: [],
+      })
+    } as any);
+    const { container } = renderDashboard();
+    
+    // Check missing sales message
+    await waitFor(() => {
+      expect(screen.getByText('No hay ventas registradas en este periodo')).toBeInTheDocument();
+    });
+
+    // Select Personalizado
+    const select = screen.getByTestId('select-periodo');
+    fireEvent.change(select, { target: { value: 'personalizado' } });
+
+    // Default dates should be populated when selecting personalizado
+    await waitFor(() => {
+      const inputs = container.querySelectorAll('input[type="date"]');
+      expect(inputs.length).toBe(2);
+    });
+  });
+
+  it('maneja filtro de mes', async () => {
+    renderDashboard();
+
+    await screen.findAllByText(/Almuerzos de Hoy/i);
+
+    const select = screen.getByTestId('select-periodo');
+    fireEvent.change(select, { target: { value: 'mes' } });
+    
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalled();
+    });
   });
 });
