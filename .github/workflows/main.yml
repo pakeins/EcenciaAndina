@@ -453,6 +453,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [docker-build, release, deploy-bot-azure]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -578,11 +580,11 @@ jobs:
         with:
           version: 1.145.4
       - name: Apply DB Migrations
-        if: ${{ secrets.SUPABASE_DB_URL != '' }}
+        if: ${{ env.SUPABASE_DB_URL != '' }}
         working-directory: backend
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: supabase db push --db-url "$SUPABASE_DB_URL"
       - name: Skip Migrations Notice
-        if: ${{ secrets.SUPABASE_DB_URL == '' }}
+        if: ${{ env.SUPABASE_DB_URL == '' }}
         run: echo "::warning::SUPABASE_DB_URL no configurado; se omite la aplicacion de migraciones."
