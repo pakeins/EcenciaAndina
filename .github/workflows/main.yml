@@ -578,11 +578,11 @@ jobs:
         with:
           version: 1.145.4
       - name: Apply DB Migrations
-        if: ${{ env.SUPABASE_DB_URL != '' }}
+        if: ${{ secrets.SUPABASE_DB_URL != '' }}
         working-directory: backend
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: supabase db push --db-url "$SUPABASE_DB_URL"
       - name: Skip Migrations Notice
-        if: ${{ env.SUPABASE_DB_URL == '' }}
+        if: ${{ secrets.SUPABASE_DB_URL == '' }}
         run: echo "::warning::SUPABASE_DB_URL no configurado; se omite la aplicacion de migraciones."
