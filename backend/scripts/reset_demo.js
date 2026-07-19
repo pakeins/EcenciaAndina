@@ -37,7 +37,7 @@ async function run() {
   // Como la base de datos de Supabase usualmente tiene eliminación en cascada, 
   // esto debería borrar sus relaciones (o si tu sistema tiene soft deletes, ajústalo aquí).
   
-  console.log(`🗑️ Limpiando también Pedidos y Convenios de Prueba (TEST)...`);
+  console.log('🗑️ Limpiando también Pedidos y Convenios de Prueba (TEST)...');
   
   await supabase
     .from('pedidos')
@@ -60,7 +60,7 @@ async function run() {
   }
 
   console.log(`🎉 ¡Éxito! El cliente ${cedula} fue eliminado completamente.`);
-  console.log(`El sistema está limpio y listo para que corras el Playwright nuevamente.`);
+  console.log('El sistema está limpio y listo para que corras el Playwright nuevamente.');
 }
 
 run();
