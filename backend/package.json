@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage --coverage.reporter=text --coverage.reporter=lcov --coverage.reporter=html --coverage.reportsDirectory=./coverage",
     "telegram:set-webhook": "node scripts/set-telegram-webhook.js",
     "telegram:configure": "node scripts/configure-telegram-bot.js",
-    "seed:admin": "node scripts/seed-admin.js"
+    "seed:admin": "node scripts/seed-admin.js",
+    "reset-demo": "node scripts/reset_demo.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",

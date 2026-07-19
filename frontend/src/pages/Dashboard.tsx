@@ -147,18 +147,20 @@ export default function Dashboard() {
     refetch();
   };
 
+  const isPeriodoGeneral = periodo === 'general' || periodo === 'hoy';
+
   const metrics = [
     {
-      title: 'Almuerzos de Hoy',
+      title: metricsData?.almuerzosHoyTitle || (isPeriodoGeneral ? 'Almuerzos de Hoy' : 'Almuerzos (Periodo)'),
       value: metricsData?.consumidosHoy ?? 0,
       icon: CheckCircle2,
-      description: 'Total consumidos el día de hoy',
+      description: metricsData?.almuerzosHoyDesc || (isPeriodoGeneral ? 'Total consumidos el día de hoy' : 'Consumidos en el periodo seleccionado'),
     },
     {
-      title: 'Almuerzos del Mes',
+      title: metricsData?.almuerzosMesTitle || (isPeriodoGeneral ? 'Almuerzos del Mes' : 'Total vs Mes Actual'),
       value: metricsData?.almuerzosMes ?? 0,
       icon: CalendarDays,
-      description: 'Total consumidos en el mes',
+      description: metricsData?.almuerzosMesDesc || (isPeriodoGeneral ? 'Total consumidos en el mes' : 'Comparativa o consumos previos'),
     },
     {
       title: 'Consumos de Convenio',
@@ -230,6 +232,7 @@ export default function Dashboard() {
                 type="date"
                 className="w-full sm:w-[155px] h-9 border-border bg-background px-3"
                 value={fechaInicio}
+                max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setFechaInicio(e.target.value)}
               />
               <span className="text-muted-foreground text-xs font-extrabold">a</span>
@@ -237,6 +240,7 @@ export default function Dashboard() {
                 type="date"
                 className="w-full sm:w-[155px] h-9 border-border bg-background px-3"
                 value={fechaFin}
+                max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setFechaFin(e.target.value)}
               />
             </div>

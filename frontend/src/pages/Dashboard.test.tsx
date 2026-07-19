@@ -92,7 +92,7 @@ describe('Dashboard', () => {
   it('muestra KPIs reales y estados cargados', async () => {
     renderDashboard();
 
-    expect((await screen.findAllByText(/Almuerzos de Hoy/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Almuerzos/i)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Consumos de Convenio/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Consumos de Particulares/i).length).toBeGreaterThan(0);
     expect(screen.getByText('12')).toBeInTheDocument(); // almuerzosHoy value
@@ -104,7 +104,7 @@ describe('Dashboard', () => {
     renderDashboard();
 
     // Esperar a que se renderice
-    await screen.findAllByText(/Almuerzos de Hoy/i);
+    await screen.findAllByText(/Almuerzos/i);
 
     // Cambiar a "hoy"
     const select = screen.getByTestId('select-periodo');
@@ -119,7 +119,7 @@ describe('Dashboard', () => {
     const { container } = renderDashboard();
 
     // Esperar a que se renderice
-    await screen.findAllByText(/Almuerzos de Hoy/i);
+    await screen.findAllByText(/Almuerzos/i);
 
     // Cambiar a "personalizado"
     const select = screen.getByTestId('select-periodo');
@@ -138,7 +138,7 @@ describe('Dashboard', () => {
     fireEvent.change(inputsBefore[0], { target: { value: '2026-07-01' } });
 
     // Esperar a que el query finalice y los elementos vuelvan a estar en el DOM
-    await screen.findAllByText(/Almuerzos de Hoy/i);
+    await screen.findAllByText(/Almuerzos/i);
 
     // Cambiar el segundo input (fechaFin)
     const inputsAfter = container.querySelectorAll('input[type="date"]');
@@ -152,7 +152,7 @@ describe('Dashboard', () => {
   it('permite recargar los datos manualmente al hacer clic en el boton de actualizar', async () => {
     renderDashboard();
 
-    await screen.findAllByText(/Almuerzos de Hoy/i);
+    await screen.findAllByText(/Almuerzos/i);
     vi.mocked(apiFetch).mockClear();
 
     const refreshBtn = screen.getByTitle('Actualizar datos');
@@ -191,7 +191,7 @@ describe('Dashboard', () => {
   it('maneja filtro de mes', async () => {
     renderDashboard();
 
-    await screen.findAllByText(/Almuerzos de Hoy/i);
+    await screen.findAllByText(/Almuerzos/i);
 
     const select = screen.getByTestId('select-periodo');
     fireEvent.change(select, { target: { value: 'mes' } });

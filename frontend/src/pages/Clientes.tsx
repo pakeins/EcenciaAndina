@@ -347,15 +347,15 @@ export default function Clientes() {
           </h1>
           <p className="text-muted-foreground text-lg">Administración de clientes y colaboradores de Ecencia Andina</p>
         </div>
-        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-start md:justify-end gap-2 w-full md:w-auto">
           {isAdmin && (
             <div className="relative w-full sm:w-auto">
               <Button
                 onClick={() => setPrivacyRequestsOpen(true)}
                 variant="outline"
-                className="gap-2 border-terracota text-terracota hover:bg-terracota/10 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center"
+                className="gap-2 border-terracota text-terracota hover:bg-terracota/10 h-10 px-4 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center"
               >
-                <ShieldCheck className="h-5 w-5" />
+                <ShieldCheck className="h-4 w-4" />
                 Gestion de Privacidad
               </Button>
               {pendingPrivacyCount > 0 && (
@@ -367,18 +367,18 @@ export default function Clientes() {
           )}
           {isAdmin && (
             <Link to="/trazabilidad" className="w-full sm:w-auto">
-              <Button variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/10 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
-                <Activity className="h-5 w-5" />
+              <Button variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/10 h-10 px-4 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
+                <Activity className="h-4 w-4" />
                 Trazabilidad
               </Button>
             </Link>
           )}
-          <Button onClick={() => setRechargeOpen(true)} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 shadow-lg shadow-cafe/5 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
-            <Banknote className="h-5 w-5" />
+          <Button onClick={() => setRechargeOpen(true)} variant="outline" className="gap-2 border-cafe text-cafe hover:bg-cafe/10 shadow-lg shadow-cafe/5 h-10 px-4 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
+            <Banknote className="h-4 w-4" />
             Recargar Saldo
           </Button>
-          <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-12 px-6 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
-            <Plus className="h-5 w-5" />
+          <Button onClick={handleOpenNew} className="gap-2 bg-cafe hover:bg-cafe/90 shadow-lg shadow-cafe/20 h-10 px-4 rounded-xl font-bold transition-all hover:scale-[1.02] w-full sm:w-auto justify-center">
+            <Plus className="h-4 w-4" />
             Nuevo Cliente
           </Button>
         </div>

@@ -22,4 +22,12 @@ export const openSafeBlankWindow = () => {
   return blankWindow;
 };
 
-export const openPrintWindow = openSafeBlankWindow;
+export const openPrintWindow = (content?: string) => {
+  const blankWindow = openSafeBlankWindow();
+  if (blankWindow && content) {
+    blankWindow.document.open();
+    blankWindow.document.write(content);
+    blankWindow.document.close();
+  }
+  return blankWindow;
+};
