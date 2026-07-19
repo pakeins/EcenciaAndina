@@ -346,6 +346,7 @@ export default function Dashboard() {
                     paddingAngle={5}
                     dataKey="value"
                     label
+                    isAnimationActive={false}
                   >
                     {consumosPorConvenio.map((entry, index) => (
                       <Cell
