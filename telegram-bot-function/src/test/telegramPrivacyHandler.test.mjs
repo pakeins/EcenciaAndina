@@ -249,6 +249,23 @@ describe('telegramPrivacyHandler', () => {
       expect(telegramState.deleteState).toHaveBeenCalledWith('consent:789');
     });
 
+    it('validateAndSaveContact debe abortar y notificar si idCliente es nulo o indefinido', async () => {
+      const telegramState = require('../services/telegramState.js');
+      const telegramApi = require('../services/telegramApi.js');
+
+      vi.spyOn(telegramApi, 'sendMessage').mockResolvedValue();
+      vi.spyOn(telegramState, 'deleteState').mockResolvedValue();
+
+      await validateAndSaveContact(
+        { chatId: '789' },
+        { id: 123 },
+        { status: 'accepted_pending_phone', idCliente: null }
+      );
+
+      expect(telegramApi.sendMessage).toHaveBeenCalledWith('789', expect.stringContaining('No tienes una invitación vinculada'), expect.anything());
+      expect(telegramState.deleteState).toHaveBeenCalledWith('consent:789');
+    });
+
     it('validateAndSaveContact debe notificar y registrar evento en caso de discrepancia telefónica', async () => {
       const telegramState = require('../services/telegramState.js');
       const telegramApi = require('../services/telegramApi.js');

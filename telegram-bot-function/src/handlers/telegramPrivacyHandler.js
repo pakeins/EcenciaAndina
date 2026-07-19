@@ -135,6 +135,15 @@ async function rejectConsent(parsed, subscription, consentState) {
 
 async function validateAndSaveContact(parsed, subscription, consentState) {
   if (consentState?.status !== 'accepted_pending_phone') return;
+  if (!consentState.idCliente) {
+    await telegramApi.sendMessage(
+      parsed.chatId,
+      '⚠️ No tienes una invitación vinculada a este chat. Por favor, utiliza el enlace de invitación recibido para registrarte.',
+      removeKeyboard()
+    );
+    await telegramState.deleteState(telegramState.consentKey(parsed.chatId));
+    return;
+  }
   const client = await getClientById(consentState.idCliente);
   if (!client) {
     await telegramApi.sendMessage(parsed.chatId, 'Error interno: no se encontro el cliente vinculado.', removeKeyboard());
