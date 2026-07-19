@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test('Demostración de Seguridad y Roles', async ({ page, isMobile }) => {
+  test.setTimeout(300000); // 5 minutos de timeout para la presentación
+
   const openMenuMobile = async () => {
     if (isMobile) {
       const menuBtn = page.getByRole('button', { name: /menú|menu/i }).first();
@@ -163,7 +165,8 @@ test('Demostración de Seguridad y Roles', async ({ page, isMobile }) => {
 
     await linkEmpleados.evaluate((node: HTMLElement) => {
       node.style.border = '4px solid red';
-      node.style.backgroundColor = '#ffcccc';
+      node.style.color = 'black';
+      node.style.backgroundColor = 'white'; // Asegurar contraste o simplemente quitarlo
     });
     await page.waitForTimeout(1500);
     await linkEmpleados.click();
@@ -173,12 +176,41 @@ test('Demostración de Seguridad y Roles', async ({ page, isMobile }) => {
     // Pausa Larga: Esperar 12 segundos para que puedas explicar la tabla, nombres, roles y estados
     await page.waitForTimeout(12000);
 
-    // Clic en Editar al SEGUNDO empleado (Esteban Carvajal)
+    // Resaltar y dar clic en Editar al SEGUNDO empleado (Esteban Carvajal)
     const btnEditar = page.getByRole('button', { name: /editar/i }).nth(1);
-    await btnEditar.click();
+    if (await btnEditar.isVisible()) {
+      await btnEditar.evaluate((node: HTMLElement) => {
+        node.style.border = '3px solid red';
+        node.style.padding = '2px';
+        node.style.borderRadius = '4px';
+      });
+      await page.waitForTimeout(2000); // Pausa de 2 segundos para que se note la acción
+      await btnEditar.click();
+    } else {
+      await btnEditar.click();
+    }
 
-    // Esperar unos 6 segundos para ver los datos del empleado antes de hacer scroll
+    // Esperar unos 6 segundos para ver los datos del empleado antes de interactuar
     await page.waitForTimeout(6000);
+
+    // Resaltar y abrir el dropdown de roles (Operativo / Administrativo)
+    const selectRol = page.locator('#edit-rol');
+    if (await selectRol.isVisible()) {
+      await selectRol.evaluate((node: HTMLElement) => {
+        node.style.border = '3px solid red';
+        node.style.transform = 'scale(1.02)';
+      });
+      await selectRol.click();
+      await page.waitForTimeout(3000); // 3 segundos para que puedas explicar los dos roles disponibles
+      
+      // Quitar el resaltado y cerrar el select (haciendo clic afuera en el Label)
+      await selectRol.evaluate((node: HTMLElement) => {
+        node.style.border = '';
+        node.style.transform = '';
+      });
+      await page.locator('text=Rol del Sistema').first().click();
+      await page.waitForTimeout(1000);
+    }
 
     // Resaltar botón de enviar enlace sin darle clic (para evitar errores de límite de Supabase)
     const btnEnviarEnlace = page.getByRole('button', { name: /enviar enlace/i }).first();
@@ -247,5 +279,46 @@ test('Demostración de Seguridad y Roles', async ({ page, isMobile }) => {
       await btnLogoutAdmin.click();
       await expect(page).toHaveURL(/.*login.*/i, { timeout: 5000 });
     }
+  });
+
+  await test.step('5. Restablecer contraseña', async () => {
+    // Asegurarnos de estar en el login
+    await page.goto('/');
+    await page.waitForTimeout(1000);
+
+    // Clic en Olvidó su contraseña
+    const btnOlvido = page.getByText(/¿Olvidó su contraseña\?/i).first();
+    if (await btnOlvido.isVisible()) {
+      // Un efecto visual sutil para que el jurado note dónde hacemos clic
+      await btnOlvido.evaluate((node: HTMLElement) => {
+        node.style.border = '2px solid red';
+        node.style.padding = '2px';
+        node.style.borderRadius = '4px';
+      });
+      await page.waitForTimeout(2000);
+      await btnOlvido.click();
+    }
+    
+    await page.waitForTimeout(1000);
+
+    // Ingresar el correo del usuario operativo
+    const inputCorreo = page.getByPlaceholder(/Ingrese su correo registrado/i).first();
+    await inputCorreo.fill('esteban9696e.c@gmail.com');
+    await page.waitForTimeout(2000); // Pausa para que el jurado vea qué correo se llenó
+
+    // Clic en Enviar Enlace
+    const btnEnviarEnlace = page.getByRole('button', { name: /enviar enlace/i }).first();
+    if (await btnEnviarEnlace.isVisible()) {
+      await btnEnviarEnlace.evaluate((node: HTMLElement) => {
+          node.style.border = '3px solid red';
+          node.style.transform = 'scale(1.05)';
+      });
+      await page.waitForTimeout(2000);
+      await btnEnviarEnlace.click();
+    }
+
+    // Damos una pausa más corta (3 seg) antes de que la prueba termine y cierre el navegador.
+    // Una vez que se cierre, puedes abrir el Gmail para mostrar la llegada del correo.
+    await page.waitForTimeout(3000);
   });
 });

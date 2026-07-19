@@ -258,7 +258,7 @@ if (Get-Command az -ErrorAction SilentlyContinue) {
         
         Write-Host "Empaquetando código de la Azure Function en bot-deploy.zip..."
         if (Test-Path "bot-deploy.zip") { Remove-Item "bot-deploy.zip" }
-        Compress-Archive -Path * -DestinationPath "bot-deploy.zip" -Force
+        Get-ChildItem -Path * -Exclude "node_modules", "bot-deploy.zip", ".env", "local.settings.json" | Compress-Archive -DestinationPath "bot-deploy.zip" -Force
         
         Write-Host "Publicando paquete .zip a Azure Function App..."
         $publishOutput = az functionapp deployment source config-zip -g RG-TERRAFORM-PROCESS -n $functionAppName --src "bot-deploy.zip" 2>&1
@@ -309,7 +309,9 @@ if (Get-Command az -ErrorAction SilentlyContinue) {
                 INTERNAL_API_SECRET="$internalSecret" `
                 PUBLIC_FRONTEND_URL="https://ecenciaapp.eastus2.cloudapp.azure.com" `
                 N8N_ECENCIA_TIMEZONE="$tz" `
-                N8N_ECENCIA_ORIGEN_NOMBRE="Telegram" > $null
+                N8N_ECENCIA_ORIGEN_NOMBRE="Telegram" `
+                AzureWebJobsFeatureFlags="EnableWorkerIndexing" `
+                SCM_DO_BUILD_DURING_DEPLOYMENT="true" > $null
                 
         Write-Host "¡Azure Function App Settings actualizados exitosamente!" -ForegroundColor Green
 

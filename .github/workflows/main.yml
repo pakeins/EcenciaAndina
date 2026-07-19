@@ -436,7 +436,8 @@ jobs:
               INTERNAL_API_SECRET="${{ secrets.INTERNAL_API_SECRET || 'dummy-val' }}" \
               PUBLIC_FRONTEND_URL="https://${{ secrets.AZURE_DOMAIN || 'ecenciaapp.eastus2.cloudapp.azure.com' }}" \
               N8N_ECENCIA_TIMEZONE="${{ secrets.N8N_ECENCIA_TIMEZONE || 'America/Bogota' }}" \
-              N8N_ECENCIA_ORIGEN_NOMBRE="Telegram"
+              N8N_ECENCIA_ORIGEN_NOMBRE="Telegram" \
+              AzureWebJobsFeatureFlags="EnableWorkerIndexing"
         continue-on-error: true
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
