@@ -19,29 +19,11 @@ test('Paso 1: Crear Cliente Frecuente y Asignar Saldo', async ({ page, isMobile 
   await openMenuMobile();
   await page.getByRole('link', { name: /clientes/i }).click();
   await expect(page).toHaveURL(/.*clientes.*/i);
+  
+  // Pausa inicial para que el jurado vea el listado y la estructura del módulo
+  await page.waitForTimeout(6000);
 
-  // --- PREPARACIÓN: Borrar cliente 'Esteban' si ya existe para que la prueba sea repetible ---
-  const inputBuscar = page.getByPlaceholder(/nombre, cédula, teléfono/i).first();
-  if (await inputBuscar.isVisible()) {
-    await inputBuscar.fill('1726359670'); // Buscar por cédula directamente
-    await page.waitForTimeout(2000);
 
-    const btnEliminar = page.getByRole('button', { name: /eliminar cliente/i }).first();
-    if (await btnEliminar.isVisible()) {
-      await btnEliminar.click();
-      await page.waitForTimeout(1000);
-      
-      const btnBorradoForzado = page.getByRole('button', { name: /Borrado Forzado Permanentemente/i }).first();
-      if (await btnBorradoForzado.isVisible()) {
-        await btnBorradoForzado.click();
-        // Esperar a que se elimine correctamente
-        await expect(page.getByText(/eliminado correctamente/i).first()).toBeVisible({ timeout: 5000 });
-        await page.waitForTimeout(2000);
-      }
-    }
-    await inputBuscar.fill('');
-    await page.waitForTimeout(1000);
-  }
 
   // Resaltar y dar clic en Nuevo Cliente
   const btnNuevo = page.getByRole('button', { name: /nuevo|crear|agregar/i }).first();
@@ -149,11 +131,19 @@ test('Paso 1: Crear Cliente Frecuente y Asignar Saldo', async ({ page, isMobile 
 
   // Si sale el dialog de "Telegram Onboarding" (o cualquier otro modal), lo cerramos con Escape
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(1500);
 
   // Asignar saldo inicial
   const btnRecarga = page.getByRole('button', { name: /recargar saldo/i }).first();
   await expect(btnRecarga).toBeVisible({ timeout: 5000 });
+  
+  // Resaltar botón de recargar saldo
+  await btnRecarga.evaluate((node: HTMLElement) => {
+    node.style.border = '3px solid red';
+    node.style.transform = 'scale(1.05)';
+    node.style.transition = 'all 0.2s';
+  });
+  await page.waitForTimeout(3000); // Resalta un momento la opcion de recargar saldo
   await btnRecarga.click();
   
   await page.waitForTimeout(1000);
@@ -165,21 +155,48 @@ test('Paso 1: Crear Cliente Frecuente y Asignar Saldo', async ({ page, isMobile 
   // 2. Cliente
   const clientCombobox = page.getByRole('dialog').getByRole('combobox').nth(0);
   await clientCombobox.click();
+  await page.waitForTimeout(2000); // Pausa para ver la lista de clientes
   await page.getByRole('option', { name: /esteban/i }).click();
 
   // 3. Producto (Almuerzo Ejecutivo Sin Sopa)
   const productCombobox = page.getByRole('dialog').getByRole('combobox').nth(1);
   await productCombobox.click();
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(2000); // Pausa para ver los tipos de almuerzo
   await page.getByRole('option', { name: /ejecutivo sin sopa/i }).first().click();
   
   // 4. Cantidad
   await page.getByRole('spinbutton').first().fill('20');
   
-  // Pequeña pausa para que el jurado alcance a ver los datos de la recarga
-  await page.waitForTimeout(2000);
+  // Pausa para que el jurado alcance a ver los datos de la recarga y puedas explicar
+  await page.waitForTimeout(6000);
   
   // Dar click en confirmar recarga
   await page.getByRole('dialog').getByRole('button', { name: /confirmar/i }).first().click();
   await expect(page.getByText(/éxito|actualizado/i)).toBeVisible({ timeout: 8000 });
+  
+  // --- VERIFICAR SALDO EN MONEDERO VIRTUAL ---
+  // Buscamos el ícono de Monedero Virtual (billetera)
+  const btnMonedero = page.getByRole('button', { name: /Monedero Virtual/i }).first();
+  await expect(btnMonedero).toBeVisible({ timeout: 5000 });
+  
+  // Resaltarlo
+  await btnMonedero.evaluate((node: HTMLElement) => {
+    node.style.border = '3px solid red';
+    node.style.transform = 'scale(1.2)';
+    node.style.transition = 'all 0.2s';
+    node.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+  });
+  await page.waitForTimeout(2000);
+  
+  // Dar clic y abrir el monedero
+  await btnMonedero.click();
+  
+  // Que se quede ahí unos segundos para poder explicar
+  await page.waitForTimeout(5000);
+  
+  // Cerrar la ventana del monedero
+  await page.keyboard.press('Escape');
+  
+  // Esperar 2 segundos antes de cerrar todo (fin del test)
+  await page.waitForTimeout(2000);
 });

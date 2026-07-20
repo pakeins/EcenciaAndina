@@ -18,11 +18,11 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:demo": "playwright test tests/showcase.spec.ts --headed --project=chromium",
     "test:e2e:mobile": "playwright test tests/showcase-mobile.spec.ts --headed --project='Mobile Safari'",
-    "demo:0": "playwright test tests/demo-login.spec.ts --headed --project=\"Desktop Chrome\"",
+    "demo:login": "playwright test tests/demo-login.spec.ts --headed --project=\"Desktop Chrome\"",
     "demo:dashboard": "playwright test tests/demo-reportes.spec.ts --headed --project=\"Desktop Chrome\"",
-    "demo:1": "playwright test tests/demo-step1.spec.ts --headed --project=\"Desktop Chrome\"",
-    "demo:2": "playwright test tests/demo-step2.spec.ts --headed --project=\"Desktop Chrome\"",
-    "demo:3": "playwright test tests/demo-step3.spec.ts --headed --project=\"Desktop Chrome\""
+    "demo:cliente": "playwright test tests/demo-step1.spec.ts --headed --project=\"Desktop Chrome\"",
+    "demo:menu": "playwright test tests/demo-step2.spec.ts --headed --project=\"Desktop Chrome\"",
+    "demo:pedido": "playwright test tests/demo-step3.spec.ts --headed --project=\"Desktop Chrome\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
