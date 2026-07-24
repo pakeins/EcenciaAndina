@@ -27,7 +27,7 @@ test('Paso 3: Crear Nuevo Pedido Manualmente', async ({ page, isMobile }) => {
   const btnNuevoPedido = page.getByRole('button', { name: /nuevo pedido/i }).first();
   await expect(btnNuevoPedido).toBeVisible();
   await btnNuevoPedido.evaluate((node: HTMLElement) => {
-    node.style.border = '3px solid red';
+    node.style.outline = '3px solid red';
     node.style.transform = 'scale(1.05)';
     node.style.transition = 'all 0.2s';
   });
@@ -107,7 +107,7 @@ test('Paso 3: Crear Nuevo Pedido Manualmente', async ({ page, isMobile }) => {
   await btnAgregar.scrollIntoViewIfNeeded();
   await expect(btnAgregar).toBeVisible();
   await btnAgregar.evaluate((node: HTMLElement) => {
-    node.style.border = '3px solid red';
+    node.style.outline = '3px solid red';
     node.style.transform = 'scale(1.05)';
     node.style.transition = 'all 0.2s';
   });
@@ -120,7 +120,7 @@ test('Paso 3: Crear Nuevo Pedido Manualmente', async ({ page, isMobile }) => {
   await btnCrear.scrollIntoViewIfNeeded();
   await expect(btnCrear).toBeVisible();
   await btnCrear.evaluate((node: HTMLElement) => {
-    node.style.border = '3px solid red';
+    node.style.outline = '3px solid red';
     node.style.transform = 'scale(1.05)';
     node.style.transition = 'all 0.2s';
   });

@@ -203,11 +203,11 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card/60 p-4 rounded-xl border border-border shadow-sm backdrop-blur-sm">
         <div className="space-y-1">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-cafe to-terracota">
-            Dashboard
+            Dashboard Final
           </h1>
           <p className="text-muted-foreground text-sm font-medium">Panel de analítica y control en tiempo real</p>
         </div>
-        
+
         {/* Filtros de Fecha */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
@@ -246,9 +246,9 @@ export default function Dashboard() {
             </div>
           )}
 
-          <Button 
-            variant="outline" 
-            size="icon" 
+          <Button
+            variant="outline"
+            size="icon"
             className="h-9 w-9 border-border bg-background text-cafe hover:text-terracota hover:bg-terracota/5 transition-all duration-300"
             onClick={handleManualRefresh}
             disabled={isRefreshing}
@@ -263,8 +263,8 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {metrics.map((metric, index) => {
           return (
-            <Card 
-              key={metric.title} 
+            <Card
+              key={metric.title}
               className="border-border shadow-sm border-l-4 border-l-terracota bg-card hover:scale-[1.02] hover:shadow-md transition-all duration-300 relative overflow-hidden"
             >
               <CardHeader className="flex flex-row items-center justify-between pb-1 px-3 pt-3">
@@ -291,10 +291,10 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="text-foreground">Consumos por Día</CardTitle>
             <CardDescription>
-              {periodo === 'general' 
-                ? 'Almuerzos consumidos esta semana' 
-                : periodo === 'hoy' 
-                  ? 'Almuerzos consumidos hoy' 
+              {periodo === 'general'
+                ? 'Almuerzos consumidos esta semana'
+                : periodo === 'hoy'
+                  ? 'Almuerzos consumidos hoy'
                   : 'Almuerzos consumidos en el periodo'}
             </CardDescription>
           </CardHeader>
@@ -328,8 +328,8 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="text-foreground">Consumos por Convenio</CardTitle>
             <CardDescription>
-              {periodo === 'general' 
-                ? 'Distribución mensual de almuerzos' 
+              {periodo === 'general'
+                ? 'Distribución mensual de almuerzos'
                 : 'Distribución de almuerzos en el periodo'}
             </CardDescription>
           </CardHeader>
@@ -392,20 +392,20 @@ export default function Dashboard() {
                     <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-oro"></span> Pendientes ({metricsData?.pendientesHoy || 0})</span>
                     <span className="font-medium flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-terracota"></span> Cancelados ({metricsData?.canceladosHoy || 0})</span>
                   </div>
-                  
+
                   <div className="h-4 w-full bg-muted rounded-full overflow-hidden flex shadow-inner">
-                    <div 
-                      className="bg-primary transition-all duration-500 hover:brightness-110" 
+                    <div
+                      className="bg-primary transition-all duration-500 hover:brightness-110"
                       style={{ width: `${((metricsData?.consumidosHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
                       title={`Consumidos: ${metricsData?.consumidosHoy || 0}`}
                     />
-                    <div 
-                      className="bg-oro transition-all duration-500 hover:brightness-110" 
+                    <div
+                      className="bg-oro transition-all duration-500 hover:brightness-110"
                       style={{ width: `${((metricsData?.pendientesHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
                       title={`Pendientes: ${metricsData?.pendientesHoy || 0}`}
                     />
-                    <div 
-                      className="bg-terracota transition-all duration-500 hover:brightness-110" 
+                    <div
+                      className="bg-terracota transition-all duration-500 hover:brightness-110"
                       style={{ width: `${((metricsData?.canceladosHoy || 0) / (metricsData?.totalHoy || 1)) * 100}%` }}
                       title={`Cancelados: ${metricsData?.canceladosHoy || 0}`}
                     />
@@ -452,8 +452,8 @@ export default function Dashboard() {
                       <span className="text-cafe font-extrabold">{lunch.value} uds.</span>
                     </div>
                     <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary rounded-full transition-all duration-500 ease-out" 
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
