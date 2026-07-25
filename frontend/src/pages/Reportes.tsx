@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -764,14 +765,11 @@ export default function Reportes() {
 
   const handleExportContifico = () => {
     try {
-      const selectedConvenioObj = convenios.find(c => String(c.id) === String(idConvenio) || String(c.id_convenio) === String(idConvenio));
-      const selectedClientObj = clientes.find(c => String(c.id) === String(idCliente) || String(c.id_cliente) === String(idCliente));
+      if (!reportData || reportData.length === 0) {
+        toast.error('No hay datos para exportar en el reporte actual.');
+        return;
+      }
 
-      // Datos fiscales del Cliente / Empresa destino de la Factura en Contífico
-      const targetRuc = selectedConvenioObj?.ruc || selectedClientObj?.cedula || '1792345678001';
-      const targetNombre = selectedConvenioObj?.nombre_empresa || (selectedClientObj ? `${selectedClientObj.nombre} ${selectedClientObj.apellido}` : 'CLIENTE GENERAL');
-
-      const csvContent = '\uFEFF'; // UTF-8 BOM para compatibilidad con Excel
       const headers = [
         'Tipo de Registro',
         'Tipo de Documento',
@@ -799,16 +797,44 @@ export default function Reportes() {
         return `${day}/${month}/${year}`;
       };
 
-      const rows: string[][] = [];
+      const rows: (string | number)[][] = [];
 
       if (reportType === 'convenio') {
+        // Validar si es un convenio especifico o varios
+        const selectedConv = convenios.find(c => String(c.id) === String(idConvenio) || String(c.id_convenio) === String(idConvenio));
+
+        if (idConvenio !== 'all' && selectedConv) {
+          if (!selectedConv.ruc || !selectedConv.nombre_empresa) {
+            toast.error(`No se puede exportar a Contífico: La empresa "${selectedConv.nombre_empresa || 'seleccionada'}" no tiene registrado su RUC o Razón Social.`);
+            return;
+          }
+        }
+
         let secCounter = 1;
+        const companySecMap = new Map<string, string>();
+
+        const getSecuencialForCompany = (compRuc: string) => {
+          if (!companySecMap.has(compRuc)) {
+            companySecMap.set(compRuc, `001-001-${String(secCounter++).padStart(9, '0')}`);
+          }
+          return companySecMap.get(compRuc)!;
+        };
+
         if (!desglosarConvenio) {
-          reportData.forEach((emp: ColaboradorConsumo) => {
+          for (const emp of (reportData as ColaboradorConsumo[])) {
+            const convObj = selectedConv || convenios.find(c => (c.nombre_empresa && emp.empleado && c.nombre_empresa.toLowerCase().includes(emp.empleado.toLowerCase()))) || convenios[0];
+            const targetRuc = convObj?.ruc || emp.cedula;
+            const targetNombre = convObj?.nombre_empresa || emp.empleado;
+
+            if (!targetRuc || !targetNombre) {
+              toast.error(`No se puede exportar a Contífico: Faltan datos tributarios obligatorios (RUC o Razón Social) para ${emp.empleado}.`);
+              return;
+            }
+
             const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
             const qty = totalAlmuerzos || 1;
-            const precioUnit = (emp.total / qty).toFixed(2);
-            const secuencial = `001-001-${String(secCounter++).padStart(9, '0')}`;
+            const precioUnit = Number((emp.total / qty).toFixed(2));
+            const secuencial = getSecuencialForCompany(targetRuc);
             const fechaEmis = formatDate(fechaFin || new Date().toISOString());
 
             rows.push([
@@ -820,20 +846,30 @@ export default function Reportes() {
               fechaEmis,
               fechaEmis,
               'ALM-CONV',
-              `Consumo Almuerzos Convenio - Colaborador: ${emp.empleado} (CI: ${emp.cedula})`,
-              qty.toString(),
+              `Consumo Almuerzos - Colaborador: ${emp.empleado} (CI: ${emp.cedula || 'N/A'})`,
+              qty,
               precioUnit,
-              '0',
-              '0',
+              0,
+              0,
               'P'
             ]);
-          });
+          }
         } else {
-          reportData.forEach((emp: ColaboradorConsumo) => {
-            (emp.consumos || []).forEach((c: Consumo) => {
+          for (const emp of (reportData as ColaboradorConsumo[])) {
+            const convObj = selectedConv || convenios.find(c => (c.nombre_empresa && emp.empleado && c.nombre_empresa.toLowerCase().includes(emp.empleado.toLowerCase()))) || convenios[0];
+            const targetRuc = convObj?.ruc || emp.cedula;
+            const targetNombre = convObj?.nombre_empresa || emp.empleado;
+
+            if (!targetRuc || !targetNombre) {
+              toast.error(`No se puede exportar a Contífico: Faltan datos tributarios obligatorios (RUC o Razón Social) para ${emp.empleado}.`);
+              return;
+            }
+
+            const secuencial = getSecuencialForCompany(targetRuc);
+
+            for (const c of (emp.consumos || [])) {
               const qty = c.cantidad || 1;
-              const precioUnit = (c.valor / qty).toFixed(2);
-              const secuencial = `001-001-${String(secCounter++).padStart(9, '0')}`;
+              const precioUnit = Number((c.valor / qty).toFixed(2));
               const fechaEmis = formatDate(c.fecha || fechaFin);
 
               rows.push([
@@ -845,23 +881,35 @@ export default function Reportes() {
                 fechaEmis,
                 fechaEmis,
                 'ALM-CONV',
-                `Consumo ${c.producto} - Colaborador: ${emp.empleado} (CI: ${emp.cedula})`,
-                qty.toString(),
+                `Consumo ${c.producto} - Colaborador: ${emp.empleado} (CI: ${emp.cedula || 'N/A'})`,
+                qty,
                 precioUnit,
-                '0',
-                '0',
+                0,
+                0,
                 'P'
               ]);
-            });
-          });
+            }
+          }
         }
       } else {
-        reportData.forEach((row, idx) => {
-          const secuencial = `001-001-${String(idx + 1).padStart(9, '0')}`;
-          const fechaEmis = formatDate(row.fecha || fechaFin || new Date().toISOString());
+        let secCounter = 1;
+        const targetRuc = selectedConvenioObj?.ruc || selectedClientObj?.cedula;
+        const targetNombre = selectedConvenioObj?.nombre_empresa || (selectedClientObj ? `${selectedClientObj.nombre} ${selectedClientObj.apellido}` : undefined);
+
+        for (const row of reportData) {
           const clienteNombre = row.cliente || row.convenio || row.empleado || row.nombre || targetNombre;
           const clienteIdent = row.cedula || targetRuc;
+
+          if (!clienteNombre || !clienteIdent) {
+            toast.error('No se puede exportar a Contífico: Se encontraron registros sin identificación o Razón Social de cliente.');
+            return;
+          }
+
+          const secuencial = `001-001-${String(secCounter++).padStart(9, '0')}`;
+          const fechaEmis = formatDate(row.fecha || fechaFin || new Date().toISOString());
           const totalVal = row.totalConsumo ?? row.ingresosGenerados ?? row.valorExtras ?? 0;
+          const qty = row.cantidadVendida || row.almuerzosPrincipales || 1;
+          const precioUnit = Number((totalVal / qty).toFixed(2));
 
           rows.push([
             'CLI',
@@ -873,33 +921,43 @@ export default function Reportes() {
             fechaEmis,
             'ALM-CONV',
             `Consumo ${reportType} - ${clienteNombre}`,
-            (row.cantidadVendida || row.almuerzosPrincipales || 1).toString(),
-            totalVal.toFixed(2),
-            '0',
-            '0',
+            qty,
+            precioUnit,
+            0,
+            0,
             'P'
           ]);
-        });
+        }
       }
 
-      const csvRows = [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',')];
-      rows.forEach(row => {
-        csvRows.push(row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','));
+      if (rows.length === 0) {
+        toast.error('No se encontraron registros válidos para exportar.');
+        return;
+      }
+
+      // Crear libro de trabajo Excel nativo (.xlsx) con hoja 'Documentos'
+      const worksheetData = [headers, ...rows];
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Documentos');
+
+      // Exportar en formato binario .xlsx nativo
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
 
-      const fullCsv = csvRows.join('\n');
-      const blob = new Blob([csvContent + fullCsv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `importacion_contifico_${reportType}_${fechaInicio}_al_${fechaFin}.csv`);
+      link.setAttribute('download', `importacion_contifico_${fechaInicio}_al_${fechaFin}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      toast.success('Plantilla oficial para Siigo Contífico generada exitosamente');
+      toast.success('Archivo Excel nativo (.xlsx) para Siigo Contífico generado exitosamente');
     } catch (err) {
       console.error('Error generando plantilla para Contífico:', err);
-      toast.error('Error al generar plantilla para Contífico');
+      toast.error('Error al generar plantilla Excel nativa para Contífico');
     }
   };
 

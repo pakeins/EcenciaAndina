@@ -363,4 +363,61 @@ describe('Reportes', () => {
     );
     exportBtns.forEach(btn => fireEvent.click(btn));
   });
+
+  it('valida la exportación nativa a Excel (.xlsx) para Siigo Contífico', async () => {
+    const mockVentasConvenios = [{
+      cedula: '1712345678',
+      empleado: 'Juan Pérez',
+      total: 105.00,
+      consumos: [
+        { fecha: '2026-07-01', producto: 'Almuerzo Ejecutivo Especial (Tildes & Caracteres Ñ)', cantidad: 30, valor: 105.00 }
+      ]
+    }];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678' }]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', ruc: '1792345678001', nombre_empresa: 'Empresa Andina S.A.', activo: true }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConvenios) });
+    });
+
+    await renderComponent();
+
+    // Seleccionar tipo convenio
+    const comboboxes = screen.getAllByRole('combobox');
+    fireEvent.click(comboboxes[0]);
+    const option = await screen.findByText('Consolidado por Convenio');
+    fireEvent.click(option);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('combobox').length).toBeGreaterThan(1);
+    });
+
+    const empCombobox = screen.getAllByRole('combobox')[1];
+    fireEvent.click(empCombobox);
+    const empOption = await screen.findByRole('option', { name: /Empresa A/i });
+    fireEvent.click(empOption);
+
+    const btnGenerar = screen.getAllByText('Generar Reporte')[0];
+    fireEvent.click(btnGenerar);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
+    });
+
+    // Clic en Exportar a Contifico
+    const btnContifico = screen.getByRole('button', { name: /Exportar a Contífico/i });
+    expect(btnContifico).toBeInTheDocument();
+
+    fireEvent.click(btnContifico);
+
+    // Verificar que URL.createObjectURL fue invocado con un Blob de tipo Excel .xlsx
+    expect(global.URL.createObjectURL).toHaveBeenCalled();
+    const lastBlobArg = (global.URL.createObjectURL as any).mock.calls.slice(-1)[0][0];
+    expect(lastBlobArg).toBeInstanceOf(Blob);
+    expect(lastBlobArg.type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  });
 });
