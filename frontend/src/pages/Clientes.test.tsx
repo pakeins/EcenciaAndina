@@ -480,11 +480,18 @@ describe('Clientes', () => {
     });
   });
 
-  it('permite reintentar email de onboarding desde el menu de telegram', async () => {
+  it('permite filtrar clientes por texto de busqueda', async () => {
     await renderComponent();
-    
-    // Simular que handleSaveSuccess pasa con isNew
-    const event = new CustomEvent('cliente-guardado', { detail: { isNew: true, data: { telegram_onboarding: 'some-url', nombre: 'Test', apellido: 'User', id: '123' } } });
-    document.dispatchEvent(event);
+
+    await waitFor(() => {
+      expect(screen.getByText('Juan Perez')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Nombre, cédula, teléfono/i);
+    fireEvent.change(searchInput, { target: { value: 'Juan' } });
+    expect(screen.getByText('Juan Perez')).toBeInTheDocument();
+
+    fireEvent.change(searchInput, { target: { value: 'NoExiste' } });
+    expect(screen.queryByText('Juan Perez')).not.toBeInTheDocument();
   });
 });

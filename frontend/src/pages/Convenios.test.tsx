@@ -578,4 +578,9 @@ describe('Convenios', () => {
     expect(window.open).toBeDefined();
     window.open = originalOpen;
   });
+
+  it('permite interactuar con la lista de convenios', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByText('Empresa A')).toBeInTheDocument());
+  });
 });

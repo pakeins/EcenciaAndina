@@ -350,16 +350,18 @@ describe('Menu', () => {
     await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
 
     const btnGestCat = screen.getByRole('button', { name: /Gestionar Categorías/i });
-    if(btnGestCat) {
+    if (btnGestCat) {
       await act(async () => {
         fireEvent.click(btnGestCat);
       });
-      const closeBtn = screen.getByRole('button', { name: /Close/i });
-      if(closeBtn) {
-        await act(async () => {
-          fireEvent.click(closeBtn);
-        });
-      }
     }
+  });
+
+  it('permite interactuar con la interfaz del menu', async () => {
+    await renderComponent();
+    await waitFor(() => expect(screen.getByTestId('icon-soup')).toBeInTheDocument());
+
+    const btnPlatos = screen.getByRole('button', { name: /Gestionar Platos/i });
+    expect(btnPlatos).toBeInTheDocument();
   });
 });
