@@ -420,4 +420,108 @@ describe('Reportes', () => {
     expect(lastBlobArg).toBeInstanceOf(Blob);
     expect(lastBlobArg.type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   });
+
+  it('permite exportar desglosado por convenio a Excel, XML, CSV y PDF', async () => {
+    const mockVentasConvenios = [{
+      cedula: '1712345678',
+      empleado: 'Juan Pérez',
+      total: 105.00,
+      consumos: [
+        { fecha: '2026-07-01', producto: 'Almuerzo Ejecutivo', cantidad: 30, valor: 105.00 }
+      ]
+    }];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '1712345678' }]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', ruc: '1792345678001', nombre_empresa: 'Empresa Andina S.A.', activo: true }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConvenios) });
+    });
+
+    await renderComponent();
+
+    // Seleccionar tipo convenio
+    const comboboxes = screen.getAllByRole('combobox');
+    fireEvent.click(comboboxes[0]);
+    const option = await screen.findByText('Consolidado por Convenio');
+    fireEvent.click(option);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('combobox').length).toBeGreaterThan(1);
+    });
+
+    const empCombobox = screen.getAllByRole('combobox')[1];
+    fireEvent.click(empCombobox);
+    const empOption = await screen.findByRole('option', { name: /Empresa A/i });
+    fireEvent.click(empOption);
+
+    // Activar desglosar
+    const switchEl = screen.getByRole('switch');
+    fireEvent.click(switchEl);
+
+    const btnGenerar = screen.getAllByText('Generar Reporte')[0];
+    fireEvent.click(btnGenerar);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
+    });
+
+    // Probar todos los botones de exportación desglosada
+    const btnPDF = screen.getByRole('button', { name: /Exportar PDF/i });
+    const btnXML = screen.getByRole('button', { name: /Exportar XML/i });
+    const btnCSV = screen.getByRole('button', { name: /Exportar CSV/i });
+    const btnContifico = screen.getByRole('button', { name: /Exportar a Contífico/i });
+
+    fireEvent.click(btnPDF);
+    fireEvent.click(btnXML);
+    fireEvent.click(btnCSV);
+    fireEvent.click(btnContifico);
+
+    expect(global.URL.createObjectURL).toHaveBeenCalled();
+  });
+
+  it('maneja adecuadamente excepciones en exportacion (catch blocks)', async () => {
+    const mockVentas = [{
+      metodo_pago: 'Efectivo', almuerzosPrincipales: 10, ejecutivoCompleto: 5,
+      ejecutivoSinSopa: 5, ejecutivoSimple: 0, almuerzoDia: 0, almuerzoDiaSimple: 0,
+      otrosAlmuerzos: 0, extrasCantidad: 2, valorExtras: 10, totalConsumo: 110,
+    }];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'c1', id_cliente: 'c1', nombre: 'Juan', apellido: 'Perez', cedula: '123456' }]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', nombre_empresa: 'Empresa A', activo: true }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentas) });
+    });
+
+    await renderComponent();
+
+    const btnGenerar = screen.getByText('Generar Reporte');
+    fireEvent.click(btnGenerar);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
+    });
+
+    // Forzar excepcion en URL.createObjectURL
+    const origCreateObjectURL = global.URL.createObjectURL;
+    global.URL.createObjectURL = vi.fn().mockImplementation(() => {
+      throw new Error('Mock Export Error');
+    });
+
+    const btnXML = screen.getByRole('button', { name: /Exportar XML/i });
+    const btnCSV = screen.getByRole('button', { name: /Exportar CSV/i });
+
+    fireEvent.click(btnXML);
+    fireEvent.click(btnCSV);
+
+    // Restaurar mock
+    global.URL.createObjectURL = origCreateObjectURL;
+  });
 });

@@ -556,7 +556,11 @@ export default function Reportes() {
       xmlContent += `    <fechaGeneracion>${new Date().toISOString()}</fechaGeneracion>\n`;
       xmlContent += `    <generadoPor>Sistema ECencia Andina v1.0</generadoPor>\n`;
       xmlContent += `    <ambiente>PRODUCCION</ambiente>\n`;
-      xmlContent += `    <hashIntegridad>${Math.random().toString(36).substring(2, 12).toUpperCase()}</hashIntegridad>\n`;
+      const randomBuffer = new Uint8Array(6);
+      window.crypto.getRandomValues(randomBuffer);
+      const hashIntegridad = Array.from(randomBuffer, (b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+
+      xmlContent += `    <hashIntegridad>${hashIntegridad}</hashIntegridad>\n`;
       xmlContent += `  </metadatosAuditoria>\n`;
 
       // Bloque Datos / Detalles
