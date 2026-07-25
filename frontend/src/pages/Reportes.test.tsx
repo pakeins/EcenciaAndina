@@ -524,4 +524,60 @@ describe('Reportes', () => {
     // Restaurar mock
     global.URL.createObjectURL = origCreateObjectURL;
   });
+
+  it('valida manejo de errores y validaciones en exportacion a Contifico', async () => {
+    const mockVentasConveniosIncompletos = [{
+      cedula: '',
+      empleado: 'Empleado Sin Cedula',
+      total: 50.00,
+      consumos: [
+        { fecha: '2026-07-01', producto: 'Almuerzo Ejecutivo', cantidad: 10, valor: 50.00 }
+      ]
+    }];
+
+    (apiFetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.endsWith('/clientes')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
+      if (url.endsWith('/convenios')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 'conv1', id_convenio: 'conv1', ruc: '1792345678001', nombre_empresa: 'Empresa Incompleta', activo: true }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVentasConveniosIncompletos) });
+    });
+
+    await renderComponent();
+
+    const comboboxes = screen.getAllByRole('combobox');
+    fireEvent.click(comboboxes[0]);
+    const option = await screen.findByText('Consolidado por Convenio');
+    fireEvent.click(option);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('combobox').length).toBeGreaterThan(1);
+    });
+
+    const empCombobox = screen.getAllByRole('combobox')[1];
+    fireEvent.click(empCombobox);
+    const empOption = await screen.findByRole('option', { name: /Empresa/i });
+    fireEvent.click(empOption);
+
+    const btnGenerar = screen.getAllByText('Generar Reporte')[0];
+    fireEvent.click(btnGenerar);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Resultados del Análisis/i)).toBeInTheDocument();
+    });
+
+    const btnContifico = screen.getByRole('button', { name: /Exportar a Contífico/i });
+    expect(btnContifico).toBeInTheDocument();
+
+    // Provocar excepcion en catch block de Contifico
+    const origCreateObjectURL = global.URL.createObjectURL;
+    global.URL.createObjectURL = vi.fn().mockImplementation(() => {
+      throw new Error('Contifico Mock Error');
+    });
+
+    fireEvent.click(btnContifico);
+    global.URL.createObjectURL = origCreateObjectURL;
+  });
 });
