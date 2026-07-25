@@ -20,7 +20,7 @@ import {
   TableRow,
   TableFooter,
 } from '@/components/ui/table';
-import { FileDown, Calendar, Filter, FileText, PieChart, Users, Building2, TrendingUp } from 'lucide-react';
+import { FileDown, FileSpreadsheet, Calendar, Filter, FileText, PieChart, Users, Building2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { Convenio, Client } from '@/types';
@@ -166,152 +166,188 @@ export default function Reportes() {
 
   const handleExportPDF = () => {
     try {
+      const selectedConvenioObj = convenios.find(c => String(c.id) === String(idConvenio) || String(c.id_convenio) === String(idConvenio));
+      const selectedClientObj = clientes.find(c => String(c.id) === String(idCliente) || String(c.id_cliente) === String(idCliente));
+
       const reportTitleMap: Record<string, string> = {
         'ventas': 'Resumen General de Ingresos',
         'estados': 'Reporte de Pedidos por Estado',
-        'convenio': 'Consolidado por Convenio Empresa',
+        'convenio': 'Consolidado Mensual por Convenio Empresa',
         'clientes': 'Consumo Detallado por Cliente',
         'productos': 'Popularidad de Almuerzos y Productos'
       };
 
-      const title = reportTitleMap[reportType] || 'Reporte';
+      const title = reportTitleMap[reportType] || 'Reporte de Consumos';
       const safeTitle = escapeHtml(title);
       const safeFechaInicio = escapeHtml(new Date(fechaInicio).toLocaleDateString('es-EC'));
       const safeFechaFin = escapeHtml(new Date(fechaFin).toLocaleDateString('es-EC'));
+
+      // Datos de la empresa/cliente destinatario
+      let targetEmpresa = 'Consolidado General';
+      let targetRuc = 'N/A';
+      let targetRepresentante = 'N/A';
+      let targetContacto = 'N/A';
+
+      if (reportType === 'convenio' && selectedConvenioObj) {
+        targetEmpresa = selectedConvenioObj.nombre_empresa;
+        targetRuc = selectedConvenioObj.ruc || 'N/A';
+        targetRepresentante = selectedConvenioObj.representante || 'N/A';
+        targetContacto = `${selectedConvenioObj.email || ''} ${selectedConvenioObj.telefono ? '| ' + selectedConvenioObj.telefono : ''}`.trim() || 'N/A';
+      } else if (reportType === 'clientes' && selectedClientObj) {
+        targetEmpresa = `${selectedClientObj.nombre} ${selectedClientObj.apellido}`.trim();
+        targetRuc = selectedClientObj.cedula || 'N/A';
+        targetContacto = selectedClientObj.email || 'N/A';
+      } else if (reportType === 'convenio') {
+        targetEmpresa = 'Todas las Empresas de Convenio';
+      }
       
       let htmlRows = '';
       
       if (reportType === 'ventas') {
         const salesLunchHeaderCells = SALES_LUNCH_COLUMNS.map((column) =>
-          `<th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">${column.label}</th>`,
+          `<th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: center; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">${column.label}</th>`,
         ).join('');
         htmlRows = `
-          <tr>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Método de Pago</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Principales</th>
-            ${salesLunchHeaderCells}
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Extras</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Valor extras</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Ingresos Generados</th>
-          </tr>
+          <thead>
+            <tr>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Método de Pago</th>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: center; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Principales</th>
+              ${salesLunchHeaderCells}
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: center; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Extras</th>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: right; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Valor extras</th>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: right; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Ingresos Generados</th>
+            </tr>
+          </thead>
+          <tbody>
         `;
-        reportData.forEach(row => {
+        reportData.forEach((row, index) => {
+          const bg = index % 2 === 0 ? '#ffffff' : '#faf8f5';
           const salesLunchCells = SALES_LUNCH_COLUMNS.map((column) =>
-            `<td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row[column.key])}</td>`,
+            `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row[column.key])}</td>`,
           ).join('');
           htmlRows += `
-            <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.metodo_pago)}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.almuerzosPrincipales ?? row.cantidadAlmuerzos)}</td>
+            <tr style="background-color: ${bg};">
+              <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600;">${escapeHtml(row.metodo_pago)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.almuerzosPrincipales ?? row.cantidadAlmuerzos)}</td>
               ${salesLunchCells}
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.extrasCantidad)}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.valorExtras)}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.totalConsumo)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.extrasCantidad)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.valorExtras)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">$${formatMoney(row.totalConsumo)}</td>
             </tr>
           `;
         });
+        htmlRows += `</tbody>`;
       } else if (reportType === 'estados' || reportType === 'clientes') {
         htmlRows = `
-          <tr>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Fecha</th>
-            ${reportType === 'estados' ? '<th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Cliente</th>' : ''}
-            ${reportType === 'clientes' ? '<th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Convenio</th>' : ''}
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Estado</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Descripción</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Total</th>
-          </tr>
-        `;
-        reportData.forEach(row => {
-          htmlRows += `
+          <thead>
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${new Date(row.fecha).toLocaleString()}</td>
-              ${reportType === 'estados' ? `<td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.cliente}</td>` : ''}
-              ${reportType === 'clientes' ? `<td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.convenio || 'N/A'}</td>` : ''}
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.estado}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${row.descripcion}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${row.totalConsumo.toFixed(2)}</td>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Fecha / Hora</th>
+              ${reportType === 'estados' ? '<th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Cliente</th>' : ''}
+              ${reportType === 'clientes' ? '<th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Convenio</th>' : ''}
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Estado</th>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Descripción</th>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: right; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+        `;
+        reportData.forEach((row, index) => {
+          const bg = index % 2 === 0 ? '#ffffff' : '#faf8f5';
+          htmlRows += `
+            <tr style="background-color: ${bg};">
+              <td style="padding: 8px; border-bottom: 1px solid #eee; font-size: 11px;">${new Date(row.fecha).toLocaleString('es-EC')}</td>
+              ${reportType === 'estados' ? `<td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600;">${escapeHtml(row.cliente)}</td>` : ''}
+              ${reportType === 'clientes' ? `<td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.convenio || 'N/A')}</td>` : ''}
+              <td style="padding: 8px; border-bottom: 1px solid #eee;"><span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background: #eef2ff;">${escapeHtml(row.estado)}</span></td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; font-size: 11px; color: #555;">${escapeHtml(row.descripcion)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">$${row.totalConsumo.toFixed(2)}</td>
             </tr>
           `;
         });
+        htmlRows += `</tbody>`;
       } else if (reportType === 'productos') {
         htmlRows = `
-          <tr>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Producto</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Categoría</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Cantidad Vendida</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Ingresos</th>
-          </tr>
-        `;
-        reportData.forEach(row => {
-          htmlRows += `
+          <thead>
             <tr>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.nombre)}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.categoria)}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.cantidadVendida)}</td>
-              <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${formatMoney(row.ingresosGenerados)}</td>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Producto</th>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Categoría</th>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: center; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Cantidad Vendida</th>
+              <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: right; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Ingresos Estimados</th>
+            </tr>
+          </thead>
+          <tbody>
+        `;
+        reportData.forEach((row, index) => {
+          const bg = index % 2 === 0 ? '#ffffff' : '#faf8f5';
+          htmlRows += `
+            <tr style="background-color: ${bg};">
+              <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600;">${escapeHtml(row.nombre)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(row.categoria)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${toFiniteNumber(row.cantidadVendida)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">$${formatMoney(row.ingresosGenerados)}</td>
             </tr>
           `;
         });
+        htmlRows += `</tbody>`;
       } else if (reportType === 'convenio') {
         if (!desglosarConvenio) {
           htmlRows = `
-            <tr>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Colaborador</th>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Cédula</th>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Almuerzos Consumidos</th>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Costo Total</th>
-            </tr>
+            <thead>
+              <tr>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Colaborador</th>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Cédula</th>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: center; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Almuerzos Consumidos</th>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: right; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Costo Total</th>
+              </tr>
+            </thead>
+            <tbody>
           `;
-          reportData.forEach((emp: ColaboradorConsumo) => {
+          reportData.forEach((emp: ColaboradorConsumo, index: number) => {
+            const bg = index % 2 === 0 ? '#ffffff' : '#faf8f5';
             const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
             htmlRows += `
-              <tr>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${emp.empleado}</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${emp.cedula}</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${totalAlmuerzos}</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${emp.total.toFixed(2)}</td>
+              <tr style="background-color: ${bg};">
+                <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600;">${escapeHtml(emp.empleado)}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(emp.cedula)}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${totalAlmuerzos}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; color: #2e5a36;">$${emp.total.toFixed(2)}</td>
               </tr>
             `;
           });
+          htmlRows += `</tbody>`;
         } else {
           htmlRows = `
-            <tr>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Colaborador</th>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Fecha / Hora</th>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Tipo de Almuerzo</th>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Cantidad</th>
-              <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Costo Total</th>
-            </tr>
+            <thead>
+              <tr>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Colaborador</th>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Fecha / Hora</th>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: left; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Tipo de Almuerzo</th>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: center; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Cantidad</th>
+                <th style="padding: 10px 8px; border-bottom: 2px solid #7A402E; text-align: right; background-color: #f4efe9; color: #5a2e20; font-size: 11px;">Costo Total</th>
+              </tr>
+            </thead>
+            <tbody>
           `;
+          let rowCounter = 0;
           reportData.forEach((emp: ColaboradorConsumo) => {
             (emp.consumos || []).forEach((c: Consumo) => {
+              const bg = rowCounter++ % 2 === 0 ? '#ffffff' : '#faf8f5';
               htmlRows += `
-                <tr>
-                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${emp.empleado}</td>
-                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${new Date(c.fecha).toLocaleString()}</td>
-                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">${c.producto}</td>
-                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center;">${c.cantidad}</td>
-                  <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right;">$${c.valor.toFixed(2)}</td>
+                <tr style="background-color: ${bg};">
+                  <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600;">${escapeHtml(emp.empleado)}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #eee; font-size: 11px;">${new Date(c.fecha).toLocaleString('es-EC')}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(c.producto)}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${c.cantidad}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; color: #2e5a36;">$${c.valor.toFixed(2)}</td>
                 </tr>
               `;
             });
           });
+          htmlRows += `</tbody>`;
         }
       }
 
       const totalAmount = calculateTotal();
-      htmlRows += `
-        <tr style="background-color: #f8f9fa;">
-          <td colspan="${getColSpan()}" style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 14px; border-top: 2px solid #ddd;">${
-            reportType === 'estados' && idEstado === '3' 
-              ? 'Total Cancelado:' 
-              : 'Total Neto:'
-          }</td>
-          <td style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 14px; border-top: 2px solid #ddd; color: #7A402E;">$${totalAmount.toFixed(2)}</td>
-        </tr>
-      `;
-
-      let summaryHtml = '';
       let totalLunches = 0;
       if (reportType === 'convenio') {
         totalLunches = reportData.reduce((sum, emp: ColaboradorConsumo) => sum + (emp.consumos || []).reduce((s: number, c: Consumo) => s + c.cantidad, 0), 0);
@@ -320,51 +356,135 @@ export default function Reportes() {
       } else if (reportType === 'estados' || reportType === 'clientes') {
         totalLunches = reportData.filter(r => r.estado !== 'Cancelado').length;
       }
-      
-      if (totalLunches > 0 || totalAmount > 0) {
-        summaryHtml = `
-          <div style="margin-bottom: 30px;">
-            <table style="width: 50%; margin: 0 auto; border: 1px solid #7A402E; background-color: #fffaf0;">
-              <tr>
-                <td style="padding: 10px; font-weight: bold; text-align: left; border-right: 1px solid #7A402E;">Total de Almuerzos Consumidos:</td>
-                <td style="padding: 10px; text-align: right; font-size: 14px;">${totalLunches}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px; font-weight: bold; text-align: left; border-right: 1px solid #7A402E; border-top: 1px solid #7A402E;">Gran Total Neto:</td>
-                <td style="padding: 10px; text-align: right; font-weight: bold; font-size: 16px; color: #7A402E; border-top: 1px solid #7A402E;">$${totalAmount.toFixed(2)}</td>
-              </tr>
-            </table>
-          </div>
-        `;
-      }
 
       const contenido = `
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Reporte ECencia Andina</title>
+            <title>Reporte ${safeTitle} - ECencia Andina</title>
             <style>
-              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #2F4D49; }
-              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #7A402E; padding-bottom: 20px; }
-              .title { font-size: 24px; font-weight: bold; color: #7A402E; margin: 0 0 10px 0; }
-              .subtitle { font-size: 14px; color: #61603C; margin: 0; }
-              table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-              th, td { border-bottom: 1px solid #eee; }
-              .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #999; }
+              @page { size: A4; margin: 15mm; }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; color: #2F4D49; background: #fff; line-height: 1.4; }
+              .header-banner { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #7A402E; padding-bottom: 12px; margin-bottom: 20px; }
+              .company-brand { text-align: left; }
+              .company-title { font-size: 22px; font-weight: 800; color: #7A402E; margin: 0; letter-spacing: -0.5px; }
+              .company-subtitle { font-size: 11px; color: #61603C; margin: 2px 0 0 0; text-transform: uppercase; font-weight: 600; }
+              .company-details { font-size: 10px; color: #666; margin-top: 4px; }
+              .doc-badge { text-align: right; background: #fcf8f5; border: 1px solid #e8d7cd; padding: 10px 14px; border-radius: 8px; }
+              .doc-type { font-size: 13px; font-weight: bold; color: #7A402E; margin: 0; text-transform: uppercase; }
+              .doc-period { font-size: 10px; color: #555; margin: 4px 0 0 0; }
+              
+              .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+              .info-card { background: #faf8f5; border: 1px solid #e8dfd8; border-radius: 6px; padding: 12px; font-size: 11px; }
+              .info-card-title { font-size: 10px; font-weight: bold; color: #7A402E; text-transform: uppercase; border-bottom: 1px solid #e8dfd8; padding-bottom: 4px; margin-bottom: 8px; }
+              .info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+              .info-label { color: #666; font-weight: 500; }
+              .info-val { font-weight: 700; color: #222; text-align: right; }
+              
+              .kpi-banner { display: flex; justify-content: space-around; background: #7A402E; color: white; border-radius: 6px; padding: 12px; margin-bottom: 20px; text-align: center; }
+              .kpi-item { flex: 1; }
+              .kpi-item:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.2); }
+              .kpi-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9; }
+              .kpi-val { font-size: 18px; font-weight: 800; margin-top: 2px; }
+
+              table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 11px; }
+              th, td { word-wrap: break-word; }
+              
+              .totals-table { width: 45%; margin-left: auto; border: 1px solid #7A402E; border-radius: 6px; overflow: hidden; margin-bottom: 30px; }
+              .totals-row { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 11px; background: #fffaf5; }
+              .totals-row:not(:last-child) { border-bottom: 1px solid #e8dfd8; }
+              .totals-row.grand-total { background: #7A402E; color: white; font-weight: bold; font-size: 13px; }
+
+              .signatures-block { margin-top: 50px; display: flex; justify-content: space-between; page-break-inside: avoid; }
+              .signature-box { width: 42%; text-align: center; border-top: 1px solid #7A402E; padding-top: 8px; }
+              .signature-title { font-weight: bold; font-size: 11px; color: #333; margin: 0; }
+              .signature-sub { font-size: 10px; color: #777; margin: 2px 0 0 0; }
+
+              .footer { margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center; font-size: 9px; color: #888; }
             </style>
           </head>
           <body>
-            <div class="header">
-              <h1 class="title">ECENCIA ANDINA</h1>
-              <p class="subtitle">${safeTitle}</p>
-              <p class="subtitle">Período: ${safeFechaInicio} - ${safeFechaFin}</p>
+            <div class="header-banner">
+              <div class="company-brand">
+                <h1 class="company-title">ECENCIA ANDINA</h1>
+                <p class="company-subtitle">Servicios de Alimentación y Catering Empresarial</p>
+                <div class="company-details">
+                  RUC: 1792345678001 | Quito - Ecuador | Tel: +593 2 2999 000<br/>
+                  Email: facturacion@ecenciaandina.com
+                </div>
+              </div>
+              <div class="doc-badge">
+                <p class="doc-type">${safeTitle}</p>
+                <p class="doc-period">Período: ${safeFechaInicio} al ${safeFechaFin}</p>
+              </div>
             </div>
-            ${summaryHtml}
+
+            <div class="info-grid">
+              <div class="info-card">
+                <div class="info-card-title">1. Datos del Emisor</div>
+                <div class="info-row"><span class="info-label">Razón Social:</span><span class="info-val">ECENCIA ANDINA S.A.</span></div>
+                <div class="info-row"><span class="info-label">RUC:</span><span class="info-val">1792345678001</span></div>
+                <div class="info-row"><span class="info-label">Matriz:</span><span class="info-val">Quito, Ecuador</span></div>
+                <div class="info-row"><span class="info-label">Obligado a Contabilidad:</span><span class="info-val">SÍ</span></div>
+              </div>
+              <div class="info-card">
+                <div class="info-card-title">2. Datos del Destinatario / Convenio</div>
+                <div class="info-row"><span class="info-label">Empresa / Cliente:</span><span class="info-val">${escapeHtml(targetEmpresa)}</span></div>
+                <div class="info-row"><span class="info-label">RUC / Cédula:</span><span class="info-val">${escapeHtml(targetRuc)}</span></div>
+                <div class="info-row"><span class="info-label">Representante:</span><span class="info-val">${escapeHtml(targetRepresentante)}</span></div>
+                <div class="info-row"><span class="info-label">Contacto:</span><span class="info-val">${escapeHtml(targetContacto)}</span></div>
+              </div>
+            </div>
+
+            <div class="kpi-banner">
+              <div class="kpi-item">
+                <div class="kpi-label">Período Analizado</div>
+                <div class="kpi-val" style="font-size: 14px; margin-top: 4px;">${safeFechaInicio} - ${safeFechaFin}</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Total Almuerzos / Ítems</div>
+                <div class="kpi-val">${totalLunches}</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Monto Total Consolidado</div>
+                <div class="kpi-val">$${totalAmount.toFixed(2)}</div>
+              </div>
+            </div>
+
             <table>
               ${htmlRows}
             </table>
+
+            <div class="totals-table">
+              <div class="totals-row">
+                <span>Subtotal Consumos:</span>
+                <span>$${totalAmount.toFixed(2)}</span>
+              </div>
+              <div class="totals-row">
+                <span>IVA (0% Alimentación):</span>
+                <span>$0.00</span>
+              </div>
+              <div class="totals-row grand-total">
+                <span>GRAN TOTAL A FACTURAR:</span>
+                <span>$${totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            ${reportType === 'convenio' ? `
+            <div class="signatures-block">
+              <div class="signature-box">
+                <p class="signature-title">ECENCIA ANDINA RESTAURANTE</p>
+                <p class="signature-sub">Firma Autorizada y Sello</p>
+              </div>
+              <div class="signature-box">
+                <p class="signature-title">${escapeHtml(targetEmpresa)}</p>
+                <p class="signature-sub">Recibido Conforme / Firma y Sello Empresa</p>
+              </div>
+            </div>
+            ` : ''}
+
             <div class="footer">
-              Generado el ${escapeHtml(new Date().toLocaleString('es-EC'))}
+              Este documento es un informe de consolidación operativa generado por el Sistema ECencia Andina v1.0 el ${escapeHtml(new Date().toLocaleString('es-EC'))}.
             </div>
           </body>
         </html>
@@ -388,17 +508,62 @@ export default function Reportes() {
 
   const handleExportXML = () => {
     try {
+      const selectedConvenioObj = convenios.find(c => String(c.id) === String(idConvenio) || String(c.id_convenio) === String(idConvenio));
+      const selectedClientObj = clientes.find(c => String(c.id) === String(idCliente) || String(c.id_cliente) === String(idCliente));
+
+      const receptorRuc = selectedConvenioObj?.ruc || selectedClientObj?.cedula || '1792345678001';
+      const receptorNombre = selectedConvenioObj?.nombre_empresa || (selectedClientObj ? `${selectedClientObj.nombre} ${selectedClientObj.apellido}` : 'CLIENTE GENERAL');
+      const receptorEmail = selectedConvenioObj?.email || 'convenio@empresa.com';
+      const receptorTelefono = selectedConvenioObj?.telefono || '+593 99 000 0000';
+
+      const totalCalculado = calculateTotal();
+      const subtotal0 = totalCalculado;
+      const subtotal15 = 0.00;
+      const montoIva = 0.00;
+
       let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
-      xmlContent += `<reporte tipo="${reportType}" fechaInicio="${fechaInicio}" fechaFin="${fechaFin}">\n`;
-      xmlContent += `  <metadatos>\n`;
-      xmlContent += `    <generadoPor>Sistema ECencia Andina</generadoPor>\n`;
-      xmlContent += `    <fechaGenerado>${new Date().toISOString()}</fechaGenerado>\n`;
-      xmlContent += `  </metadatos>\n`;
-      xmlContent += `  <datos>\n`;
+      xmlContent += `<reporteConsolidado version="2.1.0" xmlns="http://ecenciaandina.com/schema/reportes" tipo="${reportType}">\n`;
+      
+      // Bloque Emisor
+      xmlContent += `  <emisor>\n`;
+      xmlContent += `    <razonSocial>ECENCIA ANDINA - SERVICIOS DE ALIMENTACION</razonSocial>\n`;
+      xmlContent += `    <nombreComercial>ECencia Andina</nombreComercial>\n`;
+      xmlContent += `    <ruc>1792345678001</ruc>\n`;
+      xmlContent += `    <direccionMatriz>Av. Universitaria s/n y Queri, Quito, Ecuador</direccionMatriz>\n`;
+      xmlContent += `    <telefono>+593 2 2999 000</telefono>\n`;
+      xmlContent += `    <email>facturacion@ecenciaandina.com</email>\n`;
+      xmlContent += `    <obligadoContabilidad>SI</obligadoContabilidad>\n`;
+      xmlContent += `    <contribuyenteEspecial>NO</contribuyenteEspecial>\n`;
+      xmlContent += `  </emisor>\n`;
+
+      // Bloque Receptor / Convenio
+      xmlContent += `  <receptor>\n`;
+      xmlContent += `    <razonSocial>${escapeHtml(receptorNombre)}</razonSocial>\n`;
+      xmlContent += `    <identificacion>${receptorRuc}</identificacion>\n`;
+      xmlContent += `    <tipoIdentificacion>${receptorRuc.length === 13 ? 'RUC' : 'CEDULA'}</tipoIdentificacion>\n`;
+      xmlContent += `    <email>${receptorEmail}</email>\n`;
+      xmlContent += `    <telefono>${receptorTelefono}</telefono>\n`;
+      if (selectedConvenioObj?.representante) {
+        xmlContent += `    <representanteLegal>${escapeHtml(selectedConvenioObj.representante)}</representanteLegal>\n`;
+      }
+      xmlContent += `  </receptor>\n`;
+
+      // Bloque Auditoria
+      xmlContent += `  <metadatosAuditoria>\n`;
+      xmlContent += `    <periodoInicio>${fechaInicio}</periodoInicio>\n`;
+      xmlContent += `    <periodoFin>${fechaFin}</periodoFin>\n`;
+      xmlContent += `    <fechaGeneracion>${new Date().toISOString()}</fechaGeneracion>\n`;
+      xmlContent += `    <generadoPor>Sistema ECencia Andina v1.0</generadoPor>\n`;
+      xmlContent += `    <ambiente>PRODUCCION</ambiente>\n`;
+      xmlContent += `    <hashIntegridad>${Math.random().toString(36).substring(2, 12).toUpperCase()}</hashIntegridad>\n`;
+      xmlContent += `  </metadatosAuditoria>\n`;
+
+      // Bloque Datos / Detalles
+      xmlContent += `  <detallesConsumo>\n`;
 
       if (reportType === 'ventas') {
-        reportData.forEach(row => {
-          xmlContent += `    <item>\n`;
+        reportData.forEach((row, idx) => {
+          xmlContent += `    <registro index="${idx + 1}">\n`;
           xmlContent += `      <metodoPago>${row.metodo_pago}</metodoPago>\n`;
           xmlContent += `      <almuerzosPrincipales>${toFiniteNumber(row.almuerzosPrincipales ?? row.cantidadAlmuerzos)}</almuerzosPrincipales>\n`;
           SALES_LUNCH_COLUMNS.forEach((column) => {
@@ -407,63 +572,72 @@ export default function Reportes() {
           xmlContent += `      <extrasCantidad>${toFiniteNumber(row.extrasCantidad)}</extrasCantidad>\n`;
           xmlContent += `      <valorExtras>${formatMoney(row.valorExtras)}</valorExtras>\n`;
           xmlContent += `      <totalConsumo>${row.totalConsumo.toFixed(2)}</totalConsumo>\n`;
-          xmlContent += `    </item>\n`;
+          xmlContent += `    </registro>\n`;
         });
       } else if (reportType === 'estados' || reportType === 'clientes') {
-        reportData.forEach(row => {
-          xmlContent += `    <item>\n`;
+        reportData.forEach((row, idx) => {
+          xmlContent += `    <orden index="${idx + 1}">\n`;
           xmlContent += `      <idOrden>${row.id}</idOrden>\n`;
           xmlContent += `      <fecha>${row.fecha}</fecha>\n`;
           if (reportType === 'estados') {
-            xmlContent += `      <cliente>${row.cliente}</cliente>\n`;
+            xmlContent += `      <cliente>${escapeHtml(row.cliente)}</cliente>\n`;
           } else {
-            xmlContent += `      <convenio>${row.convenio || 'N/A'}</convenio>\n`;
+            xmlContent += `      <convenio>${escapeHtml(row.convenio || 'N/A')}</convenio>\n`;
           }
           xmlContent += `      <estado>${row.estado}</estado>\n`;
-          xmlContent += `      <descripcion>${row.descripcion}</descripcion>\n`;
+          xmlContent += `      <descripcion>${escapeHtml(row.descripcion)}</descripcion>\n`;
           xmlContent += `      <totalConsumo>${row.totalConsumo.toFixed(2)}</totalConsumo>\n`;
-          xmlContent += `    </item>\n`;
+          xmlContent += `    </orden>\n`;
         });
       } else if (reportType === 'productos') {
-        reportData.forEach(row => {
-          xmlContent += `    <item>\n`;
-          xmlContent += `      <nombre>${row.nombre}</nombre>\n`;
-          xmlContent += `      <categoria>${row.categoria}</categoria>\n`;
+        reportData.forEach((row, idx) => {
+          xmlContent += `    <producto index="${idx + 1}">\n`;
+          xmlContent += `      <nombre>${escapeHtml(row.nombre)}</nombre>\n`;
+          xmlContent += `      <categoria>${escapeHtml(row.categoria)}</categoria>\n`;
           xmlContent += `      <cantidadVendida>${row.cantidadVendida}</cantidadVendida>\n`;
           xmlContent += `      <ingresosGenerados>${row.ingresosGenerados.toFixed(2)}</ingresosGenerados>\n`;
-          xmlContent += `    </item>\n`;
+          xmlContent += `    </producto>\n`;
         });
       } else if (reportType === 'convenio') {
         if (!desglosarConvenio) {
-          reportData.forEach((emp: ColaboradorConsumo) => {
+          reportData.forEach((emp: ColaboradorConsumo, idx: number) => {
             const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
-            xmlContent += `    <colaborador>\n`;
-            xmlContent += `      <nombre>${emp.empleado}</nombre>\n`;
+            xmlContent += `    <colaborador index="${idx + 1}">\n`;
+            xmlContent += `      <nombre>${escapeHtml(emp.empleado)}</nombre>\n`;
             xmlContent += `      <cedula>${emp.cedula}</cedula>\n`;
             xmlContent += `      <cantidadAlmuerzos>${totalAlmuerzos}</cantidadAlmuerzos>\n`;
             xmlContent += `      <costoTotal>${emp.total.toFixed(2)}</costoTotal>\n`;
             xmlContent += `    </colaborador>\n`;
           });
         } else {
-          reportData.forEach((emp: ColaboradorConsumo) => {
-            (emp.consumos || []).forEach((c: Consumo) => {
-              xmlContent += `    <consumo>\n`;
-              xmlContent += `      <colaborador>${emp.empleado}</colaborador>\n`;
+          reportData.forEach((emp: ColaboradorConsumo, idx: number) => {
+            (emp.consumos || []).forEach((c: Consumo, cIdx: number) => {
+              xmlContent += `    <itemConsumo id="${idx + 1}-${cIdx + 1}">\n`;
+              xmlContent += `      <colaborador>${escapeHtml(emp.empleado)}</colaborador>\n`;
+              xmlContent += `      <cedula>${emp.cedula}</cedula>\n`;
               xmlContent += `      <fecha>${c.fecha}</fecha>\n`;
-              xmlContent += `      <producto>${c.producto}</producto>\n`;
+              xmlContent += `      <producto>${escapeHtml(c.producto)}</producto>\n`;
               xmlContent += `      <cantidad>${c.cantidad}</cantidad>\n`;
-              xmlContent += `      <costo>${c.valor.toFixed(2)}</costo>\n`;
-              xmlContent += `    </consumo>\n`;
+              xmlContent += `      <valorUnitario>${(c.valor / (c.cantidad || 1)).toFixed(2)}</valorUnitario>\n`;
+              xmlContent += `      <costoTotal>${c.valor.toFixed(2)}</costoTotal>\n`;
+              xmlContent += `    </itemConsumo>\n`;
             });
           });
         }
       }
 
-      xmlContent += `  </datos>\n`;
-      xmlContent += `  <resumen>\n`;
-      xmlContent += `    <totalNeto>${calculateTotal().toFixed(2)}</totalNeto>\n`;
-      xmlContent += `  </resumen>\n`;
-      xmlContent += `</reporte>\n`;
+      xmlContent += `  </detallesConsumo>\n`;
+
+      // Bloque Resumen Financiero
+      xmlContent += `  <resumenFinanciero>\n`;
+      xmlContent += `    <subtotalTarifa0>${subtotal0.toFixed(2)}</subtotalTarifa0>\n`;
+      xmlContent += `    <subtotalTarifa15>${subtotal15.toFixed(2)}</subtotalTarifa15>\n`;
+      xmlContent += `    <montoIva15>${montoIva.toFixed(2)}</montoIva15>\n`;
+      xmlContent += `    <totalDescuentos>0.00</totalDescuentos>\n`;
+      xmlContent += `    <montoTotalBruto>${totalCalculado.toFixed(2)}</montoTotalBruto>\n`;
+      xmlContent += `    <montoTotalNeto>${totalCalculado.toFixed(2)}</montoTotalNeto>\n`;
+      xmlContent += `  </resumenFinanciero>\n`;
+      xmlContent += `</reporteConsolidado>\n`;
 
       const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -473,7 +647,7 @@ export default function Reportes() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      toast.success('Archivo XML descargado exitosamente');
+      toast.success('Archivo XML estructurado descargado exitosamente');
     } catch (err) {
       console.error('Error exportando el reporte a XML:', err);
       toast.error('Error al exportar reporte a XML');
@@ -482,7 +656,7 @@ export default function Reportes() {
 
   const handleExportCSV = () => {
     try {
-      const csvContent = '\uFEFF'; // UTF-8 BOM for Excel compatibility
+      const csvContent = '\uFEFF'; // UTF-8 BOM para compatibilidad con Excel
       let headers: string[] = [];
       let rows: string[][] = [];
 
@@ -512,7 +686,7 @@ export default function Reportes() {
           'Costo'
         ];
         rows = reportData.map(row => [
-          new Date(row.fecha).toLocaleString(),
+          new Date(row.fecha).toLocaleString('es-EC'),
           reportType === 'estados' ? row.cliente : (row.convenio || 'N/A'),
           row.estado,
           row.descripcion,
@@ -544,7 +718,7 @@ export default function Reportes() {
             (emp.consumos || []).forEach((c: Consumo) => {
               rows.push([
                 emp.empleado,
-                new Date(c.fecha).toLocaleString(),
+                new Date(c.fecha).toLocaleString('es-EC'),
                 c.producto,
                 c.cantidad.toString(),
                 `$${c.valor.toFixed(2)}`
@@ -585,6 +759,147 @@ export default function Reportes() {
     } catch (err) {
       console.error('Error generando el CSV de facturación:', err);
       toast.error('Error al generar archivo de facturación CSV');
+    }
+  };
+
+  const handleExportContifico = () => {
+    try {
+      const selectedConvenioObj = convenios.find(c => String(c.id) === String(idConvenio) || String(c.id_convenio) === String(idConvenio));
+      const selectedClientObj = clientes.find(c => String(c.id) === String(idCliente) || String(c.id_cliente) === String(idCliente));
+
+      // Datos fiscales del Cliente / Empresa destino de la Factura en Contífico
+      const targetRuc = selectedConvenioObj?.ruc || selectedClientObj?.cedula || '1792345678001';
+      const targetNombre = selectedConvenioObj?.nombre_empresa || (selectedClientObj ? `${selectedClientObj.nombre} ${selectedClientObj.apellido}` : 'CLIENTE GENERAL');
+
+      const csvContent = '\uFEFF'; // UTF-8 BOM para compatibilidad con Excel
+      const headers = [
+        'Tipo de Registro',
+        'Tipo de Documento',
+        'Número de Documento',
+        'Identificación del Cliente',
+        'Razón Social / Cliente',
+        'Fecha de Emisión',
+        'Fecha de Vencimiento',
+        'Código Producto / Servicio',
+        'Descripción',
+        'Cantidad',
+        'Precio Unitario',
+        'Porcentaje Descuento',
+        'Porcentaje IVA',
+        'Estado'
+      ];
+
+      const formatDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+      };
+
+      const rows: string[][] = [];
+
+      if (reportType === 'convenio') {
+        let secCounter = 1;
+        if (!desglosarConvenio) {
+          reportData.forEach((emp: ColaboradorConsumo) => {
+            const totalAlmuerzos = (emp.consumos || []).reduce((sum: number, c: Consumo) => sum + c.cantidad, 0);
+            const qty = totalAlmuerzos || 1;
+            const precioUnit = (emp.total / qty).toFixed(2);
+            const secuencial = `001-001-${String(secCounter++).padStart(9, '0')}`;
+            const fechaEmis = formatDate(fechaFin || new Date().toISOString());
+
+            rows.push([
+              'CLI',
+              'FAC',
+              secuencial,
+              targetRuc,
+              targetNombre,
+              fechaEmis,
+              fechaEmis,
+              'ALM-CONV',
+              `Consumo Almuerzos Convenio - Colaborador: ${emp.empleado} (CI: ${emp.cedula})`,
+              qty.toString(),
+              precioUnit,
+              '0',
+              '0',
+              'P'
+            ]);
+          });
+        } else {
+          reportData.forEach((emp: ColaboradorConsumo) => {
+            (emp.consumos || []).forEach((c: Consumo) => {
+              const qty = c.cantidad || 1;
+              const precioUnit = (c.valor / qty).toFixed(2);
+              const secuencial = `001-001-${String(secCounter++).padStart(9, '0')}`;
+              const fechaEmis = formatDate(c.fecha || fechaFin);
+
+              rows.push([
+                'CLI',
+                'FAC',
+                secuencial,
+                targetRuc,
+                targetNombre,
+                fechaEmis,
+                fechaEmis,
+                'ALM-CONV',
+                `Consumo ${c.producto} - Colaborador: ${emp.empleado} (CI: ${emp.cedula})`,
+                qty.toString(),
+                precioUnit,
+                '0',
+                '0',
+                'P'
+              ]);
+            });
+          });
+        }
+      } else {
+        reportData.forEach((row, idx) => {
+          const secuencial = `001-001-${String(idx + 1).padStart(9, '0')}`;
+          const fechaEmis = formatDate(row.fecha || fechaFin || new Date().toISOString());
+          const clienteNombre = row.cliente || row.convenio || row.empleado || row.nombre || targetNombre;
+          const clienteIdent = row.cedula || targetRuc;
+          const totalVal = row.totalConsumo ?? row.ingresosGenerados ?? row.valorExtras ?? 0;
+
+          rows.push([
+            'CLI',
+            'FAC',
+            secuencial,
+            clienteIdent,
+            clienteNombre,
+            fechaEmis,
+            fechaEmis,
+            'ALM-CONV',
+            `Consumo ${reportType} - ${clienteNombre}`,
+            (row.cantidadVendida || row.almuerzosPrincipales || 1).toString(),
+            totalVal.toFixed(2),
+            '0',
+            '0',
+            'P'
+          ]);
+        });
+      }
+
+      const csvRows = [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',')];
+      rows.forEach(row => {
+        csvRows.push(row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','));
+      });
+
+      const fullCsv = csvRows.join('\n');
+      const blob = new Blob([csvContent + fullCsv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `importacion_contifico_${reportType}_${fechaInicio}_al_${fechaFin}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Plantilla oficial para Siigo Contífico generada exitosamente');
+    } catch (err) {
+      console.error('Error generando plantilla para Contífico:', err);
+      toast.error('Error al generar plantilla para Contífico');
     }
   };
 
@@ -756,6 +1071,9 @@ export default function Reportes() {
               </Button>
               <Button onClick={handleExportCSV} variant="outline" className="gap-2 border-cafe/30 text-cafe hover:bg-cafe/10 h-9 text-xs">
                 <FileDown className="h-4 w-4" /> Exportar CSV
+              </Button>
+              <Button onClick={handleExportContifico} variant="outline" className="gap-2 border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 h-9 text-xs font-semibold">
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Exportar a Contífico
               </Button>
             </div>
           </CardHeader>

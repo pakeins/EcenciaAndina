@@ -30,6 +30,7 @@ vi.mock('lucide-react', () => {
   const mockComponent = (name: string) => () => <div data-testid={`icon-${name}`} />;
   return {
     FileDown: mockComponent('file-down'),
+    FileSpreadsheet: mockComponent('file-spreadsheet'),
     Calendar: mockComponent('calendar'),
     Filter: mockComponent('filter'),
     FileText: mockComponent('file-text'),
@@ -147,7 +148,8 @@ describe('Reportes', () => {
     const exportBtns = screen.getAllByRole('button').filter(b => 
       b.textContent?.includes('Exportar PDF') || 
       b.textContent?.includes('Exportar CSV') || 
-      b.textContent?.includes('Exportar XML')
+      b.textContent?.includes('Exportar XML') ||
+      b.textContent?.includes('Exportar a Contífico')
     );
     expect(exportBtns.length).toBeGreaterThan(0);
     exportBtns.forEach(btn => fireEvent.click(btn));
