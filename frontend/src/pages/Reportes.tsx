@@ -1130,9 +1130,11 @@ export default function Reportes() {
               <Button onClick={handleExportCSV} variant="outline" className="gap-2 border-cafe/30 text-cafe hover:bg-cafe/10 h-9 text-xs">
                 <FileDown className="h-4 w-4" /> Exportar CSV
               </Button>
-              <Button onClick={handleExportContifico} variant="outline" className="gap-2 border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 h-9 text-xs font-semibold">
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Exportar a Contífico
-              </Button>
+              {reportType === 'convenio' && (
+                <Button onClick={handleExportContifico} variant="outline" className="gap-2 border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 h-9 text-xs font-semibold">
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Exportar a Contífico
+                </Button>
+              )}
             </div>
           </CardHeader>
           
