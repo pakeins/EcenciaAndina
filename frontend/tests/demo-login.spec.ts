@@ -165,8 +165,8 @@ test('Demostración de Seguridad y Roles', async ({ page, isMobile }) => {
 
     await linkEmpleados.evaluate((node: HTMLElement) => {
       node.style.border = '4px solid red';
-      node.style.transition = 'all 0.3s';
-      node.style.transform = 'scale(1.05)';
+      node.style.color = 'black';
+      node.style.backgroundColor = 'white'; // Asegurar contraste o simplemente quitarlo
     });
     await page.waitForTimeout(1500);
     await linkEmpleados.click();
@@ -180,9 +180,9 @@ test('Demostración de Seguridad y Roles', async ({ page, isMobile }) => {
     const btnEditar = page.getByRole('button', { name: /editar/i }).nth(1);
     if (await btnEditar.isVisible()) {
       await btnEditar.evaluate((node: HTMLElement) => {
-        node.style.outline = '3px solid red';
-        node.style.transform = 'scale(1.1)';
-        node.style.transition = 'all 0.3s';
+        node.style.border = '3px solid red';
+        node.style.padding = '2px';
+        node.style.borderRadius = '4px';
       });
       await page.waitForTimeout(2000); // Pausa de 2 segundos para que se note la acción
       await btnEditar.click();

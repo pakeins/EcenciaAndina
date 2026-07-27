@@ -538,7 +538,7 @@ const revokeTelegram = async (adminClient, idCliente) => {
     idCliente: idCliente,
     subscriptionId: subscription.id,
     eventType: 'revoked',
-    method: 'admin_direct'
+    method: 'admin_action'
   });
 
   return { success: true, message: 'Suscripcion revocada correctamente.' };
