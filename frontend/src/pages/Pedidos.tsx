@@ -43,10 +43,19 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatOrderOptions = (opciones: any) => {
-  if (!opciones) return '';
-  const techKeys = ['canal', 'menudate', 'tipoorigen', 'tipoalmuerzo', 'whatsappid', 'chatid', 'id_cliente', 'estado'];
+  if (!opciones || typeof opciones !== 'object') return '';
+  const techKeys = [
+    'canal', 'menudate', 'tipoorigen', 'tipoalmuerzo', 'whatsappid', 'chatid',
+    'id_cliente', 'estado', 'saldos_usados', 'saldos_usados_detalle',
+    'descuento_saldo', 'saldo_descontado', 'revertido'
+  ];
   
-  const entries = Object.entries(opciones).filter(([k]) => !techKeys.includes(k.toLowerCase()));
+  const entries = Object.entries(opciones).filter(([k, v]) => {
+    if (techKeys.includes(k.toLowerCase())) return false;
+    if (v === null || v === undefined) return false;
+    if (typeof v === 'object') return false;
+    return true;
+  });
   if (entries.length === 0) return '';
 
   const orderList = ['sopa', 'entrada', 'segundo', 'bebida', 'postre'];
@@ -59,7 +68,7 @@ const formatOrderOptions = (opciones: any) => {
     return k1.localeCompare(k2);
   });
 
-  return entries.map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v}`).join(', ');
+  return entries.map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${String(v)}`).join(', ');
 };
 
 export default function Pedidos() {

@@ -502,15 +502,29 @@ export function OrderFormFields({ state, onChange, showProductos = true, availab
                         <span className="font-bold text-primary">{item.cantidad}x</span>
                         <p className="font-semibold text-foreground truncate">{item.nombre}</p>
                       </div>
-                      {(item.opciones && Object.keys(item.opciones).length > 0) && (
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          {Object.entries(item.opciones).map(([k, v]) => (
-                            <span key={k} className="text-xs font-medium bg-accent/60 px-2.5 py-0.5 rounded-full text-foreground border capitalize">
-                              {k}: {v}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {(item.opciones && Object.keys(item.opciones).length > 0) && (() => {
+                        const techKeys = [
+                          'canal', 'menudate', 'tipoorigen', 'tipoalmuerzo', 'whatsappid', 'chatid',
+                          'id_cliente', 'estado', 'saldos_usados', 'saldos_usados_detalle',
+                          'descuento_saldo', 'saldo_descontado', 'revertido'
+                        ];
+                        const validEntries = Object.entries(item.opciones).filter(([k, v]) => {
+                          if (techKeys.includes(k.toLowerCase())) return false;
+                          if (v === null || v === undefined) return false;
+                          if (typeof v === 'object') return false;
+                          return true;
+                        });
+                        if (validEntries.length === 0) return null;
+                        return (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {validEntries.map(([k, v]) => (
+                              <span key={k} className="text-xs font-medium bg-accent/60 px-2.5 py-0.5 rounded-full text-foreground border capitalize">
+                                {k}: {String(v)}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
                       <span className="font-bold text-foreground">${(item.precio * item.cantidad).toFixed(2)}</span>
